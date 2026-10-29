@@ -35,6 +35,16 @@ def ensure(request: Request, response: Response) -> str:
     ip = _h(f"ip:{request.client.host if request.client else ''}")
     c = db.connect()
     with db.tx(c):
-        c.execute("INSERT INTO sessions VALUES(?,?,?,?,NULL)", (h, ip, t, t))
+        c.execute("INSERT INTO sessions(id_hash,ip_hash,created_at,last_seen_at) VALUES(?,?,?,?)", (h, ip, t, t))
     response.set_cookie(COOKIE, tok, max_age=MAX_AGE, httponly=True, secure=True, samesite="lax", path="/")
     return h
+
+
+def account(request: Request) -> dict | None:
+    """{id, login} of the GitHub account linked to this browser session, if signed in."""
+    h = current(request)
+    if not h:
+        return None
+    r = db.connect().execute("SELECT a.id, a.login FROM sessions s JOIN accounts a ON a.id=s.account_id WHERE s.id_hash=?",
+                             (h,)).fetchone()
+    return {"id": r[0], "login": r[1]} if r else None

@@ -1,4 +1,5 @@
 """FastAPI app: serves the SPA and the run API (contracts §4). RUN_MODE=fixture serves fixtures/runs."""
+import logging
 import os
 import shutil
 from pathlib import Path
@@ -23,6 +24,15 @@ DIST = ROOT / "web" / "dist"
 RUN_MODE = os.getenv("RUN_MODE", "fixture")
 
 app = FastAPI(title="PatchPilot", version=CONTRACTS_VERSION)
+
+
+class _NoSecrets(logging.Filter):
+    """contracts §6: OAuth code/state never reach logs (uvicorn's access log prints the query string)."""
+    def filter(self, record):
+        return "/auth/github/callback" not in str(record.args)
+
+
+logging.getLogger("uvicorn.access").addFilter(_NoSecrets())
 
 
 class ApiErr(Exception):
@@ -59,7 +69,8 @@ def _is_real(run_id: str) -> bool:
 
 def _own(request: Request, run_id: str) -> None:
     """Enumeration-safe: "doesn't exist" and "not yours" are the same 404 (contracts §4)."""
-    if not db.owns(db.connect(), run_id, session.current(request)):
+    a = session.account(request)
+    if not db.owns(db.connect(), run_id, session.current(request), a["id"] if a else None):
         raise ApiErr(404, "NOT_FOUND", "This run isn't available. Sign in with the GitHub account that owns it.")
 
 
@@ -89,10 +100,14 @@ class NewRun(BaseModel):
 def create_run(body: NewRun, request: Request, response: Response):
     sid = session.ensure(request, response)
     c, lim = db.connect(), limits()
-    today, active = db.owner_counts(c, sid, None)
+    acct = session.account(request)
+    aid = acct["id"] if acct else None
+    today, active = db.owner_counts(c, sid, aid)
     if active >= lim["active_runs_per_owner"]:
         raise ApiErr(429, "LIMIT_ACTIVE_RUN", "You already have a run going. Open it from My runs, or stop it first.")
-    if today >= lim["session_runs_per_day"]:
+    if aid is not None and today >= lim["account_runs_per_day"]:
+        raise ApiErr(429, "LIMIT_ACCOUNT_DAILY", f"You've used today's {lim['account_runs_per_day']} runs. Resets at 00:00 UTC.")
+    if aid is None and today >= lim["session_runs_per_day"]:
         raise ApiErr(429, "LIMIT_SESSION_DAILY", f"You've used today's {lim['session_runs_per_day']} free runs. "
                      "Sign in with GitHub for more, or come back tomorrow (resets 00:00 UTC).")
     chk = _check(body.issue_url)   # G0 (contracts §1.1)
@@ -102,7 +117,7 @@ def create_run(body: NewRun, request: Request, response: Response):
     missing = [w for w in chk.warnings if w not in body.continue_despite]
     if missing:
         raise ApiErr(409, "ELIGIBILITY_WARNING", "This issue has warnings you need to accept first: " + ", ".join(missing))
-    v = db.create_run(c, chk.issue, base_sha=chk.base_sha or "pending", owner_session_hash=sid)
+    v = db.create_run(c, chk.issue, base_sha=chk.base_sha or "pending", owner_session_hash=sid, owner_account_id=aid)
     if chk.policy.ai_policy == "forbidden":
         v.policy = chk.policy
         v.publish_blockers.append(PublishBlocker.REPO_FORBIDS_AI)
@@ -164,12 +179,12 @@ def get_events(run_id: str, request: Request, after: int = 0):
 
 @app.get("/api/me/runs")
 def my_runs(request: Request):
-    sid = session.current(request)
+    sid, a = session.current(request), session.account(request)
     if not sid:
         return []
     return [{"run_id": v.run_id, "title": v.issue.title, "repo": v.issue.repo, "number": v.issue.number,
              "status": v.status, "outcome": v.outcome, "readiness": v.readiness, "created_at": v.created_at,
-             "pr_url": v.pr.url if v.pr else None} for v in db.list_runs(db.connect(), sid, None)]
+             "pr_url": v.pr.url if v.pr else None} for v in db.list_runs(db.connect(), sid, a["id"] if a else None)]
 
 
 @app.delete("/api/runs/{run_id}/access", status_code=204)
@@ -182,6 +197,8 @@ def forget_run(run_id: str, request: Request):
 
 from backend.api.approval import router as _approval  # noqa: E402  (needs ApiErr/_own defined above)
 app.include_router(_approval)
+from backend.api.auth import router as _auth  # noqa: E402
+app.include_router(_auth)
 
 
 @app.get("/api/fixtures")

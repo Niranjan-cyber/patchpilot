@@ -167,3 +167,10 @@ def keep_report(run_id: str, request: Request):
         db.save_run(db.connect(), v)
     return v
 
+
+
+@router.get("/api/runs/{run_id}/diff.patch")
+def download_diff(run_id: str, request: Request):
+    from fastapi.responses import PlainTextResponse
+    v = _run(request, run_id)
+    return PlainTextResponse(exact_diff(v), headers={"Content-Disposition": f'attachment; filename="patchpilot-{run_id[:8]}.patch"'})

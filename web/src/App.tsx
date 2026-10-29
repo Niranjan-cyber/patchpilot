@@ -4,6 +4,7 @@ import { api, useRun } from "./api";
 import { ProofPanel, ReadinessBadge, SampleBadge, Stepper } from "./components";
 import IssueCheck from "./IssueCheck";
 import Review from "./Review";
+import { Connect, PrOpened } from "./Publish";
 import MyRuns, { RunList, useMyRuns } from "./MyRuns";
 
 function Shell({ children }: { children: React.ReactNode }) {
@@ -97,7 +98,8 @@ function Run() {
           <p className="hint">Runs usually take 4–15 minutes. You can leave this page; the run keeps going.</p>
           {done && <a className="button secondary" href={`/api/runs/${id}/report.md`}>Download report</a>}
           {run.status === "awaiting_approval" && <Link className="button" to={`/runs/${id}/review`}>Review and approve</Link>}
-          {run.pr?.url && <a className="button" href={run.pr.url}>Open pull request on GitHub</a>}
+          {run.pr && <Link className="button" to={`/runs/${id}/pr`}>See the pull request</Link>}
+          {run.status === "awaiting_approval" && run.approval && <Link className="button" to={`/connect?run=${id}`}>Publish draft pull request</Link>}
           {run.details_expired_at && <p className="notice">This run's details have expired. The outcome and pull request link are kept.</p>}
         </aside>
       </div>
@@ -117,8 +119,8 @@ export default function App() {
         <Route path="/check" element={<IssueCheck />} />
         <Route path="/runs/:id" element={<Run />} />
         <Route path="/runs/:id/review" element={<Review />} />
-        <Route path="/connect" element={<Stub title="Connect GitHub"><p>Approved. To publish, we'll ask GitHub for permission to fork the repository to your account, push one branch and open one draft pull request. We can't merge anything, and the AI never sees this permission. (Publishing arrives in B11; you can download the report and diff now.)</p></Stub>} />
-        <Route path="/runs/:id/pr" element={<Stub title="Pull request opened"><p>What happens next arrives in B11.</p></Stub>} />
+        <Route path="/connect" element={<Connect />} />
+        <Route path="/runs/:id/pr" element={<PrOpened />} />
         <Route path="/my-runs" element={<MyRuns />} />
         <Route path="*" element={<Stub title="Page not found"><Link to="/">Start a new run</Link></Stub>} />
       </Routes>

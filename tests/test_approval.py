@@ -96,3 +96,10 @@ def test_other_browser_cannot_approve(ready):
     ctx = b.get(f"/api/runs/{rid}/approval").json()
     other = TestClient(main.app, base_url="https://testserver")
     assert other.post(f"/api/runs/{rid}/approve", json=body(ctx)).status_code == 404
+
+
+def test_diff_download_is_owner_only(ready):
+    b, rid, _ = ready
+    r = b.get(f"/api/runs/{rid}/diff.patch")
+    assert r.status_code == 200 and "attachment" in r.headers["content-disposition"] and "+x = 2" in r.text
+    assert TestClient(main.app, base_url="https://testserver").get(f"/api/runs/{rid}/diff.patch").status_code == 404

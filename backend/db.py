@@ -22,6 +22,8 @@ CREATE TABLE IF NOT EXISTS events(run_id TEXT NOT NULL, seq INTEGER NOT NULL, ts
 CREATE TABLE IF NOT EXISTS kv(key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS sessions(id_hash TEXT PRIMARY KEY, ip_hash TEXT, created_at TEXT NOT NULL,
   last_seen_at TEXT NOT NULL, revoked_at TEXT);
+CREATE TABLE IF NOT EXISTS accounts(id INTEGER PRIMARY KEY, github_id INTEGER UNIQUE NOT NULL, login TEXT NOT NULL,
+  token_enc TEXT, scopes TEXT, created_at TEXT NOT NULL);
 """
 
 
@@ -35,6 +37,10 @@ def connect() -> sqlite3.Connection:
     c.row_factory = sqlite3.Row
     c.execute("PRAGMA journal_mode=WAL"); c.execute("PRAGMA busy_timeout=5000"); c.execute("PRAGMA foreign_keys=ON")
     c.executescript(SCHEMA)
+    try:   # migration: sessions linked to a GitHub account after sign-in
+        c.execute("ALTER TABLE sessions ADD COLUMN account_id INTEGER")
+    except sqlite3.OperationalError:
+        pass
     return c
 
 

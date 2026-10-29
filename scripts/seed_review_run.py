@@ -13,7 +13,7 @@ TEST = ("diff --git a/tests/test_issue_1.py b/tests/test_issue_1.py\n--- /dev/nu
 c = db.connect()
 tok = secrets.token_urlsafe(32); h = hashlib.sha256(tok.encode()).hexdigest(); t = db.now().isoformat()
 with db.tx(c):
-    c.execute("INSERT INTO sessions VALUES(?,?,?,?,NULL)", (h, None, t, t))
+    c.execute("INSERT INTO sessions(id_hash,ip_hash,created_at,last_seen_at) VALUES(?,?,?,?)", (h, None, t, t))
 v = db.create_run(c, IssueSpec(html_url="https://github.com/pallets/click/issues/3888", repo="pallets/click", number=3888,
                                title="divide() returns 0 instead of raising (seeded sample)"), "2247b35e" * 5, owner_session_hash=h)
 v.status, v.outcome, v.readiness = RunStatus.AWAITING_APPROVAL, Outcome.VERIFIED_FIX, "Ready for human review"

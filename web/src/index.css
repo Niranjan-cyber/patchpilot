@@ -124,3 +124,6 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .form fieldset { border: 1px solid var(--line); border-radius: 6px; padding: 0.6rem 0.9rem; }
 .form legend { font-weight: 700; padding: 0 0.3rem; }
 .form label.tick { flex-direction: row; align-items: center; gap: 0.5rem; font-weight: 400; padding: 0.2rem 0; }
+
+.next { padding-left: 1.3rem; } .next li { margin-bottom: 0.4rem; }
+abbr { text-decoration: underline dotted; cursor: help; }
