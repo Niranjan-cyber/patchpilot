@@ -1,0 +1,157 @@
+"""Real PREFLIGHT (G1), SETUP (G2) and BASELINE steps (B05). Registers itself into the worker's NODES."""
+import io
+import json
+import os
+import re
+import shlex
+import shutil
+import subprocess
+import tarfile
+import uuid
+
+import httpx
+
+from backend import artifacts, db
+from backend.config import ROOT, limits
+from backend.contracts.models import CheckStatus, EnvProfile, GateResult, PublishBlocker, SGReport, StepId, TestRun
+from backend.sandbox import docker
+from backend.sandbox.rules import baseline_sets, evaluate_setup, junit_outcomes, map_supplyguard
+from backend.worker import nodes
+from backend.worker.nodes import StepContext
+
+WORK = ROOT / "data" / "work"
+GH = "https://api.github.com"
+MAX_TARBALL = 200 * 1024 * 1024
+
+
+def snap(rid: str) -> str: return f"pp-snap-{rid}"
+def image(rid: str) -> str: return f"pp-run-{rid}"
+def cname(rid: str, step: str) -> str: return f"pp-{rid[:8]}-{step}-{uuid.uuid4().hex[:6]}"
+
+
+def _gh_headers():
+    tok = os.getenv("GITHUB_READ_TOKEN")
+    return {"Accept": "application/vnd.github+json", **({"Authorization": f"Bearer {tok}"} if tok else {})}
+
+
+def fetch_source(repo: str, rid: str) -> tuple[str, str]:
+    """Pin the default branch HEAD, download its tarball (no git clone: no hooks/submodules), extract safely."""
+    with httpx.Client(headers=_gh_headers(), timeout=30, follow_redirects=True) as h:
+        branch = h.get(f"{GH}/repos/{repo}").raise_for_status().json()["default_branch"]
+        sha = h.get(f"{GH}/repos/{repo}/commits/{branch}").raise_for_status().json()["sha"]
+        data = h.get(f"{GH}/repos/{repo}/tarball/{sha}").raise_for_status().content
+    if len(data) > MAX_TARBALL:
+        raise ValueError("repository tarball is larger than 200 MB")
+    dest = WORK / rid / "src"
+    shutil.rmtree(dest.parent, ignore_errors=True); dest.mkdir(parents=True)
+    with tarfile.open(fileobj=io.BytesIO(data)) as tf:
+        top = tf.getmembers()[0].name.split("/")[0]
+        for m in tf.getmembers():
+            m.name = m.name[len(top) + 1:] if m.name.startswith(top + "/") else ""
+        tf.extractall(dest, members=[m for m in tf.getmembers() if m.name], filter="data")
+    git = ["git", "-c", "core.hooksPath=/dev/null", "-c", "user.name=PatchPilot", "-c", "user.email=pp@localhost", "-C", str(dest)]
+    for args in (["init", "-q"], ["add", "-A"], ["commit", "-qm", f"base {sha}"]):
+        subprocess.run(git + args, check=True, capture_output=True)
+    return sha, str(dest)
+
+
+def preflight(ctx: StepContext) -> GateResult:
+    run = ctx.run
+    # A failed download raises: the worker retries (2 resumes), then ends with the honest outcome (contracts §7).
+    sha, src = fetch_source(run.issue.repo, ctx.run_id)
+    run.base_sha = sha
+    ctx.emit("step.progress", "preflight", message=f"Pinned commit {sha[:7]}.")
+    code, report, log = None, None, ""
+    cmd = os.getenv("SUPPLYGUARD_CMD")   # e.g. "npx tsx C:/…/Nexora_mindspark/backend/src/cli/index.ts"
+    if cmd:
+        try:
+            argv = shlex.split(cmd, posix=os.name != "nt")
+            argv[0] = shutil.which(argv[0]) or argv[0]
+            p = subprocess.run(argv + ["analyze", src, "--json"], capture_output=True, text=True,
+                               encoding="utf-8", errors="replace", timeout=180)
+            code, log = p.returncode, p.stdout[-200000:] + p.stderr[-20000:]
+            report = json.loads(p.stdout) if p.stdout.strip().startswith("{") else None
+        except Exception as e:
+            log = f"SupplyGuard failed to run: {e!r}"
+    status, reason, findings = map_supplyguard(code, report)
+    files = [f for f in ("requirements.txt", "Pipfile.lock", "poetry.lock", "pyproject.toml") if (WORK / ctx.run_id / "src" / f).exists()]
+    ev = artifacts.put(log or json.dumps({"note": "SupplyGuard not configured (SUPPLYGUARD_CMD unset)"}))
+    run.supplyguard = SGReport(report_id=ev, status=status, findings=findings, files=files,
+                               failures=[] if status != CheckStatus.INCONCLUSIVE else [reason])
+    if status == CheckStatus.INCONCLUSIVE and PublishBlocker.DEPS_INCONCLUSIVE not in run.publish_blockers:
+        run.publish_blockers.append(PublishBlocker.DEPS_INCONCLUSIVE)
+    ctx.scratch["headline"] = {
+        CheckStatus.BLOCKED: "A dependency matches a published malicious-package advisory. Nothing was installed or run.",
+        CheckStatus.INCONCLUSIVE: "We couldn't fully check the dependencies, so publishing will stay off.",
+    }.get(status, f"No known-malicious packages. {sum(f['type'] == 'vulnerability' for f in findings)} known vulnerabilities listed as findings.")
+    db.save_run(db.connect(), run)
+    if status == CheckStatus.BLOCKED:
+        return GateResult(gate="G1", status=status, reason=reason, evidence_ids=[ev])
+    docker.make_snapshot(snap(ctx.run_id), src)
+    return GateResult(gate="G1", status=status, reason=reason, evidence_ids=[ev])
+
+
+INSTALL = r"""cd /src
+( for f in requirements.txt requirements-dev.txt requirements-test.txt requirements/test.txt requirements/dev.txt; do
+    [ -f "$f" ] && { echo "+ pip install -r $f"; pip install -q -r "$f" || exit 1; }; done
+  if [ -f pyproject.toml ] || [ -f setup.py ]; then
+    for x in "[test]" "[tests]" "[dev]" ""; do echo "+ pip install -e .$x"; pip install -q -e ".$x" && break; [ -z "$x" ] && exit 1; done
+  fi
+  pip install -q -U "pip>=25.1" >/dev/null 2>&1
+  if grep -q '^\[dependency-groups\]' pyproject.toml 2>/dev/null; then
+    for g in test tests dev; do grep -qE "^$g *=" pyproject.toml && { echo "+ pip install --group $g"; pip install -q --group "$g"; }; done
+  fi
+  pip install -q pytest ) > /tmp/install.log 2>&1
+echo "INSTALL_EXIT=$?"; tail -c 30000 /tmp/install.log
+python -m pytest --collect-only -q -p no:cacheprovider > /tmp/collect.log 2>&1; echo "COLLECT_EXIT=$?"
+echo "COLLECTED=$(grep -c '::' /tmp/collect.log)"; tail -c 5000 /tmp/collect.log
+"""
+
+
+def setup(ctx: StepContext) -> GateResult:
+    docker.ensure_infra()
+    name = cname(ctx.run_id, "setup")
+    r = docker.run("pp-base:3.12", INSTALL, name=name, network=docker.SETUP_NET, timeout=limits()["setup_seconds"],
+                   snapshot_volume=snap(ctx.run_id), read_only=False, keep=True)
+    num = lambda k: int(m.group(1)) if (m := re.search(rf"{k}=(\d+)", r.out)) else -1
+    status, reason = evaluate_setup(num("INSTALL_EXIT"), r.timed_out, num("COLLECT_EXIT"), num("COLLECTED"))
+    ev = artifacts.put(r.out)
+    if status == CheckStatus.PASSED:
+        docker.commit(name, image(ctx.run_id))
+        ctx.run.env = EnvProfile(python_version="3.12", install_cmds=re.findall(r"^\+ (.+)$", r.out, re.M),
+                                 image_id=image(ctx.run_id))
+        db.save_run(db.connect(), ctx.run)
+        ctx.scratch["headline"] = f"Installed the project in a fresh sandbox and found {num('COLLECTED')} tests."
+    else:
+        ctx.scratch["headline"] = {"install_timeout": "Installing took longer than 8 minutes, so we stopped.",
+                                   "install_failed": "We couldn't install this project. The install log shows why.",
+                                   "collection_error": "The project installed, but its tests failed to load (often a missing test dependency).",
+                                   }.get(reason, "The project installed, but we couldn't find any tests to run.")
+    docker.rm(name)
+    return GateResult(gate="G2", status=status, reason=reason, evidence_ids=[ev])
+
+
+def _pytest(rid: str, args: str) -> tuple[dict[str, bool], str]:
+    r = docker.run(image(rid), f"python -m pytest -q -p no:cacheprovider --junitxml=/tmp/j.xml {args} > /tmp/o.log 2>&1;"
+                   " echo EXIT=$?; tail -c 20000 /tmp/o.log; echo '<<<JUNIT>>>'; cat /tmp/j.xml",
+                   name=cname(rid, "test"), timeout=300, snapshot_volume=snap(rid))
+    log, _, xml = r.out.partition("<<<JUNIT>>>")
+    return junit_outcomes(xml.strip()), log
+
+
+def baseline(ctx: StepContext) -> None:
+    first, log1 = _pytest(ctx.run_id, "")
+    failing = [t for t, ok in first.items() if not ok]
+    rerun, log2 = _pytest(ctx.run_id, " ".join(shlex.quote(t) for t in failing[:200])) if failing else ({}, "")
+    p, f, fl = baseline_sets(first, rerun)
+    ctx.run.baseline = TestRun(pass_set=p, fail_set=f, flaky_set=fl, partial=not first,
+                               evidence_ids=[artifacts.put(log1 + log2)])
+    db.save_run(db.connect(), ctx.run)
+    ctx.scratch["headline"] = (f"{len(p)} existing tests pass. {len(f)} already fail and {len(fl)} are flaky (not caused by us)."
+                               if first else "We couldn't read the existing test results, so the baseline is partial.")
+    return None
+
+
+nodes.register(StepId.PREFLIGHT, preflight)
+nodes.register(StepId.SETUP, setup)
+nodes.register(StepId.BASELINE, baseline)

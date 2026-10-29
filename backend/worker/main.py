@@ -8,7 +8,13 @@ from datetime import timedelta
 
 from backend import db
 from backend.contracts.models import RunStatus
+import backend.sandbox.steps  # noqa: F401  registers PREFLIGHT/SETUP/BASELINE
 from backend.worker.graph import build
+
+try:
+    import backend.agents  # noqa: F401  role B registers REPRODUCE..REVIEW
+except ImportError:
+    pass
 
 LEASE, BEAT, MAX_LEASES = 60, 10, 3      # 3 leases = first run + 2 resumes
 WORKER_ID = f"{socket.gethostname()}:{os.getpid()}"

@@ -1,0 +1,8 @@
+# Trusted base for every sandbox (built by us, never by repo code). Non-root user, venv owned by that user.
+ARG PY=3.12
+FROM python:${PY}-slim
+RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/* \
+ && useradd -m -u 1000 pp && python -m venv /opt/venv && chown -R pp:pp /opt/venv
+ENV PATH=/opt/venv/bin:$PATH PIP_DISABLE_PIP_VERSION_CHECK=1 PYTHONDONTWRITEBYTECODE=1 HOME=/tmp
+USER pp
+WORKDIR /src

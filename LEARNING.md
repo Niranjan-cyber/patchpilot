@@ -24,3 +24,9 @@ Every session appends here after every event: a step started or finished, a deci
 - [2026-10-30] A LESSON: until B05–B09 register real steps, real runs end "Stopped, report so far" with every step "Not run": honest, but don't demo real runs before B05.
 - [2026-10-30] A BUG→FIX: pushed B04 with one failing test (a shell chain hid pytest's exit code; the test read the live DB) → test isolated with a temp DB; from now on `set -o pipefail` before test-then-push.
 - [2026-10-30] A EVENT: B04 handoff posted (how B registers nodes; how C wires S-02 → POST /api/runs). C still silent: B03 takeover planned if silent 60 more min.
+- [2026-10-30] A LESSON: proxpi redirects downloads that take > 0.9 s to files.pythonhosted.org, which a network-isolated sandbox can't reach → `PROXPI_DOWNLOAD_TIMEOUT=600` so it always serves the file itself.
+- [2026-10-30] A LESSON: modern projects (pallets) declare test deps in PEP 735 `[dependency-groups]`, not extras → setup also runs `pip install --group test|tests|dev` (pip ≥ 25.1).
+- [2026-10-30] A BUG→FIX: "collection error" was shown as "couldn't find any tests" → distinct headline for tests that fail to load.
+- [2026-10-30] A LESSON: stale worker processes from earlier shells picked up new jobs with old code (stub-only results) → long-lived servers run only as tracked background tasks; check `Get-CimInstance … backend.worker.main` before testing.
+- [2026-10-30] A EVENT: B05 real run on pallets/itsdangerous: commit pinned, installed via proxpi in a hardened sandbox, 297 tests collected and passing at baseline; G1 honestly inconclusive (SupplyGuard not wired yet).
+- [2026-10-30] A EVENT: creating a public demo repo (tinycalc, planted bugs) was blocked by the permission system → needs a human decision; using pallets/itsdangerous for setup tests meanwhile.

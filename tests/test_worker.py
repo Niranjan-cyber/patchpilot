@@ -15,6 +15,7 @@ def env(tmp_path, monkeypatch):
     monkeypatch.setattr(db, "DB_PATH", str(tmp_path / "app.db"))
     monkeypatch.setenv("STUB_STEP_SECONDS", "0")
     saved = dict(nodes.NODES)
+    nodes.NODES.update({s: nodes._stub(s) for s in nodes.ORDER})   # isolate from real sandbox steps
     yield db.connect(), build(str(tmp_path / "ck.db"))
     nodes.NODES.clear(); nodes.NODES.update(saved)
 
