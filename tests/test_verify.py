@@ -73,3 +73,25 @@ def test_three_fixes_then_one_rediagnosis_then_triage(loop):
     ctx, calls, mp = loop
     mp.setattr(V, "_verify_once", results(*[C.FAILED] * 6))
     assert V.verify(ctx).status == C.FAILED and calls == {"fix": 4, "diag": 1}
+
+
+def test_issue_23_empty_test_ids_never_pass():
+    from backend.agents.verify import passed
+    assert passed([], {"a.py::t": True}) is False
+    st, reason, _ = evaluate_g5([], BASE, {b: True for b in BASE}, {})
+    assert st == C.FAILED
+
+
+def test_issue_23_class_based_test_ids_match_junit():
+    from backend.agents.verify import junit_id
+    assert junit_id("tests/test_x.py::TestC::test_y") == "tests/test_x/TestC.py::test_y"
+    assert junit_id("tests/test_x.py::test_y") == "tests/test_x.py::test_y"
+    assert junit_id("tests/test_x.py::A::B::t[1]") == "tests/test_x/A/B.py::t[1]"
+    new = ["tests/test_x.py::TestC::test_y"]
+    junit = {"tests/test_x/TestC.py::test_y": True, **{b: True for b in BASE}}
+    assert evaluate_g5(new, BASE, junit, {"tests/test_x/TestC.py::test_y": True})[:2] == (C.PASSED, "verified")
+
+
+def test_issue_23_no_results_is_not_blamed_on_baseline():
+    st, reason, regs = evaluate_g5(NEW, BASE, {}, {})
+    assert (st, reason, regs) == (C.FAILED, "no_results", [])

@@ -123,3 +123,12 @@ def test_quota_pauses_instead_of_failing(node):
     mp.setattr(R.loop, "run", q)
     r = R.reproduce(ctx)
     assert r.status == CheckStatus.NOT_RUN and ctx.scratch["pause"].resume_at is None
+
+
+def test_issue_23_reproduction_without_test_ids_never_passes_g3(node):
+    ctx, mp = node
+    calls = []
+    mp.setattr(R.loop, "run", lambda *a, **k: (calls.append(1), ({"expected_failure": "x"}, []))[1])    # DONE line without test_ids
+    mp.setattr(R, "_check_run", lambda rid, d, t: FAIL_OUT)
+    r = R.reproduce(ctx)
+    assert r.status == CheckStatus.FAILED and r.reason == "no_test_written" and len(calls) == 3

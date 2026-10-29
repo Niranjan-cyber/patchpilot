@@ -73,8 +73,8 @@ def reproduce(ctx: StepContext) -> GateResult:
             docker.rm(name)
         transcript_id = artifacts.put("\n\n".join(f"[{m['role']}]\n{m['content']}" for m in transcript))
         tests = (res or {}).get("test_ids") or []
-        if not res or not diff.strip():
-            previous, last = "you didn't finish with a test and the PATCHPILOT_DONE line.", GateResult(
+        if not res or not diff.strip() or not tests:   # no test ids = nothing to verify later (issue #23)
+            previous, last = "you didn't finish with a test and the PATCHPILOT_DONE line listing its test_ids.", GateResult(
                 gate="G3", status=CheckStatus.FAILED, reason="no_test_written", evidence_ids=[transcript_id])
             ctx.emit("attempt.retry", "reproduce", role="test_designer", attempt=attempt, max=retries + 1, reason="no_test_written")
             continue

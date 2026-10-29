@@ -13,9 +13,24 @@ from backend.sandbox.steps import image, snap
 from backend.worker.nodes import StepContext
 
 
+def junit_id(test_id: str) -> str:
+    """pytest node id -> the id junit_outcomes builds from classname ("a/x.py::C::t" -> "a/x/C.py::t"). Issue #23."""
+    path, *parts = test_id.split("::")
+    if len(parts) < 2:
+        return test_id
+    return f"{path[:-3] if path.endswith('.py') else path}/{'/'.join(parts[:-1])}.py::{parts[-1]}"
+
+
+def passed(ids: list[str], results: dict[str, bool]) -> bool:
+    """Every listed test passed. An empty list is never a pass (issue #23)."""
+    return bool(ids) and all(results.get(t) is True or results.get(junit_id(t)) is True for t in ids)
+
+
 def evaluate_g5(new_ids: list[str], baseline_pass: list[str], suite: dict[str, bool], second: dict[str, bool]):
     """→ (status, reason, regressions). A baseline test with no result counts as a regression: unknown is never a pass."""
-    runs = [all(suite.get(t) is True for t in new_ids), all(second.get(t) is True for t in new_ids)] if new_ids else [False, False]
+    if not suite:   # timed out / diff didn't apply / no junit: say so, don't blame every baseline test (issue #23)
+        return CheckStatus.FAILED, "no_results", []
+    runs = [passed(new_ids, suite), passed(new_ids, second)]
     regressions = sorted(t for t in baseline_pass if suite.get(t) is not True)
     if regressions:
         return CheckStatus.FAILED, "regression", regressions
@@ -49,7 +64,7 @@ def _verify_once(ctx: StepContext) -> GateResult:
     second, log2, c2 = _fresh_run(ctx.run_id, diffs, files)          # second, independent run of the new test
     status, reason, regs = evaluate_g5(new_ids, run.baseline.pass_set if run.baseline else [], suite, second)
     ev = [artifacts.put(log1), artifacts.put(log2)]
-    run.verify = Verification(new_test_runs=[CheckStatus.PASSED if all(s.get(t) for t in new_ids) else CheckStatus.FAILED
+    run.verify = Verification(new_test_runs=[CheckStatus.PASSED if passed(new_ids, s) else CheckStatus.FAILED   # same rule as G5
                                              for s in (suite, second)], regressions=regs, container_id=f"{c1},{c2}", evidence_ids=ev)
     db.save_run(db.connect(), run)
     ctx.scratch["verify_log"] = log1[-3000:]
@@ -67,7 +82,8 @@ def verify(ctx: StepContext) -> GateResult:
             ctx.scratch["headline"] = "In a brand-new sandbox, the new test passes twice and every test that passed before still passes."
             return res
         why = {"regression": f"it broke tests that passed before: {', '.join((db.get_run(db.connect(), ctx.run_id).verify.regressions or [])[:5])}",
-               "new_test_fails": "the reproduction test still fails after your fix", "flaky_1_of_2": "the reproduction test passed only once of two runs"
+               "new_test_fails": "the reproduction test still fails after your fix", "flaky_1_of_2": "the reproduction test passed only once of two runs",
+               "no_results": "the tests produced no results (the diff didn't apply or the run timed out)"
                }.get(res.reason, res.reason)
         ctx.emit("attempt.retry", "verify", role="fixer", attempt=i + 1, max=tries + 1, reason=res.reason)
         if i >= tries and not rediagnosed:                            # fixer attempts used: one re-diagnosis
