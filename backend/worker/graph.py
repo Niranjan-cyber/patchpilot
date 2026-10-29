@@ -20,7 +20,7 @@ HEADLINE_RUNNING = {
     StepId.REVIEW: "Reviewing the fix for shortcuts…",
 }
 STOP_EARLY = {"G1": {CheckStatus.BLOCKED}, "G2": {CheckStatus.FAILED}, "G3": {CheckStatus.FAILED},
-              "G5": {CheckStatus.FAILED}}
+              "G4": {CheckStatus.FAILED}, "G5": {CheckStatus.FAILED}}
 
 
 class S(TypedDict, total=False):
@@ -48,7 +48,8 @@ def _step_node(step: StepId):
             res = NODES[step](ctx)
         run = db.get_run(c, rid)   # a step may have saved its own fields
         stubbed = step.value in ctx.scratch.get("stub_steps", [])
-        status = res.status if res else (CheckStatus.NOT_RUN if stubbed else CheckStatus.PASSED)
+        # a gateless step (DIAGNOSE) reports its own failure via scratch, so it is never shown as passed
+        status = res.status if res else CheckStatus(ctx.scratch.get("status") or (CheckStatus.NOT_RUN if stubbed else CheckStatus.PASSED))
         line = (ctx.scratch.get("headline") or ("This step isn't built yet." if stubbed
                 else HEAD(step).replace("…", ".")))
         run.steps[step] = StepState(status=status, started_at=run.steps[step].started_at, finished_at=db.now(),

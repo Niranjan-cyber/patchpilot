@@ -59,3 +59,5 @@ Every session appends here after every event: a step started or finished, a deci
 - [2026-10-29 21:35 UTC] A REVIEW: PR #16 (B14 eval, C) approved and merged; sandbox use correct, unknown stays unknown, /api/eval 404 until real runs.
 - [2026-10-29 21:35 UTC] A LESSON: a second session reviewing the takeover code found a P1 isolation hole the author's own tests missed. Cross-session review earns its cost.
 - [2026-10-29 22:50 UTC] C EVENT: TAKEOVER B07 from B (A suggested); SupplyGuard uv.lock parser ready locally, waiting on Devansh to approve committing to his repo.
+- [2026-10-29 23:50 UTC] C EVENT: B07 built (taken over from B): G4 diff policy + DIAGNOSE citation check (pure, tested on crafted diffs), Investigator + Fixer nodes on A's agent loop, owner-checked GET /api/artifacts/{id} (contracts §4, was missing), S-03 diagnosis card with file:line links at the pinned SHA + Show details attempt history. 207 tests + diagnose-fix e2e.
+- [2026-10-29] C LESSON: a gateless step that fails (DIAGNOSE) was shown as Passed because graph.py defaulted None to PASSED → steps can now report status via ctx.scratch["status"].

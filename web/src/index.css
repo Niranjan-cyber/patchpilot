@@ -141,3 +141,11 @@ abbr { text-decoration: underline dotted; cursor: help; }
 .row-bad td { background: var(--fail-bg); color: var(--fail); }
 .pill-pass { color: var(--pass); font-weight: 700; }
 .pill-fail { color: var(--fail); font-weight: 700; }
+
+/* B07 diagnosis + attempts */
+.locs { list-style: none; padding: 0; margin: 0.5rem 0; }
+.locs li { margin: 0.2rem 0; }
+.diagnosis h3 { margin-top: 1rem; }
+.attempts summary { cursor: pointer; font-weight: 700; }
+.attempts ol { padding-left: 1.2rem; margin: 0.75rem 0 0; }
+.attempts li { margin: 0.4rem 0; }

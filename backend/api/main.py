@@ -216,6 +216,27 @@ def list_fixtures():
     return sorted(p.name for p in FIXTURES.iterdir()) if RUN_MODE == "fixture" else []
 
 
+@app.get("/api/artifacts/{evidence_id}")
+def get_artifact(evidence_id: str, request: Request, download: bool = False):
+    """contracts §4: owner-checked. Content-addressed IDs carry no owner, so an ID is served only if a run the caller
+    owns references it (run state or its events). Not referenced, not yours, or missing → the same 404."""
+    from fastapi.responses import PlainTextResponse
+    from backend import artifacts
+    data = artifacts.get(evidence_id)   # also validates the ID format
+    if data is not None:
+        c, a = db.connect(), session.account(request)
+        sid, aid = session.current(request), (a["id"] if a else None)
+        like = f'%"{evidence_id}"%'
+        rids = {r[0] for r in c.execute("SELECT run_id FROM runs WHERE state_json LIKE ? UNION "
+                                        "SELECT run_id FROM events WHERE payload LIKE ?", (like, like))}
+        if any(db.owns(c, rid, sid, aid) for rid in rids):
+            h = evidence_id.removeprefix("sha256:")[:12]
+            return PlainTextResponse(data.decode("utf-8", "replace"), headers={
+                "Content-Disposition": f'{"attachment" if download else "inline"}; filename="evidence-{h}.txt"',
+                "X-Content-Type-Options": "nosniff"})
+    raise ApiErr(404, "NOT_FOUND", "This evidence isn't available.")
+
+
 @app.get("/api/eval")
 def eval_results():
     """B14: public eval table; numbers come only from eval/results.json written by scripts/eval.py."""
