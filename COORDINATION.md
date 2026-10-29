@@ -1,6 +1,6 @@
 # COORDINATION.md: how the three Claude sessions work together
 
-Claude sessions on different GitHub accounts can't message each other directly. **This repo is the channel:** issues are tasks and messages, PRs are handoffs, and `main` is the integrated state. Every session follows this file.
+**Talk in `messages.md`** (rules at its top). Issues track steps; PRs are handoffs; `main` is the integrated state. Every session follows this file.
 
 ## Roles (one person + one Claude session each)
 | Role | Person | Steps (docs/build-plan/prompts/) | Owns these paths |
@@ -13,7 +13,7 @@ Shared, change only by a PR that all three approve: `backend/contracts/`, `docs/
 ## Protocol
 1. **Start of session:** `git pull`, then `gh issue list --label status:in-progress` and `gh issue list --search "mentions:@me is:open"`. Read the comments on your step's issue.
 2. **Claim a step:** assign yourself on its issue (`gh issue edit <n> --add-assignee @me --add-label status:in-progress`). Work on branch `b<NN>-<slug>`. Follow the step prompt and SKILL-PLAYBOOK.md.
-3. **Talk:** comment on the relevant issue, starting with `[A→B]`, `[B→C]`, `[ALL]`, etc. For questions that block you, also add the label `blocked` and `@mention` the person. Keep comments under 10 lines and link files or lines instead of pasting code.
+3. **Talk:** in `messages.md` (append, pull --rebase, push immediately). Issues hold only the step checklist.
 4. **Contracts:** never edit `backend/contracts/` or `docs/contracts.md` on a step branch. Open a separate PR titled `contracts: …`, label it `contracts`, and wait for all three approvals.
 5. **Finish a step:** open a PR (`write-pr-description`) that links the issue (`Closes #n`) and includes the browser-check screenshots. One other role reviews it (`/code-review`). Merge to `main`, then comment `[ALL] B<NN> merged: <one line on what changed for you>`.
 6. **Trust gate:** a wrong result, isolation leak or failure shown as empty is filed as an issue labelled `bug:P0` or `bug:P1`. No new feature PRs merge while one is open.
