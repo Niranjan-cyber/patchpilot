@@ -64,4 +64,4 @@ Take the first option that fully works:
 Never cut: validation at trust boundaries, error handling that prevents data loss, security, accessibility, the calibration real hardware needs, anything the user asked for.
 
 ## Build plan
-Plan: `docs/build-plan/BUILD-PLAN.md` (source of truth `plan.json`; edit it and re-render, never edit generated files). Work one step at a time using `docs/build-plan/prompts/<ID>-*.md`; one Claude session per step. Roles: A sandbox & runtime · B agent & gates · C GitHub & approval · D UI, access & demo. Current step: B01 (all roles together).
+Plan: `docs/build-plan/BUILD-PLAN.md` (source of truth `plan.json`; edit it and re-render, never edit generated files). Work one step at a time using `docs/build-plan/prompts/<ID>-*.md`; one Claude session per step. Roles and protocol: COORDINATION.md (A Niranjan-cyber · B swaralipatil11 · C DevanshNarlawar06). Current step: B01 (all roles together).

@@ -82,5 +82,5 @@ Recorded backup run for the video if the live run fails on demo day.
 5. If you found a bug you didn't fix, add it to `bugs` in `plan.json` with a severity (P0 correctness/safety, P1 trust/core loop, P2 polish). An open P0/P1 blocks the next feature step.
 
 ## Notes
-Role D leads; everyone joins.
+Role A leads; everyone joins.
 

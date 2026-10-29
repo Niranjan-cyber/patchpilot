@@ -49,11 +49,11 @@
 | B09 | Prototype | A user can read a plain-language explanation and download a report whose every status matches the recorded results. | UC-04, S-04 | tdd, write-pr-description | 3 h | B08 | B | todo |
 | B10 | Prototype | A user can approve the exact diff on S-05 after ticking the 3-item checklist. | UC-05, UC-06, S-05 | langgraph-human-in-the-loop, tdd, frontend-design | 3 h | B08 | C | todo |
 | B11 | Prototype | A signed-in contributor sees a draft PR opened from their fork after approving, with the next steps on S-07. | UC-05, S-06, S-07 | security-best-practices, write-pr-description, security-review | 3 h | B10 | C | todo |
-| B12 | Prototype | A user's runs can only be opened from their own browser or GitHub account. | UC-07, S-01, S-06, S-08 | security-best-practices, tdd, security-review | 3 h | B04 | D | todo |
+| B12 | Prototype | A user's runs can only be opened from their own browser or GitHub account. | UC-07, S-01, S-06, S-08 | security-best-practices, tdd, security-review | 3 h | B04 | C | todo |
 | B13 🏁 | Prototype | A judge can walk the whole demo path on the URL and see an honest triage report on a second issue. | UC-01, UC-02, UC-03, UC-04, UC-05, UC-07, S-01, S-02, S-03, S-04, S-05, S-06, S-07, S-08 | code-review, security-review, hackathon-demo-submission | 3 h | B09, B11, B12 | ALL | todo |
 | B14 | MVP | A judge can see PatchPilot's outcomes compared with the official tests on an /eval page. | UC-04, S-04 | tdd | 2 h | B13 | B | todo |
-| B15 | MVP | A first-time contributor can ask Why this file? on S-03/S-04 and get an answer citing evidence. | UC-08, S-03, S-04 | langgraph-human-in-the-loop, frontend-design | 2 h | B13 | D | todo |
-| B16 | MVP | A signed-in user can see their issues, outcomes and PR statuses over time on S-08. | UC-09, S-08 | frontend-design | 2 h | B13 | D | todo |
+| B15 | MVP | A first-time contributor can ask Why this file? on S-03/S-04 and get an answer citing evidence. | UC-08, S-03, S-04 | langgraph-human-in-the-loop, frontend-design | 2 h | B13 | C | todo |
+| B16 | MVP | A signed-in user can see their issues, outcomes and PR statuses over time on S-08. | UC-09, S-08 | frontend-design | 2 h | B13 | C | todo |
 | B17 | MVP | A user sees on S-04 whether the fix also passes a hidden test variant and which commit introduced the bug. | UC-04, S-04 | tdd | 3 h | B13 | B | todo |
 | B18 | MVP | A user who pastes a repo URL sees 3 to 5 issues PatchPilot can likely run, with reasons. | UC-10, S-09 | frontend-design | 2 h | B13 | C | todo |
 | B19 🏁 | MVP | A real user can use PatchPilot on an always-on Linux host where sandboxes run under gVisor. | UC-07, S-01 | container-hardening, security-review | 3 h | B14, B15, B16, B17, B18 | A | todo |
@@ -413,7 +413,7 @@
 - **Fallback:** Recorded backup run for the video if the live run fails on demo day.
 - **Deploys:** frontend, backend, worker · **After:** B09, B11, B12 · **Est.:** 3 h
 - **Prompt:** `prompts/B13-prototype-exit-the-full-demo-path-twice.md`
-- **Notes:** Role D leads; everyone joins.
+- **Notes:** Role A leads; everyone joins.
 
 ### B14 — Eval slide numbers
 - **Status:** todo
@@ -551,7 +551,6 @@
 
 ## Open questions and assumptions
 - Prebuild: the official build round is 24 h. If writing code before 11 Nov 10:00 IST is not allowed, B01-B13 (about 38 h of effort, about 13-16 h wall clock across 4 roles) still fit the round; MVP steps move to after the event. Confirm with the organizers.
-- Role names: Roles A-D are placeholders; assign one Claude Code user per role.
 - Deploy path deviates from the skill default: there is no hosted CI deploy; deploy = scripts/deploy.ps1 on the host laptop, and GitHub Actions runs the smoke and Playwright suites against <FUNNEL_URL> (architecture section 2).
 - SupplyGuard: its supported formats and scan() signature come from its owner (needed in B05).
 - global_llm_tokens_per_day is measured in B06; until then real runs are refused by design.
@@ -577,3 +576,4 @@ Work one step at a time: paste the step's prompt into the coding agent, finish w
 
 ## Changelog
 - 2026-10-30: Initial plan from feature scope, screen flows, architecture and contracts v0.2
+- 2026-10-30: Team is 3 people: former Role D work (B12) moved to C, B13 led by A; GitHub issues #1-#13 created

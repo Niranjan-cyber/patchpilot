@@ -6,20 +6,16 @@
   "time_budget_hours": 40,
   "team": [
     {
-      "name": "Role A (TBD)",
-      "focus": "Sandbox & runtime: worker, job queue, Docker sandboxes, setup, baseline (B04, B05)"
+      "name": "Niranjan-cyber",
+      "focus": "Role A: sandbox, runtime, integration lead (B01, B02, B04, B05, B13)"
     },
     {
-      "name": "Role B (TBD)",
-      "focus": "Agent & gates: LLM gateway, AI roles, G3-G6, outcome rules, reports (B06-B09)"
+      "name": "swaralipatil11",
+      "focus": "Role B: agent & gates (B06-B09)"
     },
     {
-      "name": "Role C (TBD)",
-      "focus": "GitHub & approval: issue reader, approval/hash contract, OAuth, publisher (B03, B10, B11)"
-    },
-    {
-      "name": "Role D (TBD)",
-      "focus": "UI, access & demo: shared page states, run access + limits, Playwright suite, demo repos, prototype exit (B12, B13)"
+      "name": "DevanshNarlawar06",
+      "focus": "Role C: GitHub, approval, access & UI states (B03, B10, B11, B12)"
     }
   ],
   "stack": {
@@ -1204,7 +1200,7 @@
       "depends_on": [
         "B04"
       ],
-      "track": "D",
+      "track": "C",
       "fallback": "",
       "notes": "Role D also owns the shared page-state components and keeps the Playwright regression suite green for all roles."
     },
@@ -1310,7 +1306,7 @@
       ],
       "track": "ALL",
       "fallback": "Recorded backup run for the video if the live run fails on demo day.",
-      "notes": "Role D leads; everyone joins."
+      "notes": "Role A leads; everyone joins."
     },
     {
       "id": "B14",
@@ -1444,7 +1440,7 @@
       "depends_on": [
         "B13"
       ],
-      "track": "D",
+      "track": "C",
       "fallback": "",
       "notes": ""
     },
@@ -1509,7 +1505,7 @@
       "depends_on": [
         "B13"
       ],
-      "track": "D",
+      "track": "C",
       "fallback": "",
       "notes": ""
     },
@@ -1721,7 +1717,6 @@
   "bugs": [],
   "open_questions": [
     "Prebuild: the official build round is 24 h. If writing code before 11 Nov 10:00 IST is not allowed, B01-B13 (about 38 h of effort, about 13-16 h wall clock across 4 roles) still fit the round; MVP steps move to after the event. Confirm with the organizers.",
-    "Role names: Roles A-D are placeholders; assign one Claude Code user per role.",
     "Deploy path deviates from the skill default: there is no hosted CI deploy; deploy = scripts/deploy.ps1 on the host laptop, and GitHub Actions runs the smoke and Playwright suites against <FUNNEL_URL> (architecture section 2).",
     "SupplyGuard: its supported formats and scan() signature come from its owner (needed in B05).",
     "global_llm_tokens_per_day is measured in B06; until then real runs are refused by design.",
@@ -1731,6 +1726,10 @@
     {
       "date": "2026-10-30",
       "change": "Initial plan from feature scope, screen flows, architecture and contracts v0.2"
+    },
+    {
+      "date": "2026-10-30",
+      "change": "Team is 3 people: former Role D work (B12) moved to C, B13 led by A; GitHub issues #1-#13 created"
     }
   ]
 }
