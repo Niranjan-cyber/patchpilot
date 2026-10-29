@@ -81,7 +81,7 @@ def case(name, passed_upto, fail_at=None, fail_status=C.FAILED, end=E.COMPLETED,
 
 
 case("verified_fix", S.REVIEW)
-case("needs_attention_deps_inconclusive", S.REVIEW, capped=True, blockers=[P.DEPS_INCONCLUSIVE],
+case("needs_attention_deps_inconclusive", S.REVIEW, capped=True, blockers=[P.DEPS_INCONCLUSIVE], gate_override={"G1": C.INCONCLUSIVE},
      supplyguard=SGReport(report_id=EV(21), status=C.INCONCLUSIVE, failures=["OSV lookup timed out"]))
 case("triage_only", S.FIX, fail_at=S.VERIFY, end=E.RETRIES_EXHAUSTED, fail_headline="The fix didn't pass in a fresh sandbox after 3 tries.")
 case("cannot_reproduce", S.BASELINE, fail_at=S.REPRODUCE, end=E.RETRIES_EXHAUSTED, fail_headline="We couldn't make the bug happen in a test.")

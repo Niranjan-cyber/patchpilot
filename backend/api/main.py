@@ -201,6 +201,15 @@ from backend.api.auth import router as _auth  # noqa: E402
 app.include_router(_auth)
 
 
+@app.get("/api/runs/{run_id}/report.md")
+def report(run_id: str, request: Request):
+    from fastapi.responses import PlainTextResponse
+    from backend.report import render
+    v = get_run(run_id, request)
+    return PlainTextResponse(render(v), media_type="text/markdown",
+                             headers={"Content-Disposition": f'attachment; filename="patchpilot-report-{run_id[:8]}.md"'})
+
+
 @app.get("/api/fixtures")
 def list_fixtures():
     return sorted(p.name for p in FIXTURES.iterdir()) if RUN_MODE == "fixture" else []

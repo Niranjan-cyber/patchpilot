@@ -106,7 +106,7 @@
   },
   "review": null,
   "gates": {
-    "G1": "passed",
+    "G1": "inconclusive",
     "G2": "passed",
     "G3": "passed",
     "G4": "passed",
