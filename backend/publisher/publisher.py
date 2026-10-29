@@ -92,15 +92,19 @@ class GitHubWriter:
         return bool(self.h.get(f"/repos/{repo}").raise_for_status().json().get("permissions", {}).get("push"))
 
     def ensure_fork(self, repo: str, login: str) -> str:
-        name = repo.split("/")[1]
-        r = self.h.get(f"/repos/{login}/{name}")
-        if r.status_code == 200 and r.json().get("fork"):
-            return f"{login}/{name}"
-        self.h.post(f"/repos/{repo}/forks").raise_for_status()
-        return f"{login}/{name}"
+        """POST /forks is idempotent and returns the fork's REAL full_name (GitHub may name it name-1 when the user
+        already owns a same-named repo; C review #2). Forks are created async (202): wait until it's readable."""
+        import time
+        full = self.h.post(f"/repos/{repo}/forks").raise_for_status().json()["full_name"]
+        for _ in range(30):
+            r = self.h.get(f"/repos/{full}")
+            if r.status_code == 200 and (r.json().get("parent") or {}).get("full_name", "").lower() == repo.lower():
+                return full
+            time.sleep(2)
+        raise RuntimeError("fork not ready after 60 s")
 
     def find_pr(self, repo: str, head: str) -> dict | None:
-        prs = self.h.get(f"/repos/{repo}/pulls", params={"head": head, "state": "all"}).raise_for_status().json()
+        prs = self.h.get(f"/repos/{repo}/pulls", params={"head": head, "state": "open"}).raise_for_status().json()
         return prs[0] if prs else None
 
     def create_pr(self, repo: str, head: str, base: str, title: str, body: str) -> dict | None:
@@ -111,18 +115,22 @@ class GitHubWriter:
         return self.h.patch(f"/repos/{repo}/pulls/{number}", json={"title": title, "body": body}).raise_for_status().json()
 
     def push_branch(self, target_repo: str, base_sha: str, upstream: str, branch: str, diff: str, message: str) -> None:
-        """Clean checkout at base_sha OUTSIDE the sandbox, apply the approved diff, push. Token only in an auth header."""
+        """Clean checkout at base_sha OUTSIDE the sandbox, apply the approved diff, push.
+        The token goes only into git's environment config, never argv (C review #5: process list, CalledProcessError)."""
         d = tempfile.mkdtemp(prefix="pp-pub-")
-        auth = ["-c", f"http.extraHeader=Authorization: Basic {_basic(self.token)}"]
+        env = {**os.environ, "GIT_TERMINAL_PROMPT": "0", "GIT_CONFIG_COUNT": "1", "GIT_CONFIG_KEY_0": "http.extraHeader",
+               "GIT_CONFIG_VALUE_0": f"Authorization: Basic {_basic(self.token)}"}
         git = lambda *a, inp=None: subprocess.run(["git", "-c", "core.hooksPath=/dev/null", *a], cwd=d, input=inp, text=True,
-                                                  capture_output=True, check=True, env={**os.environ, "GIT_TERMINAL_PROMPT": "0"})
+                                                  capture_output=True, check=True, env=env)
         try:
             git("init", "-q"); git("remote", "add", "origin", f"https://github.com/{target_repo}.git")
-            git(*auth, "fetch", "-q", "--depth", "1", f"https://github.com/{upstream}.git", base_sha)
+            git("fetch", "-q", "--depth", "1", f"https://github.com/{upstream}.git", base_sha)
             git("checkout", "-q", "-b", branch, "FETCH_HEAD")
             git("apply", "--index", "-", inp=diff)
             git("-c", "user.name=PatchPilot", "-c", "user.email=patchpilot@users.noreply.github.com", "commit", "-qm", message)
-            git(*auth, "push", "-q", "--force-with-lease", "origin", f"HEAD:refs/heads/{branch}")
+            # C review #3: lease against the branch's CURRENT remote sha ("" = must not exist yet), so re-publish after Revise works
+            remote = git("ls-remote", "origin", f"refs/heads/{branch}").stdout.split()
+            git("push", "-q", f"--force-with-lease=refs/heads/{branch}:{remote[0] if remote else ''}", "origin", f"HEAD:refs/heads/{branch}")
         finally:
             shutil.rmtree(d, ignore_errors=True)
 
@@ -141,12 +149,15 @@ def publish(v: RunView, gh, default_branch: str) -> Result:
     gh.push_branch(target, v.base_sha, v.issue.repo, branch, diff, f"{title}\n\nPrepared with PatchPilot (AI-assisted, human-approved).")
     head = f"{owner}:{branch}"
     fork = None if target == v.issue.repo else owner
-    existing = gh.find_pr(v.issue.repo, head)           # idempotent: one PR per run
-    if existing:
-        pr = gh.update_pr(v.issue.repo, existing["number"], title, body)
-        return Result("updated", PullRequestRef(url=pr["html_url"], number=pr["number"], head_branch=branch, fork_owner=fork, state="open"))
-    pr = gh.create_pr(v.issue.repo, head, default_branch, title, body)
+    link = compare_url(v.issue.repo, default_branch, owner, branch, title, body)
+    try:
+        existing = gh.find_pr(v.issue.repo, head)           # idempotent: one open PR per run
+        if existing:
+            pr = gh.update_pr(v.issue.repo, existing["number"], title, body)
+            return Result("updated", PullRequestRef(url=pr["html_url"], number=pr["number"], head_branch=branch, fork_owner=fork, state="open"))
+        pr = gh.create_pr(v.issue.repo, head, default_branch, title, body)
+    except Exception:
+        pr = None   # C review #4: the branch IS pushed; never claim "nothing was published"
     if pr is None:
-        return Result("branch_only", PullRequestRef(head_branch=branch, fork_owner=fork,
-                                                    compare_url=compare_url(v.issue.repo, default_branch, owner, branch, title, body)))
+        return Result("branch_only", PullRequestRef(head_branch=branch, fork_owner=fork, compare_url=link))
     return Result("created", PullRequestRef(url=pr["html_url"], number=pr["number"], head_branch=branch, fork_owner=fork, state="open"))

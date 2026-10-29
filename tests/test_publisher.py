@@ -81,3 +81,24 @@ def test_refuses_without_publishing(run, mutate, code):
     with pytest.raises(P.PublishRefused) as e:
         P.publish(run, gh, "main")
     assert e.value.code == code and gh.calls == []
+
+
+def test_api_failure_after_push_is_branch_only_not_nothing(run):
+    gh = FakeGH()
+    gh.create_pr = lambda *a: (_ for _ in ()).throw(RuntimeError("502"))
+    r = P.publish(run, gh, "main")
+    assert r.status == "branch_only" and r.pr.compare_url and any(c[0] == "push" for c in gh.calls if isinstance(c, tuple))
+
+
+def test_token_never_in_git_argv(monkeypatch):
+    seen = []
+    class Done:
+        stdout = ""
+    def fake_run(argv, **kw):
+        seen.append((argv, kw["env"])); return Done()
+    monkeypatch.setattr(P.subprocess, "run", fake_run)
+    P.GitHubWriter("gho_TOPSECRET").push_branch("me/proj", "a" * 40, "up/proj", "b", "diff", "m")
+    assert seen and all("TOPSECRET" not in " ".join(a) and "Authorization" not in " ".join(a) for a, _ in seen)
+    assert all(env["GIT_CONFIG_KEY_0"] == "http.extraHeader" for _, env in seen)
+    push = [a for a, _ in seen if "push" in a][0]
+    assert any(x.startswith("--force-with-lease=refs/heads/b:") for x in push)

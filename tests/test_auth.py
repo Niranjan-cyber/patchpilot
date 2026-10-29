@@ -25,8 +25,11 @@ def env(tmp_path, monkeypatch):
     chk = IssueCheck(issue=IssueSpec(html_url=URL, repo="o/r", number=1, title="t"), base_sha="abc", default_branch="main",
                      language="Python", policy=RepoPolicy(), fetched_at=db.now())
     monkeypatch.setattr(main, "check_issue", lambda url: chk)
-    monkeypatch.setattr(auth.httpx, "post", lambda *a, **k: R({"access_token": "gho_SECRET", "scope": "public_repo"}))
-    monkeypatch.setattr(auth.httpx, "get", lambda *a, **k: R({"id": 42, "login": "alice"}))
+    from backend.publisher import oauth
+    user = {"id": 42, "login": "alice"}
+    monkeypatch.setattr(oauth.httpx, "post", lambda *a, **k: R({"access_token": "gho_SECRET", "scope": "public_repo"}))
+    monkeypatch.setattr(oauth.httpx, "get", lambda *a, **k: R(dict(user)))
+    monkeypatch.setattr(auth, "_user", user, raising=False)
     return TestClient(main.app, base_url="https://testserver", follow_redirects=False)
 
 
@@ -72,3 +75,24 @@ def test_not_configured_redirects_honestly(env, monkeypatch):
 def test_oauth_callback_never_logged():
     rec = logging.LogRecord("uvicorn.access", 20, "", 0, '%s - "%s %s"', ("1.2.3.4", "GET", "/auth/github/callback?code=SECRET&state=x"), None)
     assert main._NoSecrets().filter(rec) is False
+
+
+def test_second_account_on_shared_browser_cannot_take_first_accounts_runs(env, monkeypatch):
+    b = env
+    rid = b.post("/api/runs", json={"issue_url": URL}).json()["run_id"]
+    sign_in(b, rid)                                   # alice claims it
+    auth._user.update(id=43, login="bob")             # bob signs in on the same browser
+    sign_in(b)
+    assert db.connect().execute("SELECT a.login FROM runs r JOIN accounts a ON a.id=r.owner_account_id WHERE run_id=?",
+                                (rid,)).fetchone()[0] == "alice"
+    assert b.get(f"/api/runs/{rid}").status_code == 404
+
+
+def test_github_user_error_is_friendly_not_500(env, monkeypatch):
+    from backend.publisher import oauth
+    monkeypatch.setattr(oauth.httpx, "get", lambda *a, **k: R({"message": "Bad credentials"}))
+    b = env
+    b.get("/auth/github/start")
+    state = b.cookies.get("pp_oauth", path="/auth").split(":")[0]
+    r = b.get(f"/auth/github/callback?code=abc&state={state}")
+    assert r.status_code == 303 and "error=github" in r.headers["location"]

@@ -3,14 +3,13 @@ import os
 import secrets
 from urllib.parse import urlencode
 
-import httpx
 from fastapi import APIRouter, Request
 from fastapi.responses import RedirectResponse
 
 from backend import db
 from backend.api import session
 from backend.contracts.models import PublishBlocker, RunStatus
-from backend.publisher import tokens
+from backend.publisher import oauth, tokens
 
 router = APIRouter()
 STATE = "pp_oauth"
@@ -61,21 +60,20 @@ def callback(request: Request, code: str = "", state: str = "", error: str = "")
     if not sid:
         return RedirectResponse(back + "&error=session", 303)
     try:
-        tok = httpx.post("https://github.com/login/oauth/access_token", headers={"Accept": "application/json"}, timeout=15,
-                         data={"client_id": os.environ["GITHUB_OAUTH_CLIENT_ID"], "client_secret": os.environ["GITHUB_OAUTH_CLIENT_SECRET"],
-                               "code": code, "redirect_uri": f"{_base(request)}/auth/github/callback"}).json()
-        access = tok["access_token"]
-        user = httpx.get("https://api.github.com/user", timeout=15, headers={"Authorization": f"Bearer {access}"}).json()
+        user, token_enc, scopes = oauth.exchange(code, f"{_base(request)}/auth/github/callback")
     except Exception:
         return RedirectResponse(back + "&error=github", 303)
     c = db.connect()
     with db.tx(c):
         c.execute("""INSERT INTO accounts(github_id,login,token_enc,scopes,created_at) VALUES(?,?,?,?,?)
                      ON CONFLICT(github_id) DO UPDATE SET login=excluded.login, token_enc=excluded.token_enc, scopes=excluded.scopes""",
-                  (user["id"], user["login"], tokens.encrypt(access), tok.get("scope", ""), db.now().isoformat()))
+                  (user["id"], user["login"], token_enc, scopes, db.now().isoformat()))
         aid = c.execute("SELECT id FROM accounts WHERE github_id=?", (user["id"],)).fetchone()[0]
         c.execute("UPDATE sessions SET account_id=? WHERE id_hash=?", (aid, sid))
-        c.execute("UPDATE runs SET owner_account_id=? WHERE owner_session_hash=?", (aid, sid))   # sign-in claims the runs
+        # Sign-in claims only this browser's UNCLAIMED runs, and claimed runs stop being reachable by the cookie alone,
+        # so a second account signing in on a shared browser can't see the first account's runs (C review #1).
+        c.execute("UPDATE runs SET owner_account_id=? WHERE owner_session_hash=? AND owner_account_id IS NULL", (aid, sid))
+        c.execute("UPDATE runs SET owner_session_hash=NULL WHERE owner_session_hash=? AND owner_account_id IS NOT NULL", (sid,))
     resp = RedirectResponse(back + "&signed_in=1", 303)
     resp.delete_cookie(STATE, path="/auth")
     return resp
@@ -106,6 +104,10 @@ def publish(run_id: str, request: Request):
     if blocked:
         raise _err(409, "PUBLISH_BLOCKED", "Publishing is blocked: " + ", ".join(b.value for b in blocked))
     c = db.connect()
+    with db.tx(c):   # conditional transition: a double click can't enqueue two publish jobs (C review #8)
+        if c.execute("UPDATE runs SET status='publishing' WHERE run_id=? AND status IN ('awaiting_approval','published')",
+                     (run_id,)).rowcount != 1:
+            raise _err(409, "ALREADY_PUBLISHING", "Publishing is already in progress.")
     v.status = RunStatus.PUBLISHING
     db.save_run(c, v)
     with db.tx(c):
