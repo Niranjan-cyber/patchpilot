@@ -1,10 +1,11 @@
-"""Dev only: seed two local runs for the B07 browser check (owned by one fresh session). Prints TOKEN RUN_OK RUN_TRIAGE.
-RUN_OK is fixing with a diagnosis + one G4-rejected Fixer attempt; RUN_TRIAGE ended TRIAGE_ONLY with diagnosis unavailable."""
+"""Dev only: seed two local runs for the B07 browser check (owned by one fresh session). Prints TOKEN RUN_OK RUN_TRIAGE RUN_PAUSED.
+RUN_OK is fixing with a diagnosis + one G4-rejected Fixer attempt; RUN_TRIAGE ended TRIAGE_ONLY with diagnosis unavailable;
+RUN_PAUSED waits at a guided pause after reproduction (B15)."""
 import hashlib
 import secrets
 
 from backend import artifacts, db
-from backend.contracts.models import (CheckStatus, Diagnosis, EndReason, IssueSpec, Location, Outcome, ReproTest, RunStatus,
+from backend.contracts.models import (CheckStatus, Diagnosis, EndReason, IssueSpec, Location, Outcome, PauseInfo, ReproTest, RunStatus,
                                       StepId, StepState, TourItem)
 
 SHA = "2247b35ea1c47c727d7a06e51fa280e12a863ff6"   # pallets/click main when seeded, so the file:line links open real code
@@ -13,7 +14,7 @@ tok = secrets.token_urlsafe(32); h = hashlib.sha256(tok.encode()).hexdigest(); t
 with db.tx(c):
     c.execute("INSERT INTO sessions(id_hash,ip_hash,created_at,last_seen_at) VALUES(?,?,?,?)", (h, None, t, t))
 ids = []
-for kind in ("ok", "triage"):
+for kind in ("ok", "triage", "paused"):
     v = db.create_run(c, IssueSpec(html_url="https://github.com/pallets/click/issues/3888", repo="pallets/click", number=3888,
                                    title=f"Choice shows the wrong error for a bad value (seeded sample, {kind})"), SHA, owner_session_hash=h)
     ev = [artifacts.put(f"seeded transcript {kind}"), artifacts.put("seeded test diff"),
@@ -39,6 +40,11 @@ for kind in ("ok", "triage"):
         bad = artifacts.put("diff --git a/tests/test_basic.py b/tests/test_basic.py\n(seeded rejected diff)\n")
         db.emit(c, v.run_id, "attempt.retry", "fix", role="fixer", attempt=1, max=4, reason="edits_tests",
                 evidence_ids=[artifacts.put("seeded fixer transcript"), bad])
+    elif kind == "paused":
+        v.status, v.pause = RunStatus.PAUSED, PauseInfo(reason="guided_pause")
+        db.save_run(c, v)
+        db.put_kv(c, f"pauses:{v.run_id}", '["reproduce"]')
+        db.emit(c, v.run_id, "run.paused", None, 0, reason="guided_pause", resume_at=None, after="reproduce")
     else:
         v.status, v.outcome, v.end_reason, v.readiness = RunStatus.FINISHED, Outcome.TRIAGE_ONLY, EndReason.RETRIES_EXHAUSTED, "Unable to verify a fix"
         v.steps[StepId.DIAGNOSE] = StepState(status=CheckStatus.FAILED, headline="We couldn't pin down the cause with evidence we "

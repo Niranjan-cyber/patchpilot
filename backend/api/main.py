@@ -145,6 +145,8 @@ def stop_run(run_id: str, request: Request):
     if not db.request_stop(c, run_id):
         raise ApiErr(404, "NOT_FOUND", "This run isn't available or has already finished.")
     v = db.get_run(c, run_id)
+    if v.status.value == "paused" and v.pause and v.pause.reason == "guided_pause":
+        _wake(c, run_id)             # B15: nobody is running a guided-paused graph; wake it so it ends as stopped
     if v.status.value == "queued":   # never leased: finish it here
         from backend.contracts.models import EndReason, Outcome, PublishBlocker, RunStatus, readiness
         v.status, v.outcome, v.end_reason = RunStatus.FINISHED, Outcome.STOPPED, EndReason.USER_STOPPED
@@ -229,6 +231,59 @@ def ask_why(run_id: str, body: AskBody, request: Request):
     except explain.ExplainerUnavailable as e:
         raise ApiErr(503, "EXPLAINER_UNAVAILABLE", "The explainer isn't available right now, so we won't guess an answer. "
                      "Try again" + (" in a minute." if e.retry_after else " later."), e.retry_after)
+
+
+PAUSE_POINTS = ("reproduce", "diagnose", "fix")   # pause AFTER these, so the user can look before the next step
+
+
+class PausesBody(BaseModel):
+    after: list[str] = []
+
+
+@app.get("/api/runs/{run_id}/pauses")
+def get_pauses(run_id: str, request: Request):
+    _own(request, run_id) if _is_real(run_id) else _fixture(run_id)
+    import json
+    return {"after": json.loads(db.get_kv(db.connect(), f"pauses:{run_id}") or "[]"), "points": list(PAUSE_POINTS)}
+
+
+@app.put("/api/runs/{run_id}/pauses")
+def set_pauses(run_id: str, body: PausesBody, request: Request):
+    """B15: optional guided pauses, off by default. Takes effect for steps that haven't started yet."""
+    import json
+    if not _is_real(run_id):
+        raise ApiErr(404, "NOT_FOUND", "This run isn't available.")
+    _own(request, run_id)
+    bad = [p for p in body.after if p not in PAUSE_POINTS]
+    if bad:
+        raise ApiErr(422, "BAD_PAUSE_POINT", "You can pause after: " + ", ".join(PAUSE_POINTS))
+    v = db.get_run(db.connect(), run_id)
+    if v.outcome is not None:
+        raise ApiErr(409, "RUN_FINISHED", "This run has finished; there's nothing left to pause.")
+    db.put_kv(db.connect(), f"pauses:{run_id}", json.dumps(sorted(set(body.after))))
+    return {"after": sorted(set(body.after)), "points": list(PAUSE_POINTS)}
+
+
+def _wake(c, run_id: str) -> bool:
+    """Queue one resume job for a guided-paused run (conditional: a double click can't queue two)."""
+    with db.tx(c):
+        if c.execute("SELECT 1 FROM jobs WHERE run_id=? AND kind='resume' AND state IN ('queued','running')", (run_id,)).fetchone():
+            return False
+        c.execute("INSERT INTO jobs(run_id,kind,state,available_at) VALUES(?,?,?,?)", (run_id, "resume", "queued", db.now().isoformat()))
+    return True
+
+
+@app.post("/api/runs/{run_id}/continue", response_model=RunView)
+def continue_run(run_id: str, request: Request):
+    if not _is_real(run_id):
+        raise ApiErr(404, "NOT_FOUND", "This run isn't available.")
+    _own(request, run_id)
+    c = db.connect()
+    v = db.get_run(c, run_id)
+    if v.status.value != "paused" or not v.pause or v.pause.reason != "guided_pause":
+        raise ApiErr(409, "NOT_PAUSED", "This run isn't waiting for you.")
+    _wake(c, run_id)
+    return v
 
 
 @app.get("/api/runs/{run_id}/report.md")
