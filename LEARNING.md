@@ -59,3 +59,5 @@ Every session appends here after every event: a step started or finished, a deci
 - [2026-10-29 21:35 UTC] A REVIEW: PR #16 (B14 eval, C) approved and merged; sandbox use correct, unknown stays unknown, /api/eval 404 until real runs.
 - [2026-10-29 21:35 UTC] A LESSON: a second session reviewing the takeover code found a P1 isolation hole the author's own tests missed. Cross-session review earns its cost.
 - [2026-10-29 22:50 UTC] C EVENT: TAKEOVER B07 from B (A suggested); SupplyGuard uv.lock parser ready locally, waiting on Devansh to approve committing to his repo.
+- [2026-10-30 00:30 UTC] C EVENT: B18 Explore one repo built: backend/github/explore.py (rank by runnable signals from issue text, not labels; drops PRs/assigned/linked-PR; OS-specific bugs ranked down since sandboxes run Linux; unknown file listing = partial, never 'no tests'), POST /api/repos/explore, S-09 /explore. Live on pallets/click: 5 suggestions; express → unsupported.
+- [2026-10-30] C LESSON: python heredoc string replace turned '\b' into literal backspace characters in a regex → write regex lines from a raw string (or Edit), and grep for $'\b' after.

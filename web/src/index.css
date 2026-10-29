@@ -141,3 +141,14 @@ abbr { text-decoration: underline dotted; cursor: help; }
 .row-bad td { background: var(--fail-bg); color: var(--fail); }
 .pill-pass { color: var(--pass); font-weight: 700; }
 .pill-fail { color: var(--fail); font-weight: 700; }
+
+/* B18 explore */
+.explore { max-width: 48rem; }
+.repo-signals { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin: 1.5rem 0 1rem; }
+.chip { font-size: 0.85rem; border-radius: 99px; padding: 0.15rem 0.6rem; border: 1px solid var(--line); background: var(--paper); }
+.chip-true { color: var(--pass); border-color: var(--pass-bg); background: var(--pass-bg); }
+.chip-false { color: var(--fail); background: var(--fail-bg); border-color: var(--fail-bg); }
+.chip-null { color: var(--warn); background: var(--warn-bg); border-color: var(--warn-bg); }
+.shortlist { list-style: none; padding: 0; display: grid; gap: 0.75rem; }
+.sl-head { display: flex; justify-content: space-between; gap: 0.75rem; align-items: baseline; flex-wrap: wrap; }
+.why { margin: 0.5rem 0; padding-left: 1.1rem; }

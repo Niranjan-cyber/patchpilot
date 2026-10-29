@@ -92,6 +92,16 @@ def issues_check(body: CheckBody):
     return _check(body.url)
 
 
+@app.post("/api/repos/explore")
+def repos_explore(body: CheckBody):
+    """B18 / S-09: 3-5 open issues PatchPilot can likely run, with reasons (read-only server token, github.com only)."""
+    from backend.github.explore import explore
+    try:
+        return explore(body.url)
+    except GitHubError as e:
+        raise ApiErr(422 if e.code == "INVALID_URL" else 404 if e.code == "PRIVATE_REPO" else 503, e.code, str(e), e.retry_after)
+
+
 class NewRun(BaseModel):
     issue_url: str
     continue_despite: list[str] = []
