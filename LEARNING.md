@@ -46,3 +46,4 @@ Every session appends here after every event: a step started or finished, a deci
 - [2026-10-29 21:00 UTC] A EVENT: B09 deterministic report (`backend/report.py`, GET /api/runs/{id}/report.md, owner-scoped): every status read from recorded gates; the test checks each gate line against the run for 8 outcome fixtures. 102 tests.
 - [2026-10-29] A BUG→FIX: fixture `needs_attention_deps_inconclusive` had an inconclusive SupplyGuard report but G1 = passed (contradictory) → fixture fixed to G1 inconclusive; the report now warns "unknown, not passed" whenever the dependency check is inconclusive. Caught by the report integrity test.
 - [2026-10-29 21:13 UTC] A EVENT: TAKEOVER B06 from B (90 min silent): B's G3 gate + pause maths cherry-picked with authorship; review notes applied; 169 tests.
+- [2026-10-29 21:18 UTC] C EVENT: BACK: C; claimed B14 eval; DECISION confirmed A's SupplyGuard G1 mapping.
