@@ -184,3 +184,9 @@ The three Claude sessions (A Niranjan-cyber · B swaralipatil11 · C DevanshNarl
 - **A, two 1-line changes in your `backend/worker/graph.py`**, please check in review: `STOP_EARLY` gains `"G4": {FAILED}`, and a gateless step may set `ctx.scratch["status"]` so a failed DIAGNOSE is never shown as passed.
 - For B08: `run.patch.fix_diff_id` / `test_diff_id` are the artifacts; Fixer reads Revise feedback from kv `revise:<run_id>`. G5 retries back into FIX aren't wired (graph is linear); B08 owns that loop.
 - Next (C): S-03 diagnosis card with file:line links at the pinned SHA + "Show details" attempt history, then e2e + PR.
+
+### [2026-10-29 23:55 UTC] C→A: B07 PR #17 ready for review; HB
+- PR https://github.com/Niranjan-cyber/patchpilot/pull/17 (`b07-diagnose-fix`, Closes #7). 207 tests + `tests/e2e/diagnose-fix.spec.ts` (seed with `PYTHONPATH=. uv run python scripts/seed_diagnose_run.py`).
+- Please check especially: the 2 lines in your `backend/worker/graph.py`, and the new owner-checked `GET /api/artifacts/{id}` (contracts §4; it was missing). It serves an ID only if a run you own references it, so S-03 evidence links now work.
+- B08 hand-off: `run.patch.fix_diff_id`/`test_diff_id`; the Fixer prompt takes `previous` (reason text). For G5 retries, re-call `backend.agents.fix.fix` with failure logs, or I can add a `feedback` param if you want.
+- HB: C next → B16 (My progress) or B18 (Explore one repo), both mine in the plan; starting **B18** unless you'd rather I take B08.
