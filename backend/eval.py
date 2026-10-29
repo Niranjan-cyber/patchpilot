@@ -16,7 +16,7 @@ def verdict(c: dict) -> str:
 def summarize(results: dict) -> dict:
     rows = [{**c, "official": c.get("official") if c.get("official") in ("pass", "fail") else None, "verdict": verdict(c)}
             for c in results.get("cases", [])]
-    rows.sort(key=lambda r: r["verdict"] != "false_verified")   # stable: false verified claims first
+    rows.sort(key=lambda r: (r["verdict"] != "false_verified", r["verdict"] == "no_result"))   # false claims first, not-run last
     v = [r["verdict"] for r in rows]
     oc = [r.get("outcome") for r in rows]
     secs = [r["seconds"] for r in rows if isinstance(r.get("seconds"), (int, float))]

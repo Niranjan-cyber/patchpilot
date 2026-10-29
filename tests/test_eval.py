@@ -67,3 +67,8 @@ def test_api_eval_not_run_and_results(tmp_path, monkeypatch):
     assert s["rows"][0]["verdict"] == "false_verified" and s["counts"]["false_verified"] == 1
     (tmp_path / "results.json").write_text("{not json")
     assert c.get("/api/eval").status_code == 500
+
+
+def test_not_run_rows_go_last():
+    s = summarize({"cases": [case(1, None, None), case(2, "TRIAGE_ONLY", None), case(3, "VERIFIED_FIX", "fail")]})
+    assert [r["id"] for r in s["rows"]] == ["c3", "c2", "c1"]
