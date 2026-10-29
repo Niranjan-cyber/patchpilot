@@ -19,12 +19,12 @@ RUNS = [run(1, Outcome.VERIFIED_FIX, pr=11), run(2, Outcome.FIX_NEEDS_ATTENTION,
 
 
 def test_counts_are_separate_and_never_conflated():
-    c = P.counts(RUNS, {11: "merged", 12: "open", 13: None})
+    c = P.counts(RUNS, {"o/r#11": "merged", "o/r#12": "open", "o/r#13": None})
     assert c == {"started": 7, "analyzed": 6, "fix_proposed": 4, "pr_opened": 3, "pr_merged": 1, "pr_status_unknown": 1}
 
 
 def test_unknown_pr_status_is_never_counted_as_merged_or_closed():
-    c = P.counts(RUNS, {11: None, 12: None, 13: None})
+    c = P.counts(RUNS, {"o/r#11": None, "o/r#12": None, "o/r#13": None})
     assert c["pr_merged"] == 0 and c["pr_status_unknown"] == 3
 
 
@@ -38,8 +38,8 @@ def test_github_state_mapping():
 
 def test_summary_states():
     assert P.summary([], {})["state"] == "empty"
-    assert P.summary(RUNS, {11: "merged", 12: "open", 13: "open"})["state"] == "success"
-    s = P.summary(RUNS, {11: "merged", 12: "open", 13: None})
+    assert P.summary(RUNS, {"o/r#11": "merged", "o/r#12": "open", "o/r#13": "open"})["state"] == "success"
+    s = P.summary(RUNS, {"o/r#11": "merged", "o/r#12": "open", "o/r#13": None})
     assert s["state"] == "partial"
     row = next(r for r in s["rows"] if r["run_id"] == "r7")
     assert row["github_pr_status"] is None and row["patchpilot"]["pr_url"].endswith("/pull/13")
@@ -52,7 +52,7 @@ def test_fetch_failure_gives_unknown(monkeypatch):
         def __exit__(self, *a): return False
     monkeypatch.setattr(P, "_client", lambda: Boom())
     monkeypatch.setattr(P, "_get", lambda h, path, required=True: None)       # GitHub blocked / 5xx
-    assert P.fetch_pr_states(RUNS) == {11: None, 12: None, 13: None}
+    assert P.fetch_pr_states(RUNS) == {"o/r#11": None, "o/r#12": None, "o/r#13": None}
 
 
 def test_api_progress_is_owner_scoped_and_reports_unknown(tmp_path, monkeypatch):
@@ -60,7 +60,7 @@ def test_api_progress_is_owner_scoped_and_reports_unknown(tmp_path, monkeypatch)
     from backend import db
     from backend.api import main
     monkeypatch.setattr(db, "DB_PATH", str(tmp_path / "app.db"))
-    monkeypatch.setattr(P, "fetch_pr_states", lambda runs: {v.pr.number: None for v in runs if v.pr})
+    monkeypatch.setattr(P, "fetch_pr_states", lambda runs: {P.key(v): None for v in runs if v.pr})
     a, b = (TestClient(main.app, base_url="https://testserver") for _ in range(2))
     assert a.get("/api/me/progress").json()["state"] == "empty"            # no cookie yet
     from backend.api import session
@@ -76,3 +76,13 @@ def test_api_progress_is_owner_scoped_and_reports_unknown(tmp_path, monkeypatch)
     s = a.get("/api/me/progress").json()
     assert s["state"] == "partial" and s["counts"]["pr_opened"] == 1 and s["rows"][0]["github_pr_status"] is None
     assert b.get("/api/me/progress").json()["state"] == "empty"            # other browser sees nothing
+
+
+def test_same_pr_number_in_two_repos_does_not_collide():
+    a = run(1, Outcome.VERIFIED_FIX, pr=12)
+    b = run(2, Outcome.VERIFIED_FIX, pr=12)
+    b.issue.repo = "other/repo"
+    c = P.counts([a, b], {"o/r#12": "merged", "other/repo#12": None})
+    assert c["pr_merged"] == 1 and c["pr_status_unknown"] == 1
+    rows = {r["repo"]: r["github_pr_status"] for r in P.summary([a, b], {"o/r#12": "merged", "other/repo#12": None})["rows"]}
+    assert rows == {"o/r": "merged", "other/repo": None}

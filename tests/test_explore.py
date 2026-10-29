@@ -117,3 +117,16 @@ def test_api_explore_errors_and_success(monkeypatch):
 def test_os_specific_bugs_rank_below_linux_reproducible_ones():
     win = score_issue(iss(6, BUG + "\nThis only happens on Windows: WinError 87.", title="edit throws WinError 87"))
     assert "other_os" in win["signals"] and win["score"] < score_issue(iss(6, BUG))["score"]
+
+
+def test_explore_caches_complete_reads_only(monkeypatch):
+    from backend.github import explore as E
+    E._CACHE.clear()
+    calls = []
+    monkeypatch.setattr(E, "_explore", lambda repo: (calls.append(repo), {"state": "success", "suggestions": []})[1])
+    a = E.explore("https://github.com/o/r"); b = E.explore("https://github.com/O/R/issues")
+    assert len(calls) == 1 and a["cached"] is False and b["cached"] is True and b["fetched_at"] == a["fetched_at"]
+    E._CACHE.clear()
+    monkeypatch.setattr(E, "_explore", lambda repo: (calls.append(repo), {"state": "partial", "suggestions": []})[1])
+    E.explore("https://github.com/o/r"); E.explore("https://github.com/o/r")
+    assert len(calls) == 3                                   # partial results are re-read, never served stale
