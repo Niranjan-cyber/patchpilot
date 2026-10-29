@@ -160,6 +160,18 @@ abbr { text-decoration: underline dotted; cursor: help; }
 .sl-head { display: flex; justify-content: space-between; gap: 0.75rem; align-items: baseline; flex-wrap: wrap; }
 .why { margin: 0.5rem 0; padding-left: 1.1rem; }
 
+/* B15 ask why */
+.ask-qs { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.5rem 0; }
+.ask-qs button { font-size: 0.85rem; padding: 0.4rem 0.7rem; text-align: left; overflow-wrap: anywhere; }
+.answer { border-top: 1px solid var(--line); padding-top: 0.6rem; margin-top: 0.6rem; }
+.answer-q { font-weight: 700; margin: 0 0 0.25rem; }
+
+/* B15 guided pauses */
+.pauses { border: 1px solid var(--line); }
+.pauses legend { font-weight: 700; padding: 0 0.3rem; }
+.pauses label { display: block; margin: 0.3rem 0; }
+.notice.guided { background: #e8efff; border-color: #c4d4fb; margin-bottom: 1rem; }
+.guided-actions { display: flex; gap: 0.5rem; margin-top: 0.6rem; flex-wrap: wrap; }
 /* B16 progress */
 .progress { margin: 1.5rem 0 2rem; }
 .gh-merged { color: var(--pass); font-weight: 700; }

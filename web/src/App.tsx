@@ -8,6 +8,8 @@ import { Connect, PrOpened } from "./Publish";
 import MyRuns, { RunList, useMyRuns } from "./MyRuns";
 import Eval from "./Eval";
 import { AttemptHistory, DiagnosisCard } from "./Diagnosis";
+import AskPanel from "./Ask";
+import { GuidedPauseNotice, PauseToggles } from "./Pauses";
 import Explore from "./Explore";
 
 function Shell({ children }: { children: React.ReactNode }) {
@@ -75,7 +77,8 @@ function Run() {
         </div>
         <ReadinessBadge run={run} />
       </div>
-      {run.status === "paused" && (
+      <GuidedPauseNotice run={run} />
+      {run.status === "paused" && run.pause?.reason !== "guided_pause" && (
         <p className="notice warn">
           {run.pause?.resume_at ? `Paused: free AI capacity resumes around ${new Date(run.pause.resume_at).toLocaleTimeString()}.`
             : "Paused until free AI capacity is available. We'll stop and keep your report if that takes over 2 hours."}
@@ -90,6 +93,8 @@ function Run() {
         <aside className="side">
           <DiagnosisCard run={run} />
           <AttemptHistory events={events} />
+          <AskPanel run={run} />
+          <PauseToggles run={run} />
           {!done && /^[0-9a-f-]{36}$/.test(id) && (
             <button className="danger-btn" onClick={() => api(`/api/runs/${id}/stop`, { method: "POST" }).catch(() => null)}>
               Stop run and keep the report so far

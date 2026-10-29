@@ -23,7 +23,7 @@ WORKER_ID = f"{socket.gethostname()}:{os.getpid()}"
 def lease_job(c):
     t = db.now()
     with db.tx(c):
-        row = c.execute("""SELECT * FROM jobs WHERE kind IN ('analyze','revise','publish') AND ((state='queued' AND available_at<=?)
+        row = c.execute("""SELECT * FROM jobs WHERE kind IN ('analyze','revise','publish','resume') AND ((state='queued' AND available_at<=?)
                            OR (state='running' AND lease_expires_at<?)) ORDER BY id LIMIT 1""",
                         (t.isoformat(), t.isoformat())).fetchone()
         if not row:
@@ -50,6 +50,10 @@ def run_job(graph, job: dict) -> None:
     c, rid = db.connect(), job["run_id"]
     cfg = {"configurable": {"thread_id": rid}}
     run = db.get_run(c, rid)
+    if job["kind"] == "resume":   # B15: Continue after a guided pause (the graph resumes at the paused node)
+        db.emit(c, rid, "run.resumed", None, run.revision, from_step=(graph.get_state(cfg).next or ["?"])[0])
+        run.status, run.pause = RunStatus.RUNNING, None; db.save_run(c, run)
+        return _finish_job(c, job, graph, cfg)
     if job["kind"] == "revise" and not job["resumed"]:
         db.emit(c, rid, "run.resumed", None, run.revision, from_step="fix")
         graph.update_state(cfg, {"end_reason": None, "gates": {"G4": "not_run", "G5": "not_run", "G6": "not_run"}}, as_node="diagnose")

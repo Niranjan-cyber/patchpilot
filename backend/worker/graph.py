@@ -5,6 +5,7 @@ from typing import Annotated, TypedDict
 
 from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.graph import END, START, StateGraph
+from langgraph.types import interrupt
 
 from backend import db
 from backend.config import ROOT
@@ -35,6 +36,8 @@ def _step_node(step: StepId):
         c = db.connect(); rid = state["run_id"]; run = db.get_run(c, rid)
         if db.stop_requested(c, rid):
             return {"end_reason": EndReason.USER_STOPPED.value, "stopped_at": step.value}
+        if _guided_pause(c, run, step):
+            interrupt({"paused_before": step.value})   # LangGraph stops here; Continue re-enters this node
         run.steps[step] = StepState(status="running", started_at=db.now(), headline=HEAD(step)); db.save_run(c, run)
         db.emit(c, rid, "step.started", step.value, run.revision, attempt=1, headline=HEAD(step))
         ctx = StepContext(rid, run, lambda t, s=None, **p: db.emit(c, rid, t, s, run.revision, **p))
@@ -68,6 +71,23 @@ def _step_node(step: StepId):
                 evidence_ids=res.evidence_ids if res else [])
         return out
     return node
+
+
+def _guided_pause(c, run, step: StepId) -> bool:
+    """B15: True the first time we reach `step` after a step the user asked to pause after. The kv marker makes the
+    re-entry after Continue skip the pause, so no step ever runs twice."""
+    import json
+    i = ORDER.index(step)
+    prev = ORDER[i - 1].value if i else None
+    key = f"guided:{run.run_id}:{run.revision}:{prev}"
+    if not prev or prev not in json.loads(db.get_kv(c, f"pauses:{run.run_id}") or "[]") or db.get_kv(c, key):
+        return False
+    from backend.contracts.models import PauseInfo
+    db.put_kv(c, key, db.now().isoformat())
+    run.status, run.pause = RunStatus.PAUSED, PauseInfo(reason="guided_pause")
+    db.save_run(c, run)
+    db.emit(c, run.run_id, "run.paused", None, run.revision, reason="guided_pause", resume_at=None, after=prev)
+    return True
 
 
 def _wait_out_pause(c, rid: str, q, since: float) -> bool:
