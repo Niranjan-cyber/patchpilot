@@ -1,0 +1,7 @@
+{"v":1,"run_id":"env_failed","seq":1,"ts":"2026-11-11T10:00:20Z","type":"run.queued","step":null,"revision":0,"payload":{"position":1}}
+{"v":1,"run_id":"env_failed","seq":2,"ts":"2026-11-11T10:00:40Z","type":"run.started","step":null,"revision":0,"payload":{"from_step":"preflight"}}
+{"v":1,"run_id":"env_failed","seq":3,"ts":"2026-11-11T10:01:00Z","type":"step.started","step":"preflight","revision":0,"payload":{"attempt":1,"headline":"We checked the project's dependencies for known-bad packages."}}
+{"v":1,"run_id":"env_failed","seq":4,"ts":"2026-11-11T10:01:20Z","type":"step.finished","step":"preflight","revision":0,"payload":{"status":"passed","headline":"We checked the project's dependencies for known-bad packages.","evidence_ids":["sha256:0000000000000000000000000000000000000000000000000000000000000001"]}}
+{"v":1,"run_id":"env_failed","seq":5,"ts":"2026-11-11T10:01:40Z","type":"step.started","step":"setup","revision":0,"payload":{"attempt":1,"headline":"We installed the project in a fresh sandbox."}}
+{"v":1,"run_id":"env_failed","seq":6,"ts":"2026-11-11T10:02:00Z","type":"step.finished","step":"setup","revision":0,"payload":{"status":"failed","headline":"We couldn't install this project.","evidence_ids":["sha256:0000000000000000000000000000000000000000000000000000000000000063"]}}
+{"v":1,"run_id":"env_failed","seq":7,"ts":"2026-11-11T10:02:20Z","type":"analysis.finished","step":null,"revision":0,"payload":{"outcome":"ENV_FAILED","end_reason":"retries_exhausted","readiness":"Unable to verify","publish_blockers":["outcome_not_verified"]}}

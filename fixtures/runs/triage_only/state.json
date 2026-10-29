@@ -1,0 +1,184 @@
+{
+  "run_id": "triage_only",
+  "revision": 0,
+  "status": "finished",
+  "outcome": "TRIAGE_ONLY",
+  "end_reason": "retries_exhausted",
+  "readiness": "Unable to verify a fix",
+  "issue": {
+    "html_url": "https://github.com/patchpilot-demo/tinycalc/issues/1",
+    "repo": "patchpilot-demo/tinycalc",
+    "number": 1,
+    "title": "divide() returns 0 instead of raising on zero",
+    "summary": null,
+    "expected": "ZeroDivisionError",
+    "actual": "returns 0",
+    "labels": [],
+    "checks": {
+      "open": "passed",
+      "public": "passed",
+      "python": "passed",
+      "tests_found": "passed",
+      "unassigned": "passed",
+      "no_linked_pr": "passed"
+    }
+  },
+  "base_sha": "a1b2c3da1b2c3da1b2c3da1b2c3da1b2c3da1b2c",
+  "policy": {
+    "ai_policy": "unknown",
+    "prs_restricted": null,
+    "source_evidence_ids": []
+  },
+  "env": null,
+  "baseline": {
+    "pass_set": [
+      "tests/test_ops.py::test_add",
+      "tests/test_ops.py::test_sub"
+    ],
+    "fail_set": [
+      "tests/test_ops.py::test_pow_big"
+    ],
+    "flaky_set": [],
+    "partial": false,
+    "evidence_ids": [
+      "sha256:0000000000000000000000000000000000000000000000000000000000000003"
+    ]
+  },
+  "repro": {
+    "test_diff_id": "sha256:000000000000000000000000000000000000000000000000000000000000000a",
+    "test_ids": [
+      "tests/test_issue_1.py::test_divide_zero"
+    ],
+    "expected_failure": "AssertionError: DID NOT RAISE ZeroDivisionError",
+    "runs_on_base": [
+      "failed",
+      "failed"
+    ],
+    "evidence_ids": []
+  },
+  "diagnosis": {
+    "locations": [
+      {
+        "path": "tinycalc/ops.py",
+        "line": 12
+      }
+    ],
+    "hypothesis": "divide() catches ZeroDivisionError and returns 0.",
+    "tour": [
+      {
+        "path": "tinycalc/ops.py",
+        "why": "where divide() lives"
+      },
+      {
+        "path": "tests/test_ops.py",
+        "why": "existing tests for ops"
+      }
+    ],
+    "evidence_ids": [
+      "sha256:0000000000000000000000000000000000000000000000000000000000000004"
+    ]
+  },
+  "patch": {
+    "fix_diff_id": "sha256:000000000000000000000000000000000000000000000000000000000000000b",
+    "test_diff_id": "sha256:000000000000000000000000000000000000000000000000000000000000000a",
+    "attempt": 1,
+    "policy_result": "passed",
+    "policy_reason": null
+  },
+  "verify": {
+    "new_test_runs": [
+      "passed",
+      "passed"
+    ],
+    "regressions": [],
+    "container_id": "pp-verify-1",
+    "hidden_variant": null,
+    "evidence_ids": []
+  },
+  "supplyguard": {
+    "report_id": "sha256:0000000000000000000000000000000000000000000000000000000000000014",
+    "status": "passed",
+    "findings": [],
+    "files": [
+      "pyproject.toml"
+    ],
+    "failures": []
+  },
+  "review": null,
+  "gates": {
+    "G1": "passed",
+    "G2": "passed",
+    "G3": "passed",
+    "G4": "passed",
+    "G5": "failed"
+  },
+  "steps": {
+    "preflight": {
+      "status": "passed",
+      "started_at": "2026-11-11T10:00:00Z",
+      "finished_at": "2026-11-11T10:00:00Z",
+      "attempt": 1,
+      "headline": "We checked the project's dependencies for known-bad packages."
+    },
+    "setup": {
+      "status": "passed",
+      "started_at": "2026-11-11T10:00:00Z",
+      "finished_at": "2026-11-11T10:00:00Z",
+      "attempt": 1,
+      "headline": "We installed the project in a fresh sandbox."
+    },
+    "baseline": {
+      "status": "passed",
+      "started_at": "2026-11-11T10:00:00Z",
+      "finished_at": "2026-11-11T10:00:00Z",
+      "attempt": 1,
+      "headline": "We ran the existing tests to see what already passes."
+    },
+    "reproduce": {
+      "status": "passed",
+      "started_at": "2026-11-11T10:00:00Z",
+      "finished_at": "2026-11-11T10:00:00Z",
+      "attempt": 1,
+      "headline": "We wrote a test that fails because of this bug. It failed twice, as expected."
+    },
+    "diagnose": {
+      "status": "passed",
+      "started_at": "2026-11-11T10:00:00Z",
+      "finished_at": "2026-11-11T10:00:00Z",
+      "attempt": 1,
+      "headline": "We found the likely cause in the code."
+    },
+    "fix": {
+      "status": "passed",
+      "started_at": "2026-11-11T10:00:00Z",
+      "finished_at": "2026-11-11T10:00:00Z",
+      "attempt": 1,
+      "headline": "We wrote a small fix that only touches source files."
+    },
+    "verify": {
+      "status": "failed",
+      "started_at": null,
+      "finished_at": null,
+      "attempt": 1,
+      "headline": "The fix didn't pass in a fresh sandbox after 3 tries."
+    }
+  },
+  "attempts": {},
+  "budget": {
+    "tokens_used": 0,
+    "tokens_limit": 300000,
+    "active_seconds": 0,
+    "active_seconds_limit": 1500,
+    "paused_since": null
+  },
+  "pause": null,
+  "publish_blockers": [
+    "outcome_not_verified"
+  ],
+  "revisions": [],
+  "approval": null,
+  "pr": null,
+  "details_expired_at": null,
+  "created_at": "2026-11-11T10:00:00Z",
+  "updated_at": "2026-11-11T10:05:40Z"
+}

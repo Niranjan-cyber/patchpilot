@@ -19,3 +19,15 @@ Shared, change only by a PR that all three approve: `backend/contracts/`, `docs/
 6. **Trust gate:** a wrong result, isolation leak or failure shown as empty is filed as an issue labelled `bug:P0` or `bug:P1`. No new feature PRs merge while one is open.
 7. **Don't overlap:** touch another role's paths only through a PR that role reviews.
 8. **Tokens:** one step per session, `/clear` between steps, no full logs in issues (`tail -30`).
+
+## No duplicate work
+- Before writing code, post `CLAIM: <step or module> <paths>` in messages.md. If a CLAIM already covers those paths, coordinate in messages.md first, don't start.
+- Shared code lives in one place: contracts and rules in `backend/contracts/models.py` (outcome, readiness, blockers); sandbox calls in `backend/sandbox/`; GitHub calls in `backend/github/`; LLM calls only through `backend/llm_gateway.py`. Import, don't copy.
+- Current claims (update when you claim or finish):
+
+| Claim | Owner | Paths | Status |
+|---|---|---|---|
+| B01/B02 skeleton, contracts code, fixtures, API fixture mode, web shell | A | backend/contracts, backend/api, scripts/make_fixtures.py, fixtures/runs, web/ (shell + S-03/S-04 components) | in progress |
+| SupplyGuard adapter (calls Devansh's CLI) | A | backend/sandbox/supplyguard.py | claimed, after B02 |
+| B03 issue reader | C | backend/github/reader.py | open |
+| B06–B09 agents and gates | B | backend/agents/, backend/gates/, backend/llm_gateway.py | open |

@@ -1,0 +1,5 @@
+{"v":1,"run_id":"blocked","seq":1,"ts":"2026-11-11T10:00:20Z","type":"run.queued","step":null,"revision":0,"payload":{"position":1}}
+{"v":1,"run_id":"blocked","seq":2,"ts":"2026-11-11T10:00:40Z","type":"run.started","step":null,"revision":0,"payload":{"from_step":"preflight"}}
+{"v":1,"run_id":"blocked","seq":3,"ts":"2026-11-11T10:01:00Z","type":"step.started","step":"preflight","revision":0,"payload":{"attempt":1,"headline":"We checked the project's dependencies for known-bad packages."}}
+{"v":1,"run_id":"blocked","seq":4,"ts":"2026-11-11T10:01:20Z","type":"step.finished","step":"preflight","revision":0,"payload":{"status":"blocked","headline":"A dependency looks like a typosquat of a popular package.","evidence_ids":["sha256:0000000000000000000000000000000000000000000000000000000000000063"]}}
+{"v":1,"run_id":"blocked","seq":5,"ts":"2026-11-11T10:01:40Z","type":"analysis.finished","step":null,"revision":0,"payload":{"outcome":"BLOCKED","end_reason":"completed","readiness":"Unable to verify","publish_blockers":["outcome_not_verified"]}}

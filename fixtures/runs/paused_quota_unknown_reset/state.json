@@ -1,0 +1,110 @@
+{
+  "run_id": "paused_quota_unknown_reset",
+  "revision": 0,
+  "status": "paused",
+  "outcome": null,
+  "end_reason": null,
+  "readiness": null,
+  "issue": {
+    "html_url": "https://github.com/patchpilot-demo/tinycalc/issues/1",
+    "repo": "patchpilot-demo/tinycalc",
+    "number": 1,
+    "title": "divide() returns 0 instead of raising on zero",
+    "summary": null,
+    "expected": "ZeroDivisionError",
+    "actual": "returns 0",
+    "labels": [],
+    "checks": {
+      "open": "passed",
+      "public": "passed",
+      "python": "passed",
+      "tests_found": "passed",
+      "unassigned": "passed",
+      "no_linked_pr": "passed"
+    }
+  },
+  "base_sha": "a1b2c3da1b2c3da1b2c3da1b2c3da1b2c3da1b2c",
+  "policy": {
+    "ai_policy": "unknown",
+    "prs_restricted": null,
+    "source_evidence_ids": []
+  },
+  "env": null,
+  "baseline": {
+    "pass_set": [
+      "tests/test_ops.py::test_add",
+      "tests/test_ops.py::test_sub"
+    ],
+    "fail_set": [
+      "tests/test_ops.py::test_pow_big"
+    ],
+    "flaky_set": [],
+    "partial": false,
+    "evidence_ids": [
+      "sha256:0000000000000000000000000000000000000000000000000000000000000003"
+    ]
+  },
+  "repro": null,
+  "diagnosis": null,
+  "patch": null,
+  "verify": null,
+  "supplyguard": {
+    "report_id": "sha256:0000000000000000000000000000000000000000000000000000000000000014",
+    "status": "passed",
+    "findings": [],
+    "files": [
+      "pyproject.toml"
+    ],
+    "failures": []
+  },
+  "review": null,
+  "gates": {
+    "G1": "passed",
+    "G2": "passed"
+  },
+  "steps": {
+    "preflight": {
+      "status": "passed",
+      "started_at": "2026-11-11T10:00:00Z",
+      "finished_at": "2026-11-11T10:00:00Z",
+      "attempt": 1,
+      "headline": "We checked the project's dependencies for known-bad packages."
+    },
+    "setup": {
+      "status": "passed",
+      "started_at": "2026-11-11T10:00:00Z",
+      "finished_at": "2026-11-11T10:00:00Z",
+      "attempt": 1,
+      "headline": "We installed the project in a fresh sandbox."
+    },
+    "baseline": {
+      "status": "passed",
+      "started_at": "2026-11-11T10:00:00Z",
+      "finished_at": "2026-11-11T10:00:00Z",
+      "attempt": 1,
+      "headline": "We ran the existing tests to see what already passes."
+    }
+  },
+  "attempts": {},
+  "budget": {
+    "tokens_used": 0,
+    "tokens_limit": 300000,
+    "active_seconds": 0,
+    "active_seconds_limit": 1500,
+    "paused_since": null
+  },
+  "pause": {
+    "reason": "provider_quota",
+    "provider": "gemini",
+    "resume_at": null
+  },
+  "publish_blockers": [
+    "outcome_not_verified"
+  ],
+  "revisions": [],
+  "approval": null,
+  "pr": null,
+  "details_expired_at": null,
+  "created_at": "2026-11-11T10:00:00Z",
+  "updated_at": "2026-11-11T10:03:00Z"
+}
