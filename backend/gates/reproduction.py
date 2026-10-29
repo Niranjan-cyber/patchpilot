@@ -55,7 +55,8 @@ def classify_run(output, issue_error=None):
     if re.search(r"^=+ .*\d+ failed", output, re.M) or re.search(r"^FAILED ", output, re.M):
         if issue_error and _raised(output, issue_error):
             return "issue_error"
-        if _raised(output, "AssertionError"):
+        # Older pytest prints a rewritten comparison as a bare `E  assert x == y`.
+        if _raised(output, "AssertionError") or _raised(output, "assert"):
             return "assertion"
         return "other_error"
 

@@ -154,6 +154,20 @@ def test_the_issues_error_is_not_matched_from_prose():
     assert classify_run(output, "ValueError") == "assertion"
 
 
+def test_bare_rewritten_assert_counts_as_an_assertion():
+    # Older pytest omits the "AssertionError:" prefix on a rewritten comparison.
+    output = ASSERTION.replace(
+        "E       AssertionError: assert 'crme-brle' == 'creme-brulee'",
+        "E       assert 'crme-brle' == 'creme-brulee'",
+    )
+    assert classify_run(output) == "assertion"
+
+
+def test_an_assert_prefixed_identifier_is_not_an_assertion():
+    output = ASSERTION.replace("E       AssertionError: assert", "E       assert_called_once:")
+    assert classify_run(output) == "other_error"
+
+
 def test_empty_output_is_no_result():
     assert classify_run("") == "no_result"
 
