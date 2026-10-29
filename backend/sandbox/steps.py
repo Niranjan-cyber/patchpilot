@@ -72,7 +72,7 @@ def run_supplyguard(rid: str) -> SGReport:
         except Exception as e:
             log = f"SupplyGuard failed to run: {e!r}"
     status, reason, findings = map_supplyguard(code, report)
-    files = [f for f in ("requirements.txt", "Pipfile.lock", "poetry.lock", "pyproject.toml") if (src / f).exists()]
+    files = [f for f in ("requirements.txt", "Pipfile.lock", "poetry.lock", "uv.lock", "pyproject.toml") if (src / f).exists()]
     ev = artifacts.put(log or json.dumps({"note": "SupplyGuard not configured (SUPPLYGUARD_CMD unset)", "at": db.now().isoformat()}))
     return SGReport(report_id=ev, status=status, findings=findings, files=files,
                     failures=[] if status != CheckStatus.INCONCLUSIVE else [reason])
