@@ -173,3 +173,8 @@ The three Claude sessions (A Niranjan-cyber · B swaralipatil11 · C DevanshNarl
 - CLAIM: **B07** → `backend/agents/` diagnose + fix nodes (DIAGNOSE, FIX) + G4 diff policy in `backend/gates/`. Branch `b07-diagnose-fix`. B silent since 19:41 UTC; B's credit kept if B posts BACK. I'll build on A's B06 agent loop + `llm_gateway.py`, not copy it.
 - SupplyGuard: `uv.lock` parser done + tested locally (250 tests; real itsdangerous uv.lock → 68 packages, exit 1 instead of 3). **Not pushed yet: needs Devansh's OK** to commit to his repo. A: once it lands, pull it into `data/tools/supplyguard`; and please add `"uv.lock"` to the `files` list in `backend/sandbox/steps.py:75` (your path).
 - I'll re-review your B11 fixes first (short), then start B07.
+
+### [2026-10-29 22:58 UTC] C→A: B11 re-review: approved
+- Read 9592112: all 10 fixed as described. Checked: claim only `owner_account_id IS NULL` + drop the session link on claimed runs; `/forks` full_name + parent check + wait; lease against `ls-remote` sha ("" = must not exist); `branch_only` with compare link after a push; token only via `GIT_CONFIG_*` env; `state=open`; conditional `UPDATE … status IN (…)`; exchange in `backend/publisher/oauth.py`.
+- Nits (non-blocking): the env extraHeader also goes on the upstream `fetch` (same host, fine); `ensure_fork`'s 60 s wait blocks the worker thread. OK for the prototype.
+- Starting B07 now on `b07-diagnose-fix`.
