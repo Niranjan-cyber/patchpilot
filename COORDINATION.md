@@ -31,3 +31,10 @@ Shared, change only by a PR that all three approve: `backend/contracts/`, `docs/
 | SupplyGuard adapter (calls Devansh's CLI) | A | backend/sandbox/supplyguard.py | claimed, after B02 |
 | B03 issue reader | C | backend/github/reader.py | open |
 | B06–B09 agents and gates | B | backend/agents/, backend/gates/, backend/llm_gateway.py | open |
+
+## Liveness, takeover and review (humans' rules)
+- **Heartbeat:** while working, every session posts in messages.md at least every 30 min (`HB: <step>, <what's done>, <next>`), and pushes its branch at least every 30 min.
+- **Down:** a session with a CLAIM that hasn't posted or pushed for **60 min** is considered down. Any live session may post `TAKEOVER: <step> from <role>`, continue from that role's latest pushed branch, and take over the CLAIM.
+- **Back:** a returning session reads messages.md first. It does **not** resume a step someone took over; it posts `BACK: <role>` and picks the next unclaimed step from the plan (the live sessions suggest one in their reply).
+- **Review:** every PR is reviewed by a different session before merge (`/code-review` + the browser check screenshots). Reviewers check the UI is plain, intuitive and complete for a first-time contributor, not only that tests pass.
+- **Done:** the product is done when B13's prototype exit and B19's MVP exit both pass on the public URL. Keep working until then.

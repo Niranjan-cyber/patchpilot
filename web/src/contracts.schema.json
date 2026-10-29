@@ -1,0 +1,1400 @@
+{
+ "$defs": {
+  "ApiError": {
+   "properties": {
+    "code": {
+     "title": "Code",
+     "type": "string"
+    },
+    "message": {
+     "title": "Message",
+     "type": "string"
+    },
+    "retry_after": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Retry After"
+    }
+   },
+   "required": [
+    "code",
+    "message"
+   ],
+   "title": "ApiError",
+   "type": "object"
+  },
+  "Approval": {
+   "properties": {
+    "run_id": {
+     "title": "Run Id",
+     "type": "string"
+    },
+    "revision": {
+     "title": "Revision",
+     "type": "integer"
+    },
+    "diff_hash": {
+     "title": "Diff Hash",
+     "type": "string"
+    },
+    "evidence_hash": {
+     "title": "Evidence Hash",
+     "type": "string"
+    },
+    "approved_by": {
+     "$ref": "#/$defs/Owner"
+    },
+    "approved_at": {
+     "format": "date-time",
+     "title": "Approved At",
+     "type": "string"
+    },
+    "checklist": {
+     "additionalProperties": {
+      "type": "boolean"
+     },
+     "title": "Checklist",
+     "type": "object"
+    },
+    "explanation": {
+     "anyOf": [
+      {
+       "maxLength": 2000,
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Explanation"
+    },
+    "pr_title": {
+     "title": "Pr Title",
+     "type": "string"
+    },
+    "pr_summary": {
+     "title": "Pr Summary",
+     "type": "string"
+    }
+   },
+   "required": [
+    "run_id",
+    "revision",
+    "diff_hash",
+    "evidence_hash",
+    "approved_by",
+    "approved_at",
+    "checklist",
+    "pr_title",
+    "pr_summary"
+   ],
+   "title": "Approval",
+   "type": "object"
+  },
+  "ApproveRequest": {
+   "properties": {
+    "revision": {
+     "title": "Revision",
+     "type": "integer"
+    },
+    "diff_hash": {
+     "title": "Diff Hash",
+     "type": "string"
+    },
+    "evidence_hash": {
+     "title": "Evidence Hash",
+     "type": "string"
+    },
+    "checklist": {
+     "additionalProperties": {
+      "type": "boolean"
+     },
+     "title": "Checklist",
+     "type": "object"
+    },
+    "explanation": {
+     "anyOf": [
+      {
+       "maxLength": 2000,
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Explanation"
+    },
+    "pr_title": {
+     "title": "Pr Title",
+     "type": "string"
+    },
+    "pr_summary": {
+     "title": "Pr Summary",
+     "type": "string"
+    }
+   },
+   "required": [
+    "revision",
+    "diff_hash",
+    "evidence_hash",
+    "checklist",
+    "pr_title",
+    "pr_summary"
+   ],
+   "title": "ApproveRequest",
+   "type": "object"
+  },
+  "Budget": {
+   "properties": {
+    "tokens_used": {
+     "default": 0,
+     "title": "Tokens Used",
+     "type": "integer"
+    },
+    "tokens_limit": {
+     "default": 300000,
+     "title": "Tokens Limit",
+     "type": "integer"
+    },
+    "active_seconds": {
+     "default": 0,
+     "title": "Active Seconds",
+     "type": "integer"
+    },
+    "active_seconds_limit": {
+     "default": 1500,
+     "title": "Active Seconds Limit",
+     "type": "integer"
+    },
+    "paused_since": {
+     "anyOf": [
+      {
+       "format": "date-time",
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Paused Since"
+    }
+   },
+   "title": "Budget",
+   "type": "object"
+  },
+  "CheckStatus": {
+   "enum": [
+    "passed",
+    "failed",
+    "inconclusive",
+    "not_run",
+    "blocked"
+   ],
+   "title": "CheckStatus",
+   "type": "string"
+  },
+  "Diagnosis": {
+   "properties": {
+    "locations": {
+     "default": [],
+     "items": {
+      "$ref": "#/$defs/Location"
+     },
+     "title": "Locations",
+     "type": "array"
+    },
+    "hypothesis": {
+     "title": "Hypothesis",
+     "type": "string"
+    },
+    "tour": {
+     "default": [],
+     "items": {
+      "$ref": "#/$defs/TourItem"
+     },
+     "title": "Tour",
+     "type": "array"
+    },
+    "evidence_ids": {
+     "default": [],
+     "items": {
+      "type": "string"
+     },
+     "title": "Evidence Ids",
+     "type": "array"
+    }
+   },
+   "required": [
+    "hypothesis"
+   ],
+   "title": "Diagnosis",
+   "type": "object"
+  },
+  "EndReason": {
+   "enum": [
+    "completed",
+    "retries_exhausted",
+    "token_limit",
+    "runtime_limit",
+    "pause_timeout",
+    "user_stopped",
+    "system_error"
+   ],
+   "title": "EndReason",
+   "type": "string"
+  },
+  "EnvProfile": {
+   "properties": {
+    "python_version": {
+     "title": "Python Version",
+     "type": "string"
+    },
+    "install_cmds": {
+     "items": {
+      "type": "string"
+     },
+     "title": "Install Cmds",
+     "type": "array"
+    },
+    "test_cmd": {
+     "default": "pytest",
+     "title": "Test Cmd",
+     "type": "string"
+    },
+    "image_id": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Image Id"
+    }
+   },
+   "required": [
+    "python_version",
+    "install_cmds"
+   ],
+   "title": "EnvProfile",
+   "type": "object"
+  },
+  "Event": {
+   "properties": {
+    "v": {
+     "const": 1,
+     "default": 1,
+     "title": "V",
+     "type": "integer"
+    },
+    "run_id": {
+     "title": "Run Id",
+     "type": "string"
+    },
+    "seq": {
+     "title": "Seq",
+     "type": "integer"
+    },
+    "ts": {
+     "format": "date-time",
+     "title": "Ts",
+     "type": "string"
+    },
+    "type": {
+     "enum": [
+      "run.queued",
+      "run.started",
+      "run.resumed",
+      "run.paused",
+      "run.interrupted",
+      "step.started",
+      "step.progress",
+      "step.finished",
+      "gate.result",
+      "attempt.retry",
+      "analysis.finished",
+      "approval.recorded",
+      "approval.voided",
+      "publish.progress",
+      "publish.finished"
+     ],
+     "title": "Type",
+     "type": "string"
+    },
+    "step": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/StepId"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "revision": {
+     "default": 0,
+     "title": "Revision",
+     "type": "integer"
+    },
+    "payload": {
+     "additionalProperties": true,
+     "default": {},
+     "title": "Payload",
+     "type": "object"
+    }
+   },
+   "required": [
+    "run_id",
+    "seq",
+    "ts",
+    "type"
+   ],
+   "title": "Event",
+   "type": "object"
+  },
+  "IssueSpec": {
+   "properties": {
+    "html_url": {
+     "title": "Html Url",
+     "type": "string"
+    },
+    "repo": {
+     "title": "Repo",
+     "type": "string"
+    },
+    "number": {
+     "title": "Number",
+     "type": "integer"
+    },
+    "title": {
+     "title": "Title",
+     "type": "string"
+    },
+    "summary": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Summary"
+    },
+    "expected": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Expected"
+    },
+    "actual": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Actual"
+    },
+    "labels": {
+     "default": [],
+     "items": {
+      "type": "string"
+     },
+     "title": "Labels",
+     "type": "array"
+    },
+    "checks": {
+     "additionalProperties": {
+      "$ref": "#/$defs/CheckStatus"
+     },
+     "default": {},
+     "title": "Checks",
+     "type": "object"
+    }
+   },
+   "required": [
+    "html_url",
+    "repo",
+    "number",
+    "title"
+   ],
+   "title": "IssueSpec",
+   "type": "object"
+  },
+  "Location": {
+   "properties": {
+    "path": {
+     "title": "Path",
+     "type": "string"
+    },
+    "line": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Line"
+    }
+   },
+   "required": [
+    "path"
+   ],
+   "title": "Location",
+   "type": "object"
+  },
+  "Outcome": {
+   "enum": [
+    "VERIFIED_FIX",
+    "FIX_NEEDS_ATTENTION",
+    "TRIAGE_ONLY",
+    "CANNOT_REPRODUCE",
+    "ENV_FAILED",
+    "BLOCKED",
+    "STOPPED",
+    "SYSTEM_ERROR"
+   ],
+   "title": "Outcome",
+   "type": "string"
+  },
+  "Owner": {
+   "properties": {
+    "session_id_hash": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Session Id Hash"
+    },
+    "account_id": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Account Id"
+    }
+   },
+   "title": "Owner",
+   "type": "object"
+  },
+  "Patch": {
+   "properties": {
+    "fix_diff_id": {
+     "title": "Fix Diff Id",
+     "type": "string"
+    },
+    "test_diff_id": {
+     "title": "Test Diff Id",
+     "type": "string"
+    },
+    "attempt": {
+     "title": "Attempt",
+     "type": "integer"
+    },
+    "policy_result": {
+     "$ref": "#/$defs/CheckStatus"
+    },
+    "policy_reason": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Policy Reason"
+    }
+   },
+   "required": [
+    "fix_diff_id",
+    "test_diff_id",
+    "attempt",
+    "policy_result"
+   ],
+   "title": "Patch",
+   "type": "object"
+  },
+  "PauseInfo": {
+   "properties": {
+    "reason": {
+     "enum": [
+      "provider_quota",
+      "global_budget",
+      "guided_pause"
+     ],
+     "title": "Reason",
+     "type": "string"
+    },
+    "provider": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Provider"
+    },
+    "resume_at": {
+     "anyOf": [
+      {
+       "format": "date-time",
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Resume At"
+    }
+   },
+   "required": [
+    "reason"
+   ],
+   "title": "PauseInfo",
+   "type": "object"
+  },
+  "PublishBlocker": {
+   "enum": [
+    "outcome_not_verified",
+    "repo_forbids_ai",
+    "prs_restricted",
+    "run_stopped",
+    "upstream_changed",
+    "deps_inconclusive",
+    "issue_changed",
+    "not_approved",
+    "not_signed_in"
+   ],
+   "title": "PublishBlocker",
+   "type": "string"
+  },
+  "PullRequestRef": {
+   "properties": {
+    "url": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Url"
+    },
+    "number": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Number"
+    },
+    "head_branch": {
+     "title": "Head Branch",
+     "type": "string"
+    },
+    "fork_owner": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Fork Owner"
+    },
+    "compare_url": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Compare Url"
+    },
+    "state": {
+     "anyOf": [
+      {
+       "enum": [
+        "open",
+        "merged",
+        "closed"
+       ],
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "State"
+    }
+   },
+   "required": [
+    "head_branch"
+   ],
+   "title": "PullRequestRef",
+   "type": "object"
+  },
+  "RepoPolicy": {
+   "properties": {
+    "ai_policy": {
+     "default": "unknown",
+     "enum": [
+      "allowed",
+      "forbidden",
+      "unknown"
+     ],
+     "title": "Ai Policy",
+     "type": "string"
+    },
+    "prs_restricted": {
+     "anyOf": [
+      {
+       "type": "boolean"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Prs Restricted"
+    },
+    "source_evidence_ids": {
+     "default": [],
+     "items": {
+      "type": "string"
+     },
+     "title": "Source Evidence Ids",
+     "type": "array"
+    }
+   },
+   "title": "RepoPolicy",
+   "type": "object"
+  },
+  "ReproTest": {
+   "properties": {
+    "test_diff_id": {
+     "title": "Test Diff Id",
+     "type": "string"
+    },
+    "test_ids": {
+     "items": {
+      "type": "string"
+     },
+     "title": "Test Ids",
+     "type": "array"
+    },
+    "expected_failure": {
+     "title": "Expected Failure",
+     "type": "string"
+    },
+    "runs_on_base": {
+     "default": [],
+     "items": {
+      "$ref": "#/$defs/CheckStatus"
+     },
+     "title": "Runs On Base",
+     "type": "array"
+    },
+    "evidence_ids": {
+     "default": [],
+     "items": {
+      "type": "string"
+     },
+     "title": "Evidence Ids",
+     "type": "array"
+    }
+   },
+   "required": [
+    "test_diff_id",
+    "test_ids",
+    "expected_failure"
+   ],
+   "title": "ReproTest",
+   "type": "object"
+  },
+  "ReviewResult": {
+   "properties": {
+    "concerns": {
+     "default": [],
+     "items": {
+      "additionalProperties": {
+       "type": "string"
+      },
+      "type": "object"
+     },
+     "title": "Concerns",
+     "type": "array"
+    },
+    "lowers_readiness": {
+     "default": false,
+     "title": "Lowers Readiness",
+     "type": "boolean"
+    }
+   },
+   "title": "ReviewResult",
+   "type": "object"
+  },
+  "RevisionSummary": {
+   "properties": {
+    "revision": {
+     "title": "Revision",
+     "type": "integer"
+    },
+    "outcome": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/Outcome"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "end_reason": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/EndReason"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "diff_hash": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Diff Hash"
+    },
+    "evidence_ids": {
+     "default": [],
+     "items": {
+      "type": "string"
+     },
+     "title": "Evidence Ids",
+     "type": "array"
+    },
+    "finished_at": {
+     "anyOf": [
+      {
+       "format": "date-time",
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Finished At"
+    }
+   },
+   "required": [
+    "revision",
+    "outcome",
+    "end_reason"
+   ],
+   "title": "RevisionSummary",
+   "type": "object"
+  },
+  "RunStatus": {
+   "enum": [
+    "queued",
+    "running",
+    "paused",
+    "interrupted",
+    "awaiting_approval",
+    "revising",
+    "publishing",
+    "published",
+    "finished"
+   ],
+   "title": "RunStatus",
+   "type": "string"
+  },
+  "RunView": {
+   "description": "What the API returns. RunState (worker-internal) = RunView + owner.",
+   "properties": {
+    "run_id": {
+     "title": "Run Id",
+     "type": "string"
+    },
+    "revision": {
+     "default": 0,
+     "title": "Revision",
+     "type": "integer"
+    },
+    "status": {
+     "$ref": "#/$defs/RunStatus"
+    },
+    "outcome": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/Outcome"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "end_reason": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/EndReason"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "readiness": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Readiness"
+    },
+    "issue": {
+     "$ref": "#/$defs/IssueSpec"
+    },
+    "base_sha": {
+     "title": "Base Sha",
+     "type": "string"
+    },
+    "policy": {
+     "$ref": "#/$defs/RepoPolicy",
+     "default": {
+      "ai_policy": "unknown",
+      "prs_restricted": null,
+      "source_evidence_ids": []
+     }
+    },
+    "env": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/EnvProfile"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "baseline": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/TestRun"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "repro": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/ReproTest"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "diagnosis": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/Diagnosis"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "patch": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/Patch"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "verify": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/Verification"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "supplyguard": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/SGReport"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "review": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/ReviewResult"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "gates": {
+     "additionalProperties": {
+      "$ref": "#/$defs/CheckStatus"
+     },
+     "default": {},
+     "title": "Gates",
+     "type": "object"
+    },
+    "steps": {
+     "additionalProperties": {
+      "$ref": "#/$defs/StepState"
+     },
+     "default": {},
+     "propertyNames": {
+      "$ref": "#/$defs/StepId"
+     },
+     "title": "Steps",
+     "type": "object"
+    },
+    "attempts": {
+     "additionalProperties": {
+      "type": "integer"
+     },
+     "default": {},
+     "title": "Attempts",
+     "type": "object"
+    },
+    "budget": {
+     "$ref": "#/$defs/Budget",
+     "default": {
+      "tokens_used": 0,
+      "tokens_limit": 300000,
+      "active_seconds": 0,
+      "active_seconds_limit": 1500,
+      "paused_since": null
+     }
+    },
+    "pause": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/PauseInfo"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "publish_blockers": {
+     "default": [],
+     "items": {
+      "$ref": "#/$defs/PublishBlocker"
+     },
+     "title": "Publish Blockers",
+     "type": "array"
+    },
+    "revisions": {
+     "default": [],
+     "items": {
+      "$ref": "#/$defs/RevisionSummary"
+     },
+     "title": "Revisions",
+     "type": "array"
+    },
+    "approval": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/Approval"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "pr": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/PullRequestRef"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "details_expired_at": {
+     "anyOf": [
+      {
+       "format": "date-time",
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Details Expired At"
+    },
+    "created_at": {
+     "format": "date-time",
+     "title": "Created At",
+     "type": "string"
+    },
+    "updated_at": {
+     "format": "date-time",
+     "title": "Updated At",
+     "type": "string"
+    }
+   },
+   "required": [
+    "run_id",
+    "status",
+    "issue",
+    "base_sha",
+    "created_at",
+    "updated_at"
+   ],
+   "title": "RunView",
+   "type": "object"
+  },
+  "SGReport": {
+   "properties": {
+    "report_id": {
+     "title": "Report Id",
+     "type": "string"
+    },
+    "status": {
+     "$ref": "#/$defs/CheckStatus"
+    },
+    "findings": {
+     "default": [],
+     "items": {
+      "additionalProperties": true,
+      "type": "object"
+     },
+     "title": "Findings",
+     "type": "array"
+    },
+    "files": {
+     "default": [],
+     "items": {
+      "type": "string"
+     },
+     "title": "Files",
+     "type": "array"
+    },
+    "failures": {
+     "default": [],
+     "items": {
+      "type": "string"
+     },
+     "title": "Failures",
+     "type": "array"
+    }
+   },
+   "required": [
+    "report_id",
+    "status"
+   ],
+   "title": "SGReport",
+   "type": "object"
+  },
+  "StepId": {
+   "enum": [
+    "intake",
+    "preflight",
+    "setup",
+    "baseline",
+    "reproduce",
+    "diagnose",
+    "fix",
+    "verify",
+    "review",
+    "report",
+    "approval",
+    "publish"
+   ],
+   "title": "StepId",
+   "type": "string"
+  },
+  "StepState": {
+   "properties": {
+    "status": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/CheckStatus"
+      },
+      {
+       "const": "running",
+       "type": "string"
+      }
+     ],
+     "default": "not_run",
+     "title": "Status"
+    },
+    "started_at": {
+     "anyOf": [
+      {
+       "format": "date-time",
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Started At"
+    },
+    "finished_at": {
+     "anyOf": [
+      {
+       "format": "date-time",
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Finished At"
+    },
+    "attempt": {
+     "default": 0,
+     "title": "Attempt",
+     "type": "integer"
+    },
+    "headline": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Headline"
+    }
+   },
+   "title": "StepState",
+   "type": "object"
+  },
+  "TestRun": {
+   "properties": {
+    "pass_set": {
+     "default": [],
+     "items": {
+      "type": "string"
+     },
+     "title": "Pass Set",
+     "type": "array"
+    },
+    "fail_set": {
+     "default": [],
+     "items": {
+      "type": "string"
+     },
+     "title": "Fail Set",
+     "type": "array"
+    },
+    "flaky_set": {
+     "default": [],
+     "items": {
+      "type": "string"
+     },
+     "title": "Flaky Set",
+     "type": "array"
+    },
+    "partial": {
+     "default": false,
+     "title": "Partial",
+     "type": "boolean"
+    },
+    "evidence_ids": {
+     "default": [],
+     "items": {
+      "type": "string"
+     },
+     "title": "Evidence Ids",
+     "type": "array"
+    }
+   },
+   "title": "TestRun",
+   "type": "object"
+  },
+  "TourItem": {
+   "properties": {
+    "path": {
+     "title": "Path",
+     "type": "string"
+    },
+    "why": {
+     "title": "Why",
+     "type": "string"
+    }
+   },
+   "required": [
+    "path",
+    "why"
+   ],
+   "title": "TourItem",
+   "type": "object"
+  },
+  "Verification": {
+   "properties": {
+    "new_test_runs": {
+     "default": [],
+     "items": {
+      "$ref": "#/$defs/CheckStatus"
+     },
+     "title": "New Test Runs",
+     "type": "array"
+    },
+    "regressions": {
+     "default": [],
+     "items": {
+      "type": "string"
+     },
+     "title": "Regressions",
+     "type": "array"
+    },
+    "container_id": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Container Id"
+    },
+    "hidden_variant": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/CheckStatus"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "evidence_ids": {
+     "default": [],
+     "items": {
+      "type": "string"
+     },
+     "title": "Evidence Ids",
+     "type": "array"
+    }
+   },
+   "title": "Verification",
+   "type": "object"
+  }
+ },
+ "title": "Contracts",
+ "properties": {
+  "RunView": {
+   "$ref": "#/$defs/RunView"
+  },
+  "Event": {
+   "$ref": "#/$defs/Event"
+  },
+  "ApproveRequest": {
+   "$ref": "#/$defs/ApproveRequest"
+  },
+  "ApiError": {
+   "$ref": "#/$defs/ApiError"
+  }
+ }
+}
