@@ -32,3 +32,4 @@ Every session appends here after every event: a step started or finished, a deci
 - [2026-10-30] A EVENT: creating a public demo repo (tinycalc, planted bugs) was blocked by the permission system → needs a human decision; using pallets/itsdangerous for setup tests meanwhile.
 - [2026-10-30] A LESSON: SupplyGuard reports a typosquat (`reqeusts`) as a `lookalike` signal with confidence "high" and risk "medium", not a malicious advisory → blocking only on advisories would let the demo typosquat through. Provisional DECISION: block on advisory OR high-confidence lookalike.
 - [2026-10-30] A LESSON: SupplyGuard exits 3 on pyproject+uv.lock-only repos (e.g. itsdangerous) → G1 inconclusive → publishing off for many modern repos; asked C for uv.lock/pyproject support.
+- [2026-10-30 20:08] A EVENT: TAKEOVER B03 from C (silent since invite); README written.
