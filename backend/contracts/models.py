@@ -270,6 +270,14 @@ class Event(BaseModel):
     payload: dict[str, Any] = {}
 
 
+class GateResult(BaseModel):
+    """What every gate evaluator returns (contracts §1.1). Code decides; never an LLM."""
+    gate: Literal["G0", "G1", "G2", "G3", "G4", "G5", "G6"]
+    status: CheckStatus
+    reason: str                      # short machine-readable code, e.g. "import_error", "flaky_1_of_2"
+    evidence_ids: list[str] = []
+
+
 class ApiError(BaseModel):
     code: str
     message: str
