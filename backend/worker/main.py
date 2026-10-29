@@ -72,11 +72,25 @@ def _finish_job(c, job, graph, cfg):
         stop.set()
 
 
+def reap(c) -> None:
+    """contracts §7/§9: drop per-run images + snapshot volumes 48 h after a run stops changing."""
+    from backend.sandbox import docker
+    from backend.sandbox.steps import image, snap
+    cutoff = (db.now() - timedelta(hours=48)).isoformat()
+    for (rid,) in c.execute("SELECT run_id FROM runs WHERE status IN ('finished','published','awaiting_approval') "
+                            "AND updated_at < ? AND 'reaped:' || run_id NOT IN (SELECT key FROM kv)", (cutoff,)):
+        docker.rm_image(image(rid)); docker.rm_volume(snap(rid))
+        db.put_kv(c, f"reaped:{rid}", db.now().isoformat())
+
+
 def main():
     graph = build()
     print(f"worker {WORKER_ID} ready", flush=True)
     c = db.connect()
+    last_reap = 0.0
     while True:
+        if time.time() - last_reap > 600:
+            reap(c); last_reap = time.time()
         db.put_kv(c, "worker_heartbeat", db.now().isoformat())
         job = lease_job(c)
         if job:
