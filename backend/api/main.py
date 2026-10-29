@@ -200,6 +200,15 @@ def my_runs(request: Request):
              "pr_url": v.pr.url if v.pr else None} for v in db.list_runs(db.connect(), sid, a["id"] if a else None)]
 
 
+@app.get("/api/me/progress")
+def my_progress(request: Request):
+    """B16 / S-08: owner's runs with PatchPilot facts and live GitHub PR status side by side (unknown stays unknown)."""
+    from backend.github import progress
+    sid, a = session.current(request), session.account(request)
+    runs = db.list_runs(db.connect(), sid, a["id"] if a else None) if sid else []
+    return {"signed_in": a is not None, **progress.summary(runs, progress.fetch_pr_states(runs))}
+
+
 @app.delete("/api/runs/{run_id}/access", status_code=204)
 def forget_run(run_id: str, request: Request):
     sid = session.current(request)

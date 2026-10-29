@@ -172,3 +172,8 @@ abbr { text-decoration: underline dotted; cursor: help; }
 .pauses label { display: block; margin: 0.3rem 0; }
 .notice.guided { background: #e8efff; border-color: #c4d4fb; margin-bottom: 1rem; }
 .guided-actions { display: flex; gap: 0.5rem; margin-top: 0.6rem; flex-wrap: wrap; }
+/* B16 progress */
+.progress { margin: 1.5rem 0 2rem; }
+.gh-merged { color: var(--pass); font-weight: 700; }
+.gh-closed { color: var(--slate); font-weight: 700; }
+.gh-open, .gh-draft { color: var(--act); font-weight: 700; }
