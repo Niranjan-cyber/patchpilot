@@ -14,7 +14,7 @@ const HV: Record<string, [string, string]> = {
 const WHY: Record<string, string> = {
   step_cap: "the search needed more test runs than our limit (6)", no_passing_commit_in_range: "the bug is older than the commits we checked",
   probe_unclear: "the test couldn't run cleanly on an older commit", history_unavailable: "GitHub didn't give us the commit history",
-  no_history: "there's no earlier history to search", not_run_yet: "still running", sample_run: "sample run",
+  no_history: "there's no earlier history to search", time_budget: "the run was close to its time limit", not_run_yet: "still running", sample_run: "sample run",
 };
 
 /** S-04 extra rows: hidden test variant (S4) and the commit that introduced the bug (S6). Unknown is shown as unknown. */

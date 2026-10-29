@@ -86,3 +86,11 @@ def test_api_bisect_owner_checked(tmp_path, monkeypatch):
     assert c.get(f"/api/runs/{v.run_id}/bisect").json()["status"] == "pending"
     db.put_kv(db.connect(), f"bisect:{v.run_id}", json.dumps({"status": "not_run", "reason": "step_cap", "first_bad": None}))
     assert c.get(f"/api/runs/{v.run_id}/bisect").json() == {"status": "not_run", "reason": "step_cap", "first_bad": None}
+
+
+def test_bisect_respects_the_run_time_budget():
+    assert bisect(C, lambda s: "pass", cap=6, time_left=lambda: 120)["reason"] == "time_budget"     # < 5 min: skip
+    left = iter([900, 900, 100] + [100] * 10)
+    probe, probes = oracle(5)
+    r = bisect(C, probe, cap=6, time_left=lambda: next(left))
+    assert r["status"] == "not_run" and r["reason"] == "time_budget" and r["first_bad"] is None and len(probes) == 2

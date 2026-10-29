@@ -12,7 +12,7 @@ from backend import db
 from backend.sandbox import docker
 from backend.sandbox.steps import GH, WORK, _gh_headers, fetch_source, image
 
-CAP, WINDOW = 6, 32
+CAP, WINDOW, MIN_LEFT = 6, 32, 300   # MIN_LEFT: skip/stop when < 5 min of the run's active budget remain (A)
 
 
 def probe_result(out: str) -> str | None:
@@ -26,7 +26,7 @@ def probe_result(out: str) -> str | None:
     return "pass" if n.get("passed") else None
 
 
-def bisect(commits: list[str], probe, cap: int = CAP) -> dict:
+def bisect(commits: list[str], probe, cap: int = CAP, time_left=lambda: 10**9) -> dict:
     """commits: newest first; commits[0] is the pinned base, where the repro test fails (G3)."""
     probes: list[dict] = []
     out = lambda status, reason, bad=None, good=None: {"status": status, "reason": reason, "first_bad": bad, "last_good": good,
@@ -35,6 +35,8 @@ def bisect(commits: list[str], probe, cap: int = CAP) -> dict:
         return out("not_run", "no_history")
     def p(i):
         r = probe(commits[i]); probes.append({"sha": commits[i], "result": r}); return r
+    if time_left() < MIN_LEFT:
+        return out("not_run", "time_budget")
     first = p(len(commits) - 1)
     if first is None:
         return out("inconclusive", "probe_unclear")
@@ -44,6 +46,8 @@ def bisect(commits: list[str], probe, cap: int = CAP) -> dict:
     while good - bad > 1:
         if len(probes) >= cap:
             return out("not_run", "step_cap")
+        if time_left() < MIN_LEFT:
+            return out("not_run", "time_budget")
         mid = (bad + good) // 2
         r = p(mid)
         if r is None:
@@ -57,6 +61,14 @@ def _commits(repo: str, base_sha: str) -> list[str]:
         r = h.get(f"{GH}/repos/{repo}/commits", params={"sha": base_sha, "per_page": WINDOW})
         r.raise_for_status()
         return [c["sha"] for c in r.json()]
+
+
+def time_left_fn(run):
+    """Seconds left of the run's active budget, counted from the first step's start (pauses included: conservative)."""
+    from backend.config import limits
+    starts = [s.started_at for s in run.steps.values() if s.started_at]
+    t0 = min(starts) if starts else run.created_at
+    return lambda: limits()["run_active_seconds"] - (db.now() - t0).total_seconds()
 
 
 def run_bisect(run, test_diff: str) -> dict:
@@ -81,7 +93,7 @@ def run_bisect(run, test_diff: str) -> dict:
                 return None
             finally:
                 docker.rm_volume(vol); shutil.rmtree(WORK / key, ignore_errors=True)
-        res = bisect(commits, probe)
+        res = bisect(commits, probe, time_left=time_left_fn(run))
     if res["status"] == "found":
         res["url"] = f"https://github.com/{run.issue.repo}/commit/{res['first_bad']}"
     db.put_kv(db.connect(), f"bisect:{rid}", json.dumps(res))
