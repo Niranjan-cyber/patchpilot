@@ -51,3 +51,4 @@ Every session appends here after every event: a step started or finished, a deci
 - [2026-10-29 21:20 UTC] A BUG→FIX (integration): G3 checks ran pytest with -q, which drops the "=== N failed ===" and "FAILED …" summary that B's classifier correctly requires → every real reproduction would have been "no_result". Now runs with -rfE, no -q. Caught by a test using a real pytest transcript.
 - [2026-10-29 21:20 UTC] A BUG→FIX (gate gap, for B's review): `pytest.raises` that doesn't raise prints "Failed: DID NOT RAISE", classified as other_error → the standard way to reproduce "should raise" bugs was rejected. Now counts as an assertion.
 - [2026-10-29 21:20 UTC] A LESSON: fake test data must be copied from real tool output; hand-written approximations hid two real bugs until the fake was replaced with a real transcript.
+- [2026-10-29 22:05 UTC] C EVENT: opened PR #16 (B14) for A's review.
