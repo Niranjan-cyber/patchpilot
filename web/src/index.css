@@ -165,3 +165,11 @@ abbr { text-decoration: underline dotted; cursor: help; }
 .gh-merged { color: var(--pass); font-weight: 700; }
 .gh-closed { color: var(--slate); font-weight: 700; }
 .gh-open, .gh-draft { color: var(--act); font-weight: 700; }
+
+/* B17 extra checks */
+.extra { margin: 0 0 1.5rem; }
+.extra-row { display: flex; gap: 0.75rem; align-items: flex-start; padding: 0.6rem 0; border-top: 1px solid var(--line); }
+.extra-row:first-of-type { border-top: 0; }
+.extra-row p { margin: 0.2rem 0 0; }
+.dot { width: 0.8rem; height: 0.8rem; border-radius: 50%; margin-top: 0.35rem; flex: none; background: var(--line); }
+.dot-pass { background: var(--pass); } .dot-fail { background: var(--fail); } .dot-info { background: var(--act); }

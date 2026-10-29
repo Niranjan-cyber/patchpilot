@@ -221,6 +221,18 @@ from backend.api.auth import router as _auth  # noqa: E402
 app.include_router(_auth)
 
 
+@app.get("/api/runs/{run_id}/bisect")
+def get_bisect(run_id: str, request: Request):
+    """B17 / S6: the commit-search result (owner-checked). Not run yet -> status "pending", never a guessed commit."""
+    import json
+    if not _is_real(run_id):
+        _fixture(run_id)
+        return {"status": "pending", "reason": "sample_run"}
+    _own(request, run_id)
+    raw = db.get_kv(db.connect(), f"bisect:{run_id}")
+    return json.loads(raw) if raw else {"status": "pending", "reason": "not_run_yet"}
+
+
 @app.get("/api/runs/{run_id}/report.md")
 def report(run_id: str, request: Request):
     from fastapi.responses import PlainTextResponse

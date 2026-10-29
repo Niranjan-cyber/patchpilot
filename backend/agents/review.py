@@ -56,6 +56,9 @@ def review(ctx: StepContext) -> GateResult:
             break
     if concerns is None:   # never a silent pass: an unreviewed fix is "Needs attention"
         concerns = [{"severity": "medium", "text": note or "The automatic review returned an unreadable answer; please review carefully."}]
+    from backend.agents.variant import review_concern
+    if (hv := review_concern(run.verify)):   # B17: a failed hidden variant can only lower readiness
+        concerns = [*concerns, hv]
     run.review = ReviewResult(concerns=concerns, lowers_readiness=any(c["severity"] in ("high", "medium") for c in concerns))
     db.save_run(db.connect(), run)
     ev = artifacts.put(render(run))
