@@ -5,7 +5,7 @@ import { api, ApiError } from "./api";
 type Suggestion = { number: number; title: string; html_url: string; score: number; signals: string[]; reasons: string[];
   effort: "small" | "medium" | "large"; comments: number; linked_pr: boolean | null };
 type Result = { repo: string; language: string | null; state: "success" | "partial" | "empty" | "unsupported";
-  unsupported: "not_python" | "no_tests" | null; suggestions: Suggestion[];
+  unsupported: "not_python" | "no_tests" | null; suggestions: Suggestion[]; fetched_at?: string; cached?: boolean;
   repo_signals: { python: boolean | null; tests_found: boolean | null; recipe_known: boolean | null; deps_checkable: boolean | null } };
 
 const SIGNAL: [keyof Result["repo_signals"], string][] = [
@@ -64,6 +64,7 @@ export default function Explore() {
               <span key={k} className={`chip chip-${String(res.repo_signals[k])}`}>{mark(res.repo_signals[k])} {label}</span>
             ))}
           </div>
+          {res.fetched_at && <p className="hint">Checked on GitHub at {new Date(res.fetched_at).toLocaleTimeString()}{res.cached ? " (saved result, refreshed every 10 min)" : ""}.</p>}
           {res.state === "unsupported" && <div className="panel failed"><p>{UNSUPPORTED[res.unsupported ?? "not_python"]}</p></div>}
           {res.state === "empty" && (
             <div className="panel">
