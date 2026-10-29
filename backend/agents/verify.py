@@ -71,6 +71,15 @@ def _verify_once(ctx: StepContext) -> GateResult:
     return GateResult(gate="G5", status=status, reason=reason, evidence_ids=ev)
 
 
+def _hidden_variant(ctx: StepContext) -> None:
+    """B17 (C): after G5 passed, a hidden variant the Fixer never saw. It can only lower readiness (via REVIEW)."""
+    from backend.agents.variant import hidden_variant
+    try:
+        hidden_variant(ctx)
+    except Exception as e:   # never fails verification; the row shows not run
+        ctx.emit("step.progress", "verify", message=f"Hidden test variant not run ({type(e).__name__}).")
+
+
 def verify(ctx: StepContext) -> GateResult:
     from backend.agents.diagnose import diagnose
     from backend.agents.fix import fix
@@ -80,6 +89,7 @@ def verify(ctx: StepContext) -> GateResult:
     for i in range(tries + limits()["retries"]["rediagnose"]):
         if res.status == CheckStatus.PASSED:
             ctx.scratch["headline"] = "In a brand-new sandbox, the new test passes twice and every test that passed before still passes."
+            _hidden_variant(ctx)
             return res
         why = {"regression": f"it broke tests that passed before: {', '.join((db.get_run(db.connect(), ctx.run_id).verify.regressions or [])[:5])}",
                "new_test_fails": "the reproduction test still fails after your fix", "flaky_1_of_2": "the reproduction test passed only once of two runs",
@@ -98,6 +108,7 @@ def verify(ctx: StepContext) -> GateResult:
         res = _verify_once(ctx)
     if res.status == CheckStatus.PASSED:
         ctx.scratch["headline"] = "In a brand-new sandbox, the new test passes twice and every test that passed before still passes."
+        _hidden_variant(ctx)
         return res
     ctx.scratch["headline"] = "The fix didn't pass in a fresh sandbox after every attempt, so this is a triage report."
     return GateResult(gate="G5", status=CheckStatus.FAILED,   # flaky (inconclusive) after all attempts also ends as triage

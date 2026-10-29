@@ -10,6 +10,7 @@ import Eval from "./Eval";
 import { AttemptHistory, DiagnosisCard } from "./Diagnosis";
 import AskPanel from "./Ask";
 import { GuidedPauseNotice, PauseToggles } from "./Pauses";
+import ExtraChecks from "./ExtraChecks";
 import Explore from "./Explore";
 
 function Shell({ children }: { children: React.ReactNode }) {
@@ -88,6 +89,7 @@ function Run() {
         <p className="notice warn">We couldn't fully check this project's dependencies, so publishing is turned off.</p>
       )}
       {done && <ProofPanel run={run} />}
+      {done && <ExtraChecks run={run} />}
       <div className="run-grid">
         <Stepper run={run} />
         <aside className="side">

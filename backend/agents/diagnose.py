@@ -51,8 +51,25 @@ Cite 1-3 locations and 2-5 tour files. Paths are relative to /src.
 {"Your previous answer was rejected: " + previous if previous else ""}"""
 
 
+def _bisect_once(ctx: StepContext) -> None:
+    """B17 / S6: which commit introduced the bug (once per run; a re-diagnosis doesn't repeat it). Never blocks DIAGNOSE."""
+    from backend.agents.bisect import run_bisect
+    run = ctx.run
+    if not run.repro or db.get_kv(db.connect(), f"bisect:{ctx.run_id}"):
+        return
+    ctx.emit("step.progress", "diagnose", message="Looking for the commit that introduced the bug (up to 6 test runs)…")
+    try:
+        res = run_bisect(run, (artifacts.get(run.repro.test_diff_id) or b"").decode("utf-8", "replace"))
+        ctx.emit("step.progress", "diagnose", message=f"Commit search: {res['status']} ({res['reason']}).")
+    except Exception as e:
+        import json
+        db.put_kv(db.connect(), f"bisect:{ctx.run_id}", json.dumps({"status": "not_run", "reason": f"error: {type(e).__name__}",
+                                                                    "first_bad": None, "last_good": None, "probes": [], "window": 0}))
+
+
 def diagnose(ctx: StepContext):
     rid, run = ctx.run_id, ctx.run
+    _bisect_once(ctx)
     menu = evidence_menu(run)
     failing = (artifacts.get(run.repro.evidence_ids[2]) or b"").decode("utf-8", "replace") if run.repro and len(run.repro.evidence_ids) > 2 else ""
     previous = None

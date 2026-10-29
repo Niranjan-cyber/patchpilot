@@ -27,6 +27,7 @@ def run(tmp_path, monkeypatch):
         monkeypatch.setattr(m.docker, "start", lambda *a: Result(0, "id"))
         monkeypatch.setattr(m.docker, "rm", lambda *a: None)
     monkeypatch.setattr(F, "limits", lambda: {"retries": {"fixer": 3}})
+    monkeypatch.setattr("backend.agents.bisect.run_bisect", lambda run, diff: {"status": "not_run", "reason": "test"})  # no network in unit tests
     events = []
     ctx = StepContext(v.run_id, db.get_run(db.connect(), v.run_id), lambda t, s=None, **p: events.append((t, p)))
     return ctx, monkeypatch, ev, events
