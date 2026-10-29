@@ -12,8 +12,15 @@ def test_g1_malicious_blocks_without_override():
     assert map_supplyguard(1, r)[:2] == (C.BLOCKED, "malicious_package")
 
 
-def test_g1_lookalike_is_a_finding_not_a_block():
-    r = proj(suspicious=[{"packageId": "reqeusts@1.0", "risk": "high", "signals": [{"kind": "lookalike"}]}])
+def test_g1_high_confidence_typosquat_blocks():
+    # real SupplyGuard output for its pypi-vulnerable fixture (reqeusts@1.0.0)
+    r = proj(suspicious=[{"packageId": "pypi:reqeusts@1.0.0", "risk": "medium",
+                          "signals": [{"kind": "lookalike", "confidence": "high"}]}])
+    assert map_supplyguard(1, r)[0] == C.BLOCKED
+
+
+def test_g1_low_confidence_lookalike_is_a_finding():
+    r = proj(suspicious=[{"packageId": "flaskk@1", "risk": "low", "signals": [{"kind": "lookalike", "confidence": "medium"}]}])
     st, _, f = map_supplyguard(1, r)
     assert st == C.PASSED and f[0]["kinds"] == ["lookalike"]
 

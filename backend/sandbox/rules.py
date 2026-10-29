@@ -3,9 +3,11 @@ import xml.etree.ElementTree as ET
 
 from backend.contracts.models import CheckStatus
 
-# DECISION pending from C (SupplyGuard owner): only a published malicious advisory blocks (no override, contracts §1.1).
-# Heuristic lookalikes are "indicators, not proof" (SupplyGuard README), so they're shown as findings.
-BLOCKING_KINDS = {"malicious-advisory"}
+# Provisional DECISION (A, 2026-10-30; C owns SupplyGuard and may override in messages.md): block (no override,
+# contracts §1.1) on a published malicious advisory, or a HIGH-confidence lookalike (SupplyGuard already checks
+# download volume, so a popular package is never a lookalike). Lower-confidence signals are findings.
+def _blocks(sig: dict) -> bool:
+    return sig.get("kind") == "malicious-advisory" or (sig.get("kind") == "lookalike" and sig.get("confidence") == "high")
 
 
 def map_supplyguard(exit_code: int | None, report: dict | None) -> tuple[CheckStatus, str, list[dict]]:
@@ -22,11 +24,11 @@ def map_supplyguard(exit_code: int | None, report: dict | None) -> tuple[CheckSt
             item = {"type": "suspicious", "package": s.get("packageId"), "risk": s.get("risk"),
                     "kinds": sorted(k for k in kinds if k), "note": s.get("note", "")}
             findings.append(item)
-            if kinds & BLOCKING_KINDS:
+            if any(_blocks(sig) for sig in s.get("signals", [])):
                 blocked.append(item)
         for v in p.get("vulnerabilities", []):
             findings.append({"type": "vulnerability", "package": v.get("packageId") or v.get("package"),
-                             "id": v.get("id"), "severity": v.get("severity")})
+                             "id": v.get("advisoryId") or v.get("id"), "severity": v.get("severity")})
     if blocked:
         return CheckStatus.BLOCKED, "malicious_package", findings
     if exit_code == 2 or any(p.get("summary", {}).get("incomplete") for p in projects) or not projects:
