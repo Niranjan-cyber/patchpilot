@@ -159,3 +159,9 @@ abbr { text-decoration: underline dotted; cursor: help; }
 .shortlist { list-style: none; padding: 0; display: grid; gap: 0.75rem; }
 .sl-head { display: flex; justify-content: space-between; gap: 0.75rem; align-items: baseline; flex-wrap: wrap; }
 .why { margin: 0.5rem 0; padding-left: 1.1rem; }
+
+/* B15 ask why */
+.ask-qs { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.5rem 0; }
+.ask-qs button { font-size: 0.85rem; padding: 0.4rem 0.7rem; text-align: left; overflow-wrap: anywhere; }
+.answer { border-top: 1px solid var(--line); padding-top: 0.6rem; margin-top: 0.6rem; }
+.answer-q { font-weight: 700; margin: 0 0 0.25rem; }

@@ -212,6 +212,25 @@ from backend.api.auth import router as _auth  # noqa: E402
 app.include_router(_auth)
 
 
+class AskBody(BaseModel):
+    question: str
+    path: str | None = None
+
+
+@app.post("/api/runs/{run_id}/ask")
+def ask_why(run_id: str, body: AskBody, request: Request):
+    """B15: fixed "why" questions, answered only from this run's evidence; uncited answers never reach the user."""
+    from backend.agents import explain
+    v = get_run(run_id, request)   # owner-checked
+    try:
+        return explain.ask(v, body.question, body.path)
+    except ValueError as e:
+        raise ApiErr(422, "BAD_QUESTION", str(e))
+    except explain.ExplainerUnavailable as e:
+        raise ApiErr(503, "EXPLAINER_UNAVAILABLE", "The explainer isn't available right now, so we won't guess an answer. "
+                     "Try again" + (" in a minute." if e.retry_after else " later."), e.retry_after)
+
+
 @app.get("/api/runs/{run_id}/report.md")
 def report(run_id: str, request: Request):
     from fastapi.responses import PlainTextResponse

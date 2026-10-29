@@ -8,6 +8,7 @@ import { Connect, PrOpened } from "./Publish";
 import MyRuns, { RunList, useMyRuns } from "./MyRuns";
 import Eval from "./Eval";
 import { AttemptHistory, DiagnosisCard } from "./Diagnosis";
+import AskPanel from "./Ask";
 import Explore from "./Explore";
 
 function Shell({ children }: { children: React.ReactNode }) {
@@ -90,6 +91,7 @@ function Run() {
         <aside className="side">
           <DiagnosisCard run={run} />
           <AttemptHistory events={events} />
+          <AskPanel run={run} />
           {!done && /^[0-9a-f-]{36}$/.test(id) && (
             <button className="danger-btn" onClick={() => api(`/api/runs/${id}/stop`, { method: "POST" }).catch(() => null)}>
               Stop run and keep the report so far
