@@ -82,6 +82,12 @@ function Run() {
               <ul className="tour">{run.diagnosis.tour?.map((t) => <li key={t.path}><code>{t.path}</code> {t.why}</li>)}</ul>
             </div>
           )}
+          {!done && /^[0-9a-f-]{36}$/.test(id) && (
+            <button className="secondary-btn" onClick={() => api(`/api/runs/${id}/stop`, { method: "POST" }).catch(() => null)}>
+              Stop run and keep the report so far
+            </button>
+          )}
+          <p className="hint">Runs usually take 4–15 minutes. You can leave this page; the run keeps going.</p>
           {done && <a className="button secondary" href={`/api/runs/${id}/report.md`}>Download report</a>}
           {run.status === "awaiting_approval" && <Link className="button" to={`/runs/${id}/review`}>Review and approve</Link>}
           {run.pr?.url && <a className="button" href={run.pr.url}>Open pull request on GitHub</a>}

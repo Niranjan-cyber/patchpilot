@@ -31,6 +31,7 @@ h3 { font-size: 0.95rem; margin: 0 0 0.6rem; color: var(--slate); font-weight: 5
 .paste-row { display: flex; gap: 0.5rem; }
 .paste input { flex: 1; font: inherit; padding: 0.7rem 0.8rem; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); min-width: 0; }
 button, .button { font: inherit; font-weight: 700; background: var(--act); color: #fff; border: 0; border-radius: 6px; padding: 0.7rem 1.1rem; cursor: pointer; text-decoration: none; display: inline-block; text-align: center; }
+.secondary-btn { background: var(--paper); color: var(--fail); border: 1px solid var(--line); }
 .button.secondary { background: var(--paper); color: var(--ink); border: 1px solid var(--line); }
 .hint { color: var(--slate); font-size: 0.9rem; }
 .samples { margin-top: 3rem; }

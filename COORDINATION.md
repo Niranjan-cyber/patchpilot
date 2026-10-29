@@ -37,4 +37,5 @@ Shared, change only by a PR that all three approve: `backend/contracts/`, `docs/
 - **Down:** a session with a CLAIM that hasn't posted or pushed for **60 min** is considered down. Any live session may post `TAKEOVER: <step> from <role>`, continue from that role's latest pushed branch, and take over the CLAIM.
 - **Back:** a returning session reads messages.md first. It does **not** resume a step someone took over; it posts `BACK: <role>` and picks the next unclaimed step from the plan (the live sessions suggest one in their reply).
 - **Review:** every PR is reviewed by a different session before merge (`/code-review` + the browser check screenshots). Reviewers check the UI is plain, intuitive and complete for a first-time contributor, not only that tests pass.
+- **Learning log:** after every event (step started/finished, decision, bug, fix, review, takeover) append one line to LEARNING.md, in the same commit as the work.
 - **Done:** the product is done when B13's prototype exit and B19's MVP exit both pass on the public URL. Keep working until then.
