@@ -35,8 +35,9 @@ export default function Eval() {
   return (
     <section className="eval">
       <h1>How often is PatchPilot right?</h1>
-      <p className="lede">We ran PatchPilot on {c.total} issues, then checked every fix against the project's own
-        official tests, which PatchPilot never sees. A "verified" claim the official tests reject counts against us.</p>
+      <p className="lede">PatchPilot has run on {(c.total ?? 0) - (c.no_result ?? 0)} of {c.total} eval issues. We check every
+        fix against the project's own official tests, which PatchPilot never sees. A "verified" claim the official tests
+        reject counts against us.</p>
       <div className="stats">
         <Stat n={c.confirmed} label={`of ${c.verified} verified fixes confirmed`} />
         <Stat n={c.false_verified} label="false verified claims (target 0)" bad={!!c.false_verified} />

@@ -17,7 +17,7 @@ function Shell({ children }: { children: React.ReactNode }) {
         <nav>
           <NavLink to="/">New run</NavLink>
           <NavLink to="/my-runs">My runs</NavLink>
-          <NavLink to="/eval">How accurate is it?</NavLink>
+          <NavLink to="/eval">Accuracy</NavLink>
           <NavLink to="/connect">Sign in with GitHub</NavLink>
         </nav>
       </header>
