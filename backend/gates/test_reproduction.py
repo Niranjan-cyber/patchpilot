@@ -172,6 +172,26 @@ def test_empty_output_is_no_result():
     assert classify_run("") == "no_result"
 
 
+def test_a_missing_output_is_no_result_not_a_crash():
+    # "Unknown is NULL" (AGENTS.md), so a run with no captured output arrives
+    # as None. A gate must never raise.
+    assert classify_run(None) == "no_result"
+    assert evaluate_g3(TEST_ONLY, [ASSERTION, None]) == ("failed", "no_result")
+
+
+def test_a_fully_qualified_exception_matches_the_issues_bare_class_name():
+    # The issue says "ValidationError"; pytest prints the dotted path.
+    output = ISSUE_ERROR.replace(
+        "E       TypeError:", "E       django.core.exceptions.ValidationError:"
+    )
+    assert classify_run(output, "ValidationError") == "issue_error"
+
+
+def test_a_dotted_prefix_does_not_make_a_different_class_match():
+    output = ISSUE_ERROR.replace("E       TypeError:", "E       MyValueError:")
+    assert classify_run(output, "ValueError") == "other_error"
+
+
 # --- is_test_only_diff ----------------------------------------------------
 
 
@@ -185,6 +205,14 @@ def test_empty_output_is_no_result():
         (["tests/test_a.py", "src/slugify/core.py"], False),
         (["requirements.txt"], False),
         ([], False),
+        # A test diff may only add Python test modules: anything else would
+        # ride into the published PR.
+        ([".github/workflows/test_ci.yml"], False),
+        ([".github/workflows/test_ci.py"], False),
+        (["tests/install.sh"], False),
+        (["tests/Dockerfile"], False),
+        # git quotes a non-ASCII path unless core.quotepath=false.
+        (['"tests/t\\303\\251st.py"'], True),
     ],
 )
 def test_is_test_only_diff(paths, expected):

@@ -29,8 +29,14 @@ def is_test_only_diff(paths):
 
 
 def _is_test_path(path):
-    parts = path.replace("\\", "/").split("/")
+    # git quotes a path with non-ASCII bytes unless core.quotepath=false.
+    parts = path.replace("\\", "/").strip('"').split("/")
     name = parts[-1]
+    # A test diff is the one place the model writes free-form files, so only
+    # Python test modules count: a workflow or shell script would ride into
+    # the published PR. G4 bans .github/ outright (contracts.md:62).
+    if not name.endswith(".py") or ".github" in parts:
+        return False
     in_test_dir = any(p in ("test", "tests") for p in parts[:-1])
     return in_test_dir or name.startswith("test_") or name.endswith("_test.py")
 
@@ -41,8 +47,10 @@ def classify_run(output, issue_error=None):
     Each reproduction run executes only the new test, so the run's overall
     result is that test's result. Returns one of: assertion, issue_error,
     import_error, syntax_error, collection_error, other_error, passed,
-    no_result.
+    no_result. A gate never raises, so a missing output is `no_result`.
     """
+    if not output:
+        return "no_result"
     # Import, syntax and collection errors mean the test never ran the bug,
     # so they outrank whatever the summary line says.
     if _raised(output, "ImportError") or _raised(output, "ModuleNotFoundError"):
@@ -67,8 +75,11 @@ def classify_run(output, issue_error=None):
 
 def _raised(output, error_name):
     # pytest prints the raised error on an `E   <Name>: ...` line; the same
-    # name inside a source or prose line is not what the test raised.
-    return bool(re.search(rf"^E\s+{re.escape(error_name)}\b", output, re.M))
+    # name inside a source or prose line is not what the test raised. The name
+    # may be fully qualified (`django.core.exceptions.ValidationError`) while
+    # the issue gives only the class, so an optional dotted prefix matches —
+    # it must end in a dot, so ValueError never matches MyValueError.
+    return bool(re.search(rf"^E\s+(?:[\w.]+\.)?{re.escape(error_name)}\b", output, re.M))
 
 
 def evaluate_g3(diff_paths, run_outputs, issue_error=None):
