@@ -71,7 +71,7 @@ export function ProofPanel({ run }: { run: RunView }) {
       {base && (
         <p className="proof-base">
           {base.pass_set?.length ?? 0} existing tests passed before{run.verify ? ` and still pass` : ""}.
-          {(base.fail_set?.length ?? 0) > 0 && ` ${base.fail_set?.length} were already failing before we started (not caused by this fix).`}
+          {(base.fail_set?.length ?? 0) > 0 && ` ${base.fail_set?.length} ${base.fail_set?.length === 1 ? "was" : "were"} already failing before we started (not caused by this fix).`}
         </p>
       )}
     </section>

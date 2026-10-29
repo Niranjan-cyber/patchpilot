@@ -57,7 +57,7 @@ function Run() {
     <section className="run-page">
       <div className="run-head">
         <div>
-          <p className="issue-ref"><a href={run.issue.html_url}>{run.issue.repo} #{run.issue.number}</a></p>
+          <p className="issue-ref"><a href={run.issue.html_url}>{run.issue.repo} #{run.issue.number}</a> {!/^[0-9a-f-]{36}$/.test(id) && <SampleBadge />}</p>
           <h1>{run.issue.title}</h1>
         </div>
         <ReadinessBadge run={run} />
