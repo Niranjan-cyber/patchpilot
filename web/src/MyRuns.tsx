@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, ApiError } from "./api";
+import ProgressView from "./Progress";
 
 type Item = { run_id: string; title: string; repo: string; number: number; status: string; outcome: string | null;
   readiness: string | null; created_at: string; pr_url: string | null };
@@ -41,6 +42,7 @@ export default function MyRuns() {
     <section>
       <h1>My runs</h1>
       <p className="hint">These runs open only in this browser. Sign in with GitHub to see them on other devices.</p>
+      {!!items.length && <ProgressView />}
       {items.length ? <RunList items={items} onForget={forget} />
         : <div className="panel"><p>No runs yet. Paste an issue to start.</p><Link className="button" to="/">New run</Link></div>}
     </section>

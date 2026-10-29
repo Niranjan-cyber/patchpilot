@@ -149,3 +149,9 @@ abbr { text-decoration: underline dotted; cursor: help; }
 .attempts summary { cursor: pointer; font-weight: 700; }
 .attempts ol { padding-left: 1.2rem; margin: 0.75rem 0 0; }
 .attempts li { margin: 0.4rem 0; }
+
+/* B16 progress */
+.progress { margin: 1.5rem 0 2rem; }
+.gh-merged { color: var(--pass); font-weight: 700; }
+.gh-closed { color: var(--slate); font-weight: 700; }
+.gh-open, .gh-draft { color: var(--act); font-weight: 700; }
