@@ -20,6 +20,8 @@ CREATE TABLE IF NOT EXISTS jobs(id INTEGER PRIMARY KEY, run_id TEXT NOT NULL REF
 CREATE TABLE IF NOT EXISTS events(run_id TEXT NOT NULL, seq INTEGER NOT NULL, ts TEXT NOT NULL, type TEXT NOT NULL,
   step TEXT, revision INTEGER NOT NULL DEFAULT 0, payload TEXT NOT NULL, PRIMARY KEY(run_id, seq));
 CREATE TABLE IF NOT EXISTS kv(key TEXT PRIMARY KEY, value TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS sessions(id_hash TEXT PRIMARY KEY, ip_hash TEXT, created_at TEXT NOT NULL,
+  last_seen_at TEXT NOT NULL, revoked_at TEXT);
 """
 
 
@@ -107,3 +109,34 @@ def put_kv(c, key: str, value: str) -> None:
 def get_kv(c, key: str) -> str | None:
     r = c.execute("SELECT value FROM kv WHERE key=?", (key,)).fetchone()
     return r[0] if r else None
+
+
+ACTIVE = ("queued", "running", "paused", "interrupted", "revising", "publishing")
+
+
+def owns(c, run_id: str, session_hash: str | None, account_id: int | None = None) -> bool:
+    r = c.execute("SELECT owner_session_hash, owner_account_id FROM runs WHERE run_id=?", (run_id,)).fetchone()
+    return bool(r) and ((session_hash is not None and r[0] == session_hash) or (account_id is not None and r[1] == account_id))
+
+
+def owner_counts(c, session_hash: str | None, account_id: int | None) -> tuple[int, int]:
+    """(runs started today UTC, runs still active) for this owner."""
+    day = now().date().isoformat()
+    w, args = ("owner_account_id=?", (account_id,)) if account_id is not None else ("owner_session_hash=?", (session_hash,))
+    today = c.execute(f"SELECT COUNT(*) FROM runs WHERE {w} AND substr(created_at,1,10)=?", (*args, day)).fetchone()[0]
+    active = c.execute(f"SELECT COUNT(*) FROM runs WHERE {w} AND status IN ({','.join('?' * len(ACTIVE))})",
+                       (*args, *ACTIVE)).fetchone()[0]
+    return today, active
+
+
+def list_runs(c, session_hash: str | None, account_id: int | None) -> list[RunView]:
+    rows = c.execute("SELECT state_json FROM runs WHERE (owner_session_hash=? AND ? IS NOT NULL) OR "
+                     "(owner_account_id=? AND ? IS NOT NULL) ORDER BY created_at DESC LIMIT 100",
+                     (session_hash, session_hash, account_id, account_id)).fetchall()
+    return [RunView.model_validate_json(r[0]) for r in rows]
+
+
+def forget(c, run_id: str, session_hash: str) -> bool:
+    with tx(c):
+        return c.execute("UPDATE runs SET owner_session_hash=NULL WHERE run_id=? AND owner_session_hash=?",
+                         (run_id, session_hash)).rowcount == 1

@@ -3,6 +3,7 @@ import { Link, NavLink, Route, Routes, useNavigate, useParams } from "react-rout
 import { api, useRun } from "./api";
 import { ProofPanel, ReadinessBadge, SampleBadge, Stepper } from "./components";
 import IssueCheck from "./IssueCheck";
+import MyRuns, { RunList, useMyRuns } from "./MyRuns";
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
@@ -25,6 +26,7 @@ function Start() {
   const [url, setUrl] = useState("");
   const [fixtures, setFixtures] = useState<string[]>([]);
   const nav = useNavigate();
+  const mine = useMyRuns();
   useEffect(() => { api<string[]>("/api/fixtures").then(setFixtures).catch(() => setFixtures([])); }, []);
   return (
     <section className="start">
@@ -38,6 +40,9 @@ function Start() {
         </div>
         <p className="hint">Works today on public Python projects with tests. Other projects get a report, not a fix.</p>
       </form>
+      {!!mine.items?.length && (
+        <div className="samples"><h2>Your recent runs</h2><RunList items={mine.items.slice(0, 5)} /></div>
+      )}
       {fixtures.length > 0 && (
         <div className="samples">
           <h2>Sample runs <SampleBadge /></h2>
@@ -113,7 +118,7 @@ export default function App() {
         <Route path="/runs/:id/review" element={<Stub title="Review and approve"><p>The exact diff and checklist arrive in B10.</p></Stub>} />
         <Route path="/connect" element={<Stub title="Connect GitHub"><p>We'll only ask for permission to fork, push one branch and open one draft pull request. Arrives in B11.</p></Stub>} />
         <Route path="/runs/:id/pr" element={<Stub title="Pull request opened"><p>What happens next arrives in B11.</p></Stub>} />
-        <Route path="/my-runs" element={<Stub title="My runs"><p>Your runs arrive in B12.</p></Stub>} />
+        <Route path="/my-runs" element={<MyRuns />} />
         <Route path="*" element={<Stub title="Page not found"><Link to="/">Start a new run</Link></Stub>} />
       </Routes>
     </Shell>
