@@ -22,3 +22,4 @@ Every session appends here after every event: a step started or finished, a deci
 - [2026-10-30] A BUG→FIX: stub steps without a gate (Existing tests, Diagnose) were marked "Passed": a fake pass → stubs now report "Not run: this step isn't built yet". Caught by test_unbuilt_steps_never_fake_a_pass.
 - [2026-10-30] A EVENT: B04 end-to-end on localhost: run created → worker killed mid "Existing tests" → /healthz showed worker false after 30 s → restarted worker took the expired lease → `run.interrupted` → `run.resumed` → finished. Kill/resume works outside tests too.
 - [2026-10-30] A LESSON: until B05–B09 register real steps, real runs end "Stopped, report so far" with every step "Not run": honest, but don't demo real runs before B05.
+- [2026-10-30] A BUG→FIX: pushed B04 with one failing test (a shell chain hid pytest's exit code; the test read the live DB) → test isolated with a temp DB; from now on `set -o pipefail` before test-then-push.

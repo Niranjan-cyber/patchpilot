@@ -5,7 +5,9 @@ from backend.api.main import app
 c = TestClient(app)
 
 
-def test_healthz_never_claims_unknown_parts_are_ok():
+def test_healthz_never_claims_unknown_parts_are_ok(tmp_path, monkeypatch):
+    from backend import db
+    monkeypatch.setattr(db, "DB_PATH", str(tmp_path / "app.db"))   # no worker has ever run here
     h = c.get("/healthz").json()
     assert h["worker"] is False and h["llm_budget"] == "unset"
 
