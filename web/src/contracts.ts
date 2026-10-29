@@ -203,12 +203,19 @@ export type PrSummary1 = string;
 export type Code = string;
 export type Message = string;
 export type RetryAfter = number | null;
+export type BaseSha1 = string | null;
+export type DefaultBranch = string | null;
+export type Language = string | null;
+export type Warnings = string[];
+export type Unsupported = string | null;
+export type FetchedAt = string;
 
 export interface Contracts {
   RunView?: RunView;
   Event?: Event;
   ApproveRequest?: ApproveRequest;
   ApiError?: ApiError;
+  IssueCheck?: IssueCheck;
   [k: string]: unknown;
 }
 /**
@@ -524,14 +531,17 @@ export interface ApiError {
 }
 /**
  * This interface was referenced by `Contracts`'s JSON-Schema
- * via the `definition` "Budget".
+ * via the `definition` "IssueCheck".
  */
-export interface Budget1 {
-  tokens_used?: TokensUsed;
-  tokens_limit?: TokensLimit;
-  active_seconds?: ActiveSeconds;
-  active_seconds_limit?: ActiveSecondsLimit;
-  paused_since?: PausedSince;
+export interface IssueCheck {
+  issue: IssueSpec;
+  base_sha: BaseSha1;
+  default_branch: DefaultBranch;
+  language: Language;
+  policy: RepoPolicy1;
+  warnings?: Warnings;
+  unsupported?: Unsupported;
+  fetched_at: FetchedAt;
   [k: string]: unknown;
 }
 /**
@@ -542,5 +552,17 @@ export interface RepoPolicy1 {
   ai_policy?: AiPolicy;
   prs_restricted?: PrsRestricted;
   source_evidence_ids?: SourceEvidenceIds;
+  [k: string]: unknown;
+}
+/**
+ * This interface was referenced by `Contracts`'s JSON-Schema
+ * via the `definition` "Budget".
+ */
+export interface Budget1 {
+  tokens_used?: TokensUsed;
+  tokens_limit?: TokensLimit;
+  active_seconds?: ActiveSeconds;
+  active_seconds_limit?: ActiveSecondsLimit;
+  paused_since?: PausedSince;
   [k: string]: unknown;
 }

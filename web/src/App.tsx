@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, NavLink, Route, Routes, useNavigate, useParams } from "react-router-dom";
 import { api, useRun } from "./api";
 import { ProofPanel, ReadinessBadge, SampleBadge, Stepper } from "./components";
+import IssueCheck from "./IssueCheck";
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
@@ -107,7 +108,7 @@ export default function App() {
     <Shell>
       <Routes>
         <Route path="/" element={<Start />} />
-        <Route path="/check" element={<Stub title="Issue check"><p>Eligibility checks arrive in B03.</p></Stub>} />
+        <Route path="/check" element={<IssueCheck />} />
         <Route path="/runs/:id" element={<Run />} />
         <Route path="/runs/:id/review" element={<Stub title="Review and approve"><p>The exact diff and checklist arrive in B10.</p></Stub>} />
         <Route path="/connect" element={<Stub title="Connect GitHub"><p>We'll only ask for permission to fork, push one branch and open one draft pull request. Arrives in B11.</p></Stub>} />

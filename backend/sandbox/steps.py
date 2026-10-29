@@ -34,11 +34,12 @@ def _gh_headers():
     return {"Accept": "application/vnd.github+json", **({"Authorization": f"Bearer {tok}"} if tok else {})}
 
 
-def fetch_source(repo: str, rid: str) -> tuple[str, str]:
-    """Pin the default branch HEAD, download its tarball (no git clone: no hooks/submodules), extract safely."""
+def fetch_source(repo: str, rid: str, sha: str | None = None) -> tuple[str, str]:
+    """Download the tarball at the pinned commit (no git clone: no hooks/submodules), extract safely."""
     with httpx.Client(headers=_gh_headers(), timeout=30, follow_redirects=True) as h:
-        branch = h.get(f"{GH}/repos/{repo}").raise_for_status().json()["default_branch"]
-        sha = h.get(f"{GH}/repos/{repo}/commits/{branch}").raise_for_status().json()["sha"]
+        if not sha:
+            branch = h.get(f"{GH}/repos/{repo}").raise_for_status().json()["default_branch"]
+            sha = h.get(f"{GH}/repos/{repo}/commits/{branch}").raise_for_status().json()["sha"]
         data = h.get(f"{GH}/repos/{repo}/tarball/{sha}").raise_for_status().content
     if len(data) > MAX_TARBALL:
         raise ValueError("repository tarball is larger than 200 MB")
@@ -58,7 +59,7 @@ def fetch_source(repo: str, rid: str) -> tuple[str, str]:
 def preflight(ctx: StepContext) -> GateResult:
     run = ctx.run
     # A failed download raises: the worker retries (2 resumes), then ends with the honest outcome (contracts §7).
-    sha, src = fetch_source(run.issue.repo, ctx.run_id)
+    sha, src = fetch_source(run.issue.repo, ctx.run_id, None if run.base_sha == "pending" else run.base_sha)
     run.base_sha = sha
     ctx.emit("step.progress", "preflight", message=f"Pinned commit {sha[:7]}.")
     code, report, log = None, None, ""

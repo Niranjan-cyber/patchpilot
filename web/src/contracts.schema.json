@@ -365,6 +365,84 @@
    "title": "Event",
    "type": "object"
   },
+  "IssueCheck": {
+   "properties": {
+    "issue": {
+     "$ref": "#/$defs/IssueSpec"
+    },
+    "base_sha": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Base Sha"
+    },
+    "default_branch": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Default Branch"
+    },
+    "language": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Language"
+    },
+    "policy": {
+     "$ref": "#/$defs/RepoPolicy"
+    },
+    "warnings": {
+     "default": [],
+     "items": {
+      "type": "string"
+     },
+     "title": "Warnings",
+     "type": "array"
+    },
+    "unsupported": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Unsupported"
+    },
+    "fetched_at": {
+     "format": "date-time",
+     "title": "Fetched At",
+     "type": "string"
+    }
+   },
+   "required": [
+    "issue",
+    "base_sha",
+    "default_branch",
+    "language",
+    "policy",
+    "fetched_at"
+   ],
+   "title": "IssueCheck",
+   "type": "object"
+  },
   "IssueSpec": {
    "properties": {
     "html_url": {
@@ -1395,6 +1473,9 @@
   },
   "ApiError": {
    "$ref": "#/$defs/ApiError"
+  },
+  "IssueCheck": {
+   "$ref": "#/$defs/IssueCheck"
   }
  }
 }

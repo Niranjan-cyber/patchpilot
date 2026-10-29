@@ -7,14 +7,14 @@ from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-import re
 import uuid
 
 from pydantic import BaseModel
 
 from backend import db
 from backend.config import llm_budget_set
-from backend.contracts.models import CONTRACTS_VERSION, Event, IssueSpec, RunView
+from backend.contracts.models import CONTRACTS_VERSION, Event, PublishBlocker, RunView
+from backend.github.reader import GitHubError, IssueCheck, check_issue
 
 ROOT = Path(__file__).resolve().parents[2]
 FIXTURES = ROOT / "fixtures" / "runs"
@@ -56,7 +56,21 @@ def _is_real(run_id: str) -> bool:
         return False
 
 
-ISSUE_URL = re.compile(r"^https://github\.com/([\w.-]+)/([\w.-]+)/issues/(\d+)/?$")
+class CheckBody(BaseModel):
+    url: str
+
+
+def _check(url: str) -> IssueCheck:
+    try:
+        return check_issue(url)
+    except GitHubError as e:
+        raise ApiErr(422 if e.code in ("INVALID_URL", "NOT_AN_ISSUE") else 404 if e.code == "PRIVATE_REPO" else 503,
+                     e.code, str(e), e.retry_after)
+
+
+@app.post("/api/issues/check", response_model=IssueCheck)
+def issues_check(body: CheckBody):
+    return _check(body.url)
 
 
 class NewRun(BaseModel):
@@ -66,13 +80,19 @@ class NewRun(BaseModel):
 
 @app.post("/api/runs", response_model=RunView, status_code=201)
 def create_run(body: NewRun):
-    m = ISSUE_URL.match(body.issue_url.strip())
-    if not m:
-        raise ApiErr(422, "INVALID_URL", "Paste a link to a GitHub issue, like https://github.com/owner/repo/issues/123.")
-    owner, repo, num = m.groups()
-    # shortcut: title/checks/base_sha come from the B03 issue reader (role C); B05 pins base_sha from the tarball.
-    issue = IssueSpec(html_url=body.issue_url.strip(), repo=f"{owner}/{repo}", number=int(num), title=f"{owner}/{repo} #{num}")
-    return db.create_run(db.connect(), issue, base_sha="pending")
+    chk = _check(body.issue_url)   # G0 (contracts §1.1)
+    if chk.unsupported:
+        raise ApiErr(422, "UNSUPPORTED_REPO", {"not_python": "PatchPilot can only run Python projects today.",
+                     "no_tests": "We couldn't find tests in this repository, so we can't verify a fix."}[chk.unsupported])
+    missing = [w for w in chk.warnings if w not in body.continue_despite]
+    if missing:
+        raise ApiErr(409, "ELIGIBILITY_WARNING", "This issue has warnings you need to accept first: " + ", ".join(missing))
+    v = db.create_run(db.connect(), chk.issue, base_sha=chk.base_sha or "pending")
+    if chk.policy.ai_policy == "forbidden":
+        v.policy = chk.policy
+        v.publish_blockers.append(PublishBlocker.REPO_FORBIDS_AI)
+        db.save_run(db.connect(), v)
+    return v
 
 
 @app.post("/api/runs/{run_id}/stop", response_model=RunView)

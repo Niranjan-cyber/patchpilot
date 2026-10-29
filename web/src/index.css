@@ -90,3 +90,15 @@ button, .button { font: inherit; font-weight: 700; background: var(--act); color
   .samples ul { columns: 1; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+.check { max-width: 46rem; }
+.ea { display: grid; grid-template-columns: max-content 1fr; gap: 0.3rem 1rem; margin: 1rem 0 1.5rem; }
+.ea dt { font-weight: 700; } .ea dd { margin: 0; }
+.checks { list-style: none; padding: 0; margin: 0 0 0.5rem; }
+.checks li { display: grid; grid-template-columns: 7rem 1fr; padding: 0.35rem 0; border-top: 1px solid var(--line); }
+.checks li:first-child { border-top: 0; }
+.row { display: flex; gap: 0.75rem; flex-wrap: wrap; margin: 1.25rem 0 0.5rem; }
+.accept { display: block; margin-top: 0.6rem; font-weight: 700; }
+.notice ul { margin: 0; padding-left: 1.1rem; }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+.check .card { margin-top: 1rem; }
