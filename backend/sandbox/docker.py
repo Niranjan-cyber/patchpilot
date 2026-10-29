@@ -5,7 +5,8 @@ from dataclasses import dataclass
 
 SETUP_NET, PROXY = "pp_setup", "pp-proxpi"
 INDEX_URL = f"http://{PROXY}:5000/index/"
-HARDEN = ["--user", "1000:1000", "--cap-drop", "ALL", "--security-opt", "no-new-privileges",
+RUNTIME = os.getenv("PP_DOCKER_RUNTIME", "")   # "runsc" on the MVP VM (gVisor); empty on the Docker Desktop prototype
+HARDEN = [*(["--runtime", RUNTIME] if RUNTIME else []), "--user", "1000:1000", "--cap-drop", "ALL", "--security-opt", "no-new-privileges",
           "--pids-limit", "512", "--memory", os.getenv("PP_SANDBOX_MEM", "2g"), "--cpus", "2"]
 
 
@@ -96,3 +97,11 @@ def exec_(name: str, script: str, timeout: int = 120) -> Result:
     if r.timed_out:
         _docker("exec", name, "sh", "-c", "pkill -u 1000 -f -- '-c' || true")
     return r
+
+
+def runtime_ok() -> tuple[bool, str]:
+    """B19: if a runtime is configured it must exist; the worker refuses runs otherwise (never silently weaker)."""
+    if not RUNTIME:
+        return True, "default (no gVisor: prototype)"
+    r = _docker("info", "--format", "{{json .Runtimes}}")
+    return (RUNTIME in r.out), (RUNTIME if RUNTIME in r.out else f"{RUNTIME} configured but not installed")

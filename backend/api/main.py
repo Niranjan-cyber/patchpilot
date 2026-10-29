@@ -164,7 +164,7 @@ def healthz():
     beat = db.get_kv(db.connect(), "worker_heartbeat")
     alive = beat is not None and (db.now() - db.datetime.fromisoformat(beat)).total_seconds() < 30
     return {"db": True, "worker": alive,
-            "docker": shutil.which("docker") is not None, "llm_budget": "set" if llm_budget_set() else "unset",
+            "docker": shutil.which("docker") is not None, "sandbox_runtime": __import__("backend.sandbox.docker", fromlist=["RUNTIME"]).RUNTIME or "default", "llm_budget": "set" if llm_budget_set() else "unset",
             "run_mode": RUN_MODE, "contracts": CONTRACTS_VERSION}
 
 

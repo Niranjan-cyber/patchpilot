@@ -95,6 +95,10 @@ def reap(c) -> None:
 
 
 def main():
+    from backend.sandbox import docker
+    ok, why = docker.runtime_ok()
+    if not ok:
+        raise SystemExit(f"refusing to start: sandbox runtime {why}")
     graph = build()
     print(f"worker {WORKER_ID} ready", flush=True)
     c = db.connect()
