@@ -1,3 +1,0 @@
-# Role B needs these two now; fold them into whatever B01/B02 settles on.
-tzdata        # a Windows host has no system tz database (llm_gateway PACIFIC)
-pytest        # dev

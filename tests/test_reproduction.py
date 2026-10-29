@@ -266,3 +266,10 @@ def test_wrong_number_of_runs_fails():
 
 def test_an_unreadable_run_is_not_a_reproduction():
     assert evaluate_g3(TEST_ONLY, [ASSERTION, ""]) == ("failed", "no_result")
+
+
+def test_g3_result_contract_shape():
+    from backend.contracts.models import CheckStatus
+    from backend.gates.reproduction import g3_result
+    r = g3_result(["src/a.py"], ["", ""])
+    assert r.gate == "G3" and r.status == CheckStatus.FAILED and r.reason == "diff_touches_source"

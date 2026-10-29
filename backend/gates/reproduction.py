@@ -101,3 +101,10 @@ def evaluate_g3(diff_paths, run_outputs, issue_error=None):
     if len(qualifying) == 1:
         return "inconclusive", "flaky"
     return "failed", "test_passed"
+
+
+def g3_result(diff_paths, run_outputs, issue_error=None, evidence_ids=()):
+    """Contract shape (GateResult, contracts §1.1) over evaluate_g3. Review note from A on PR #14, applied by A on takeover."""
+    from backend.contracts.models import CheckStatus, GateResult
+    status, reason = evaluate_g3(diff_paths, run_outputs, issue_error)
+    return GateResult(gate="G3", status=CheckStatus(status), reason=reason, evidence_ids=list(evidence_ids))
