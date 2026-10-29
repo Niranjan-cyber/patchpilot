@@ -56,33 +56,43 @@ def fetch_source(repo: str, rid: str, sha: str | None = None) -> tuple[str, str]
     return sha, str(dest)
 
 
-def preflight(ctx: StepContext) -> GateResult:
-    run = ctx.run
-    # A failed download raises: the worker retries (2 resumes), then ends with the honest outcome (contracts §7).
-    sha, src = fetch_source(run.issue.repo, ctx.run_id, None if run.base_sha == "pending" else run.base_sha)
-    run.base_sha = sha
-    ctx.emit("step.progress", "preflight", message=f"Pinned commit {sha[:7]}.")
+def run_supplyguard(rid: str) -> SGReport:
+    """Static dependency check on the extracted source (never installs). Unknown → inconclusive, never clean."""
+    src = WORK / rid / "src"
     code, report, log = None, None, ""
-    cmd = os.getenv("SUPPLYGUARD_CMD")   # e.g. "npx tsx C:/…/Nexora_mindspark/backend/src/cli/index.ts"
-    if cmd:
+    cmd = os.getenv("SUPPLYGUARD_CMD")   # e.g. "data/tools/supplyguard/backend/node_modules/.bin/tsx …/cli/index.ts"
+    if cmd and src.exists():
         try:
             argv = shlex.split(cmd, posix=os.name != "nt")
             argv[0] = shutil.which(argv[0]) or argv[0]
-            p = subprocess.run(argv + ["analyze", src, "--json"], capture_output=True, text=True,
+            p = subprocess.run(argv + ["analyze", str(src), "--json"], capture_output=True, text=True,
                                encoding="utf-8", errors="replace", timeout=180)
             code, log = p.returncode, p.stdout[-200000:] + p.stderr[-20000:]
             report = json.loads(p.stdout) if p.stdout.strip().startswith("{") else None
         except Exception as e:
             log = f"SupplyGuard failed to run: {e!r}"
     status, reason, findings = map_supplyguard(code, report)
-    files = [f for f in ("requirements.txt", "Pipfile.lock", "poetry.lock", "pyproject.toml") if (WORK / ctx.run_id / "src" / f).exists()]
-    ev = artifacts.put(log or json.dumps({"note": "SupplyGuard not configured (SUPPLYGUARD_CMD unset)"}))
-    run.supplyguard = SGReport(report_id=ev, status=status, findings=findings, files=files,
-                               failures=[] if status != CheckStatus.INCONCLUSIVE else [reason])
+    files = [f for f in ("requirements.txt", "Pipfile.lock", "poetry.lock", "pyproject.toml") if (src / f).exists()]
+    ev = artifacts.put(log or json.dumps({"note": "SupplyGuard not configured (SUPPLYGUARD_CMD unset)", "at": db.now().isoformat()}))
+    return SGReport(report_id=ev, status=status, findings=findings, files=files,
+                    failures=[] if status != CheckStatus.INCONCLUSIVE else [reason])
+
+
+def preflight(ctx: StepContext) -> GateResult:
+    run = ctx.run
+    # A failed download raises: the worker retries (2 resumes), then ends with the honest outcome (contracts §7).
+    sha, src = fetch_source(run.issue.repo, ctx.run_id, None if run.base_sha == "pending" else run.base_sha)
+    run.base_sha = sha
+    ctx.emit("step.progress", "preflight", message=f"Pinned commit {sha[:7]}.")
+    run.supplyguard = run_supplyguard(ctx.run_id)
+    status, findings = run.supplyguard.status, run.supplyguard.findings
+    reason = run.supplyguard.failures[0] if run.supplyguard.failures else ("malicious_package" if status == CheckStatus.BLOCKED else "no_malicious_packages")
+    ev = run.supplyguard.report_id
     if status == CheckStatus.INCONCLUSIVE and PublishBlocker.DEPS_INCONCLUSIVE not in run.publish_blockers:
         run.publish_blockers.append(PublishBlocker.DEPS_INCONCLUSIVE)
     ctx.scratch["headline"] = {
-        CheckStatus.BLOCKED: "A dependency matches a published malicious-package advisory. Nothing was installed or run.",
+        CheckStatus.BLOCKED: f"{next((f['package'] for f in findings if f['type'] == 'suspicious'), 'A dependency')} looks like a "
+                             "known-malicious or typosquatted package. Nothing from this repository was installed or run.",
         CheckStatus.INCONCLUSIVE: "We couldn't fully check the dependencies, so publishing will stay off.",
     }.get(status, f"No known-malicious packages. {sum(f['type'] == 'vulnerability' for f in findings)} known vulnerabilities listed as findings.")
     db.save_run(db.connect(), run)

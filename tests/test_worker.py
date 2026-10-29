@@ -110,3 +110,16 @@ def test_two_failed_resumes_end_with_honest_outcome(env):
     drain(c, g)
     r = db.get_run(c, v.run_id)
     assert r.end_reason.value == "system_error" and r.outcome.value == "TRIAGE_ONLY"   # G3 had passed: best honest outcome
+
+
+def test_revise_resumes_at_fix_only(env):
+    c, g = env; calls = []; passing(calls)
+    v = db.create_run(c, ISSUE, "sha"); drain(c, g)
+    assert db.get_run(c, v.run_id).status.value == "awaiting_approval"
+    calls.clear()
+    r = db.get_run(c, v.run_id); r.revision = 1; r.status = r.status.__class__("revising"); db.save_run(c, r)
+    with db.tx(c):
+        c.execute("INSERT INTO jobs(run_id,kind,state,available_at) VALUES(?,?,?,?)", (v.run_id, "revise", "queued", db.now().isoformat()))
+    drain(c, g)
+    assert calls == [S.FIX, S.VERIFY, S.REVIEW]
+    assert db.get_run(c, v.run_id).status.value == "awaiting_approval"

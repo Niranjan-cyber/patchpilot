@@ -31,7 +31,8 @@ h3 { font-size: 0.95rem; margin: 0 0 0.6rem; color: var(--slate); font-weight: 5
 .paste-row { display: flex; gap: 0.5rem; }
 .paste input { flex: 1; font: inherit; padding: 0.7rem 0.8rem; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); min-width: 0; }
 button, .button { font: inherit; font-weight: 700; background: var(--act); color: #fff; border: 0; border-radius: 6px; padding: 0.7rem 1.1rem; cursor: pointer; text-decoration: none; display: inline-block; text-align: center; }
-.secondary-btn { background: var(--paper); color: var(--fail); border: 1px solid var(--line); }
+.secondary-btn { background: var(--paper); color: var(--ink); border: 1px solid var(--line); align-self: flex-start; }
+.danger-btn { background: var(--paper); color: var(--fail); border: 1px solid var(--line); }
 .button.secondary { background: var(--paper); color: var(--ink); border: 1px solid var(--line); }
 .hint { color: var(--slate); font-size: 0.9rem; }
 .samples { margin-top: 3rem; }
@@ -111,3 +112,15 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .pill-awaiting_approval { background: var(--warn-bg); color: var(--warn); }
 .pill-published { background: var(--pass-bg); color: var(--pass); }
 .linklike { background: none; color: var(--slate); padding: 0; font-weight: 500; text-decoration: underline; }
+
+.review { max-width: 56rem; }
+.diff { background: var(--paper); border: 1px solid var(--line); border-radius: 8px; padding: 1rem; overflow-x: auto; font: 0.85rem/1.5 "JetBrains Mono", ui-monospace, monospace; }
+.diff span { display: block; white-space: pre; }
+.d-add { background: var(--pass-bg); color: #13502f; } .d-del { background: var(--fail-bg); color: #7a1522; }
+.d-file { font-weight: 700; margin-top: 0.6rem; } .d-hunk { color: var(--slate); }
+.form { display: flex; flex-direction: column; gap: 0.8rem; margin-top: 1rem; }
+.form label { display: flex; flex-direction: column; gap: 0.3rem; font-weight: 700; }
+.form input, .form textarea { font: inherit; font-weight: 400; padding: 0.6rem 0.7rem; border: 1px solid var(--line); border-radius: 6px; }
+.form fieldset { border: 1px solid var(--line); border-radius: 6px; padding: 0.6rem 0.9rem; }
+.form legend { font-weight: 700; padding: 0 0.3rem; }
+.form label.tick { flex-direction: row; align-items: center; gap: 0.5rem; font-weight: 400; padding: 0.2rem 0; }

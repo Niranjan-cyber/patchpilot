@@ -180,6 +180,10 @@ def forget_run(run_id: str, request: Request):
     return Response(status_code=204)
 
 
+from backend.api.approval import router as _approval  # noqa: E402  (needs ApiErr/_own defined above)
+app.include_router(_approval)
+
+
 @app.get("/api/fixtures")
 def list_fixtures():
     return sorted(p.name for p in FIXTURES.iterdir()) if RUN_MODE == "fixture" else []

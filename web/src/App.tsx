@@ -3,6 +3,7 @@ import { Link, NavLink, Route, Routes, useNavigate, useParams } from "react-rout
 import { api, useRun } from "./api";
 import { ProofPanel, ReadinessBadge, SampleBadge, Stepper } from "./components";
 import IssueCheck from "./IssueCheck";
+import Review from "./Review";
 import MyRuns, { RunList, useMyRuns } from "./MyRuns";
 
 function Shell({ children }: { children: React.ReactNode }) {
@@ -89,7 +90,7 @@ function Run() {
             </div>
           )}
           {!done && /^[0-9a-f-]{36}$/.test(id) && (
-            <button className="secondary-btn" onClick={() => api(`/api/runs/${id}/stop`, { method: "POST" }).catch(() => null)}>
+            <button className="danger-btn" onClick={() => api(`/api/runs/${id}/stop`, { method: "POST" }).catch(() => null)}>
               Stop run and keep the report so far
             </button>
           )}
@@ -115,8 +116,8 @@ export default function App() {
         <Route path="/" element={<Start />} />
         <Route path="/check" element={<IssueCheck />} />
         <Route path="/runs/:id" element={<Run />} />
-        <Route path="/runs/:id/review" element={<Stub title="Review and approve"><p>The exact diff and checklist arrive in B10.</p></Stub>} />
-        <Route path="/connect" element={<Stub title="Connect GitHub"><p>We'll only ask for permission to fork, push one branch and open one draft pull request. Arrives in B11.</p></Stub>} />
+        <Route path="/runs/:id/review" element={<Review />} />
+        <Route path="/connect" element={<Stub title="Connect GitHub"><p>Approved. To publish, we'll ask GitHub for permission to fork the repository to your account, push one branch and open one draft pull request. We can't merge anything, and the AI never sees this permission. (Publishing arrives in B11; you can download the report and diff now.)</p></Stub>} />
         <Route path="/runs/:id/pr" element={<Stub title="Pull request opened"><p>What happens next arrives in B11.</p></Stub>} />
         <Route path="/my-runs" element={<MyRuns />} />
         <Route path="*" element={<Stub title="Page not found"><Link to="/">Start a new run</Link></Stub>} />
