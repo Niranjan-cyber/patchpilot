@@ -91,6 +91,7 @@ class EnvProfile(BaseModel):
 
 
 class TestRun(BaseModel):
+    __test__ = False   # not a pytest test class
     pass_set: list[str] = []
     fail_set: list[str] = []
     flaky_set: list[str] = []
