@@ -89,9 +89,28 @@ def shortlist(repo: str, meta: dict, root_names: list[str] | None, items: list[d
     return {**base, "state": state, "unsupported": None, "suggestions": sug}
 
 
+_CACHE: dict[str, tuple[float, dict]] = {}
+CACHE_SECONDS = 600
+
+
 def explore(url: str) -> dict:
-    """Live GitHub read with the server's read-only token. Per-issue timeline failures make the result partial."""
+    """Cached per repo for 10 min (only complete reads), else a live read; the result says when it was fetched."""
+    import time
+    from datetime import datetime, timezone
     repo = parse_repo_url(url)
+    hit = _CACHE.get(repo.lower())
+    if hit and time.time() - hit[0] < CACHE_SECONDS:
+        return {**hit[1], "cached": True}
+    out = {**_explore(repo), "fetched_at": datetime.now(timezone.utc).isoformat(timespec="seconds"), "cached": False}
+    if out["state"] in ("success", "empty", "unsupported"):   # never cache a partial read
+        if len(_CACHE) > 200:
+            _CACHE.clear()     # shortcut: crude bound, fine for one demo host; use an LRU if this ever serves many users
+        _CACHE[repo.lower()] = (time.time(), out)
+    return out
+
+
+def _explore(repo: str) -> dict:
+    """Live GitHub read with the server's read-only token. Per-issue timeline failures make the result partial."""
     with _client() as h:
         meta = _get(h, f"/repos/{repo}")
         if meta.get("private"):
