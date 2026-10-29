@@ -1,0 +1,12 @@
+.env
+.env.*
+!.env.example
+data/
+node_modules/
+web/dist/
+__pycache__/
+*.pyc
+.venv/
+tests/e2e/screenshots/
+test-results/
+playwright-report/

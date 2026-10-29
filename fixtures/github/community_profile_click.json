@@ -1,0 +1,40 @@
+{
+  "health_percentage": 87,
+  "description": "Python composable command line interface toolkit",
+  "documentation": "https://click.palletsprojects.com",
+  "files": {
+    "code_of_conduct": {
+      "key": "contributor_covenant",
+      "name": "Contributor Covenant",
+      "html_url": "https://github.com/pallets/.github/blob/main/CODE_OF_CONDUCT.md",
+      "url": "https://api.github.com/repos/pallets/click/community/code_of_conduct"
+    },
+    "code_of_conduct_file": {
+      "url": "https://api.github.com/repos/pallets/.github/contents/CODE_OF_CONDUCT.md",
+      "html_url": "https://github.com/pallets/.github/blob/main/CODE_OF_CONDUCT.md"
+    },
+    "contributing": {
+      "url": "https://api.github.com/repos/pallets/click/contents/docs/contributing.md",
+      "html_url": "https://github.com/pallets/click/blob/main/docs/contributing.md"
+    },
+    "issue_template": null,
+    "pull_request_template": {
+      "url": "https://api.github.com/repos/pallets/click/contents/.github/pull_request_template.md",
+      "html_url": "https://github.com/pallets/click/blob/main/.github/pull_request_template.md"
+    },
+    "license": {
+      "key": "bsd-3-clause",
+      "name": "BSD 3-Clause \"New\" or \"Revised\" License",
+      "spdx_id": "BSD-3-Clause",
+      "url": "https://api.github.com/licenses/bsd-3-clause",
+      "node_id": "MDc6TGljZW5zZTU=",
+      "html_url": "https://github.com/pallets/click/blob/main/LICENSE.txt"
+    },
+    "readme": {
+      "url": "https://api.github.com/repos/pallets/click/contents/README.md",
+      "html_url": "https://github.com/pallets/click/blob/main/README.md"
+    }
+  },
+  "updated_at": "2026-08-08T05:50:43Z",
+  "content_reports_enabled": false
+}

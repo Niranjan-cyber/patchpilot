@@ -1,0 +1,242 @@
+[
+  {
+    "name": ".devcontainer",
+    "path": ".devcontainer",
+    "sha": "3830f389398cb4a972c68740fa01500e41a67c3c",
+    "size": 0,
+    "url": "https://api.github.com/repos/pallets/click/contents/.devcontainer?ref=main",
+    "html_url": "https://github.com/pallets/click/tree/main/.devcontainer",
+    "git_url": "https://api.github.com/repos/pallets/click/git/trees/3830f389398cb4a972c68740fa01500e41a67c3c",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/pallets/click/contents/.devcontainer?ref=main",
+      "git": "https://api.github.com/repos/pallets/click/git/trees/3830f389398cb4a972c68740fa01500e41a67c3c",
+      "html": "https://github.com/pallets/click/tree/main/.devcontainer"
+    }
+  },
+  {
+    "name": ".editorconfig",
+    "path": ".editorconfig",
+    "sha": "2ff985a67af35fdfd1076354b771c425867cdab4",
+    "size": 233,
+    "url": "https://api.github.com/repos/pallets/click/contents/.editorconfig?ref=main",
+    "html_url": "https://github.com/pallets/click/blob/main/.editorconfig",
+    "git_url": "https://api.github.com/repos/pallets/click/git/blobs/2ff985a67af35fdfd1076354b771c425867cdab4",
+    "download_url": "https://raw.githubusercontent.com/pallets/click/main/.editorconfig",
+    "type": "file",
+    "_links": {
+      "self": "https://api.github.com/repos/pallets/click/contents/.editorconfig?ref=main",
+      "git": "https://api.github.com/repos/pallets/click/git/blobs/2ff985a67af35fdfd1076354b771c425867cdab4",
+      "html": "https://github.com/pallets/click/blob/main/.editorconfig"
+    }
+  },
+  {
+    "name": ".github",
+    "path": ".github",
+    "sha": "fefbdc18842edf385fdb93c72b9dcd43021d60d0",
+    "size": 0,
+    "url": "https://api.github.com/repos/pallets/click/contents/.github?ref=main",
+    "html_url": "https://github.com/pallets/click/tree/main/.github",
+    "git_url": "https://api.github.com/repos/pallets/click/git/trees/fefbdc18842edf385fdb93c72b9dcd43021d60d0",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/pallets/click/contents/.github?ref=main",
+      "git": "https://api.github.com/repos/pallets/click/git/trees/fefbdc18842edf385fdb93c72b9dcd43021d60d0",
+      "html": "https://github.com/pallets/click/tree/main/.github"
+    }
+  },
+  {
+    "name": ".gitignore",
+    "path": ".gitignore",
+    "sha": "9b03397545f947956bb78e169e0ddecbc24ae34b",
+    "size": 81,
+    "url": "https://api.github.com/repos/pallets/click/contents/.gitignore?ref=main",
+    "html_url": "https://github.com/pallets/click/blob/main/.gitignore",
+    "git_url": "https://api.github.com/repos/pallets/click/git/blobs/9b03397545f947956bb78e169e0ddecbc24ae34b",
+    "download_url": "https://raw.githubusercontent.com/pallets/click/main/.gitignore",
+    "type": "file",
+    "_links": {
+      "self": "https://api.github.com/repos/pallets/click/contents/.gitignore?ref=main",
+      "git": "https://api.github.com/repos/pallets/click/git/blobs/9b03397545f947956bb78e169e0ddecbc24ae34b",
+      "html": "https://github.com/pallets/click/blob/main/.gitignore"
+    }
+  },
+  {
+    "name": ".pre-commit-config.yaml",
+    "path": ".pre-commit-config.yaml",
+    "sha": "4a24c9d14c0f48885f6fe2b31c60d46ea3530ea6",
+    "size": 925,
+    "url": "https://api.github.com/repos/pallets/click/contents/.pre-commit-config.yaml?ref=main",
+    "html_url": "https://github.com/pallets/click/blob/main/.pre-commit-config.yaml",
+    "git_url": "https://api.github.com/repos/pallets/click/git/blobs/4a24c9d14c0f48885f6fe2b31c60d46ea3530ea6",
+    "download_url": "https://raw.githubusercontent.com/pallets/click/main/.pre-commit-config.yaml",
+    "type": "file",
+    "_links": {
+      "self": "https://api.github.com/repos/pallets/click/contents/.pre-commit-config.yaml?ref=main",
+      "git": "https://api.github.com/repos/pallets/click/git/blobs/4a24c9d14c0f48885f6fe2b31c60d46ea3530ea6",
+      "html": "https://github.com/pallets/click/blob/main/.pre-commit-config.yaml"
+    }
+  },
+  {
+    "name": ".readthedocs.yaml",
+    "path": ".readthedocs.yaml",
+    "sha": "961761bc0bdf5d14a0b711f558b5ee6e54890f91",
+    "size": 504,
+    "url": "https://api.github.com/repos/pallets/click/contents/.readthedocs.yaml?ref=main",
+    "html_url": "https://github.com/pallets/click/blob/main/.readthedocs.yaml",
+    "git_url": "https://api.github.com/repos/pallets/click/git/blobs/961761bc0bdf5d14a0b711f558b5ee6e54890f91",
+    "download_url": "https://raw.githubusercontent.com/pallets/click/main/.readthedocs.yaml",
+    "type": "file",
+    "_links": {
+      "self": "https://api.github.com/repos/pallets/click/contents/.readthedocs.yaml?ref=main",
+      "git": "https://api.github.com/repos/pallets/click/git/blobs/961761bc0bdf5d14a0b711f558b5ee6e54890f91",
+      "html": "https://github.com/pallets/click/blob/main/.readthedocs.yaml"
+    }
+  },
+  {
+    "name": "CHANGES.md",
+    "path": "CHANGES.md",
+    "sha": "0c26e0108dde3012f220f7f32034b58e2c864e1c",
+    "size": 73057,
+    "url": "https://api.github.com/repos/pallets/click/contents/CHANGES.md?ref=main",
+    "html_url": "https://github.com/pallets/click/blob/main/CHANGES.md",
+    "git_url": "https://api.github.com/repos/pallets/click/git/blobs/0c26e0108dde3012f220f7f32034b58e2c864e1c",
+    "download_url": "https://raw.githubusercontent.com/pallets/click/main/CHANGES.md",
+    "type": "file",
+    "_links": {
+      "self": "https://api.github.com/repos/pallets/click/contents/CHANGES.md?ref=main",
+      "git": "https://api.github.com/repos/pallets/click/git/blobs/0c26e0108dde3012f220f7f32034b58e2c864e1c",
+      "html": "https://github.com/pallets/click/blob/main/CHANGES.md"
+    }
+  },
+  {
+    "name": "LICENSE.txt",
+    "path": "LICENSE.txt",
+    "sha": "d12a849186982399c537c5b9a8fd77bf2edd5eab",
+    "size": 1475,
+    "url": "https://api.github.com/repos/pallets/click/contents/LICENSE.txt?ref=main",
+    "html_url": "https://github.com/pallets/click/blob/main/LICENSE.txt",
+    "git_url": "https://api.github.com/repos/pallets/click/git/blobs/d12a849186982399c537c5b9a8fd77bf2edd5eab",
+    "download_url": "https://raw.githubusercontent.com/pallets/click/main/LICENSE.txt",
+    "type": "file",
+    "_links": {
+      "self": "https://api.github.com/repos/pallets/click/contents/LICENSE.txt?ref=main",
+      "git": "https://api.github.com/repos/pallets/click/git/blobs/d12a849186982399c537c5b9a8fd77bf2edd5eab",
+      "html": "https://github.com/pallets/click/blob/main/LICENSE.txt"
+    }
+  },
+  {
+    "name": "README.md",
+    "path": "README.md",
+    "sha": "bb688b25745d24bc7ada2373d5a3ba687bcd6a10",
+    "size": 1778,
+    "url": "https://api.github.com/repos/pallets/click/contents/README.md?ref=main",
+    "html_url": "https://github.com/pallets/click/blob/main/README.md",
+    "git_url": "https://api.github.com/repos/pallets/click/git/blobs/bb688b25745d24bc7ada2373d5a3ba687bcd6a10",
+    "download_url": "https://raw.githubusercontent.com/pallets/click/main/README.md",
+    "type": "file",
+    "_links": {
+      "self": "https://api.github.com/repos/pallets/click/contents/README.md?ref=main",
+      "git": "https://api.github.com/repos/pallets/click/git/blobs/bb688b25745d24bc7ada2373d5a3ba687bcd6a10",
+      "html": "https://github.com/pallets/click/blob/main/README.md"
+    }
+  },
+  {
+    "name": "docs",
+    "path": "docs",
+    "sha": "ae5607d894c7c28a5b79d828018934e393ca8aa4",
+    "size": 0,
+    "url": "https://api.github.com/repos/pallets/click/contents/docs?ref=main",
+    "html_url": "https://github.com/pallets/click/tree/main/docs",
+    "git_url": "https://api.github.com/repos/pallets/click/git/trees/ae5607d894c7c28a5b79d828018934e393ca8aa4",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/pallets/click/contents/docs?ref=main",
+      "git": "https://api.github.com/repos/pallets/click/git/trees/ae5607d894c7c28a5b79d828018934e393ca8aa4",
+      "html": "https://github.com/pallets/click/tree/main/docs"
+    }
+  },
+  {
+    "name": "examples",
+    "path": "examples",
+    "sha": "212c2a2d936507e0500a317cbfe326a0d0300769",
+    "size": 0,
+    "url": "https://api.github.com/repos/pallets/click/contents/examples?ref=main",
+    "html_url": "https://github.com/pallets/click/tree/main/examples",
+    "git_url": "https://api.github.com/repos/pallets/click/git/trees/212c2a2d936507e0500a317cbfe326a0d0300769",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/pallets/click/contents/examples?ref=main",
+      "git": "https://api.github.com/repos/pallets/click/git/trees/212c2a2d936507e0500a317cbfe326a0d0300769",
+      "html": "https://github.com/pallets/click/tree/main/examples"
+    }
+  },
+  {
+    "name": "pyproject.toml",
+    "path": "pyproject.toml",
+    "sha": "7c9a10b8760ff658ecf3bfc90a12ab138772e4eb",
+    "size": 5324,
+    "url": "https://api.github.com/repos/pallets/click/contents/pyproject.toml?ref=main",
+    "html_url": "https://github.com/pallets/click/blob/main/pyproject.toml",
+    "git_url": "https://api.github.com/repos/pallets/click/git/blobs/7c9a10b8760ff658ecf3bfc90a12ab138772e4eb",
+    "download_url": "https://raw.githubusercontent.com/pallets/click/main/pyproject.toml",
+    "type": "file",
+    "_links": {
+      "self": "https://api.github.com/repos/pallets/click/contents/pyproject.toml?ref=main",
+      "git": "https://api.github.com/repos/pallets/click/git/blobs/7c9a10b8760ff658ecf3bfc90a12ab138772e4eb",
+      "html": "https://github.com/pallets/click/blob/main/pyproject.toml"
+    }
+  },
+  {
+    "name": "src",
+    "path": "src",
+    "sha": "145b3d9857372e6b7de2c4642f4ebcc18c4ae386",
+    "size": 0,
+    "url": "https://api.github.com/repos/pallets/click/contents/src?ref=main",
+    "html_url": "https://github.com/pallets/click/tree/main/src",
+    "git_url": "https://api.github.com/repos/pallets/click/git/trees/145b3d9857372e6b7de2c4642f4ebcc18c4ae386",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/pallets/click/contents/src?ref=main",
+      "git": "https://api.github.com/repos/pallets/click/git/trees/145b3d9857372e6b7de2c4642f4ebcc18c4ae386",
+      "html": "https://github.com/pallets/click/tree/main/src"
+    }
+  },
+  {
+    "name": "tests",
+    "path": "tests",
+    "sha": "839661d47068d1434fe7163f07d67321599c1056",
+    "size": 0,
+    "url": "https://api.github.com/repos/pallets/click/contents/tests?ref=main",
+    "html_url": "https://github.com/pallets/click/tree/main/tests",
+    "git_url": "https://api.github.com/repos/pallets/click/git/trees/839661d47068d1434fe7163f07d67321599c1056",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/pallets/click/contents/tests?ref=main",
+      "git": "https://api.github.com/repos/pallets/click/git/trees/839661d47068d1434fe7163f07d67321599c1056",
+      "html": "https://github.com/pallets/click/tree/main/tests"
+    }
+  },
+  {
+    "name": "uv.lock",
+    "path": "uv.lock",
+    "sha": "75e6844f377dbeef1bac9c51267501852352b166",
+    "size": 258440,
+    "url": "https://api.github.com/repos/pallets/click/contents/uv.lock?ref=main",
+    "html_url": "https://github.com/pallets/click/blob/main/uv.lock",
+    "git_url": "https://api.github.com/repos/pallets/click/git/blobs/75e6844f377dbeef1bac9c51267501852352b166",
+    "download_url": "https://raw.githubusercontent.com/pallets/click/main/uv.lock",
+    "type": "file",
+    "_links": {
+      "self": "https://api.github.com/repos/pallets/click/contents/uv.lock?ref=main",
+      "git": "https://api.github.com/repos/pallets/click/git/blobs/75e6844f377dbeef1bac9c51267501852352b166",
+      "html": "https://github.com/pallets/click/blob/main/uv.lock"
+    }
+  }
+]

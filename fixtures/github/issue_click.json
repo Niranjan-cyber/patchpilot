@@ -1,0 +1,82 @@
+{
+  "url": "https://api.github.com/repos/pallets/click/issues/3888",
+  "repository_url": "https://api.github.com/repos/pallets/click",
+  "labels_url": "https://api.github.com/repos/pallets/click/issues/3888/labels{/name}",
+  "comments_url": "https://api.github.com/repos/pallets/click/issues/3888/comments",
+  "events_url": "https://api.github.com/repos/pallets/click/issues/3888/events",
+  "html_url": "https://github.com/pallets/click/issues/3888",
+  "id": 5942297661,
+  "node_id": "I_kwDOASN_zM8AAAABYjBEPQ",
+  "number": 3888,
+  "title": "use the path_type to perform the other click.Path checks",
+  "user": {
+    "login": "hoshimura",
+    "id": 16797856,
+    "node_id": "MDQ6VXNlcjE2Nzk3ODU2",
+    "avatar_url": "https://avatars.githubusercontent.com/u/16797856?v=4",
+    "gravatar_id": "",
+    "url": "https://api.github.com/users/hoshimura",
+    "html_url": "https://github.com/hoshimura",
+    "followers_url": "https://api.github.com/users/hoshimura/followers",
+    "following_url": "https://api.github.com/users/hoshimura/following{/other_user}",
+    "gists_url": "https://api.github.com/users/hoshimura/gists{/gist_id}",
+    "starred_url": "https://api.github.com/users/hoshimura/starred{/owner}{/repo}",
+    "subscriptions_url": "https://api.github.com/users/hoshimura/subscriptions",
+    "organizations_url": "https://api.github.com/users/hoshimura/orgs",
+    "repos_url": "https://api.github.com/users/hoshimura/repos",
+    "events_url": "https://api.github.com/users/hoshimura/events{/privacy}",
+    "received_events_url": "https://api.github.com/users/hoshimura/received_events",
+    "type": "User",
+    "user_view_type": "public",
+    "site_admin": false
+  },
+  "labels": [
+
+  ],
+  "state": "open",
+  "locked": false,
+  "assignees": [
+
+  ],
+  "milestone": null,
+  "comments": 4,
+  "created_at": "2026-10-20T13:13:35Z",
+  "updated_at": "2026-10-21T06:12:22Z",
+  "closed_at": null,
+  "assignee": null,
+  "author_association": "NONE",
+  "issue_field_values": [
+
+  ],
+  "type": null,
+  "active_lock_reason": null,
+  "sub_issues_summary": {
+    "total": 0,
+    "completed": 0,
+    "percent_completed": 0
+  },
+  "issue_dependencies_summary": {
+    "blocked_by": 0,
+    "total_blocked_by": 0,
+    "blocking": 0,
+    "total_blocking": 0
+  },
+  "body": "click.Path exposes a path_type but does currently not use it for path sanity checks such as exists, file_okay, dir_okay etc.\nIf path_type is for instance a cloudpathlib.AnyPath and the cli user points to a S3 those checks will always go wrong since they expect path_type to handle only local paths.\nIssue #2661 addressed similar thoughts but when the path_type itself is pathlib compliant, I would hope that click.Path would honor the users wish to supply their own path_type.\n",
+  "closed_by": null,
+  "reactions": {
+    "url": "https://api.github.com/repos/pallets/click/issues/3888/reactions",
+    "total_count": 0,
+    "+1": 0,
+    "-1": 0,
+    "laugh": 0,
+    "hooray": 0,
+    "confused": 0,
+    "heart": 0,
+    "rocket": 0,
+    "eyes": 0
+  },
+  "timeline_url": "https://api.github.com/repos/pallets/click/issues/3888/timeline",
+  "performed_via_github_app": null,
+  "state_reason": null,
+  "pinned_comment": null
+}
