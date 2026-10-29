@@ -54,6 +54,22 @@ def test_unusable_values_are_none(value):
     assert parse_retry_after(value, NOW) is None
 
 
+@pytest.mark.parametrize("value", ["²", "٥", "9" * 20, "9" * 400])
+def test_digit_like_values_int_cannot_take_are_none(value):
+    # str.isdigit() accepts superscripts and other-script digits that int()
+    # rejects, and a huge delay overflows timedelta. A 429 must not crash.
+    assert parse_retry_after(value, NOW) is None
+
+
+def test_a_non_string_header_value_is_tolerated():
+    # Some clients normalise headers to ints before we see them.
+    assert parse_retry_after(3600, NOW) == NOW + timedelta(seconds=3600)
+
+
+def test_an_http_date_equal_to_now_is_kept():
+    assert parse_retry_after("Fri, 30 Oct 2026 18:00:00 GMT", NOW) == NOW
+
+
 def test_absurd_delay_is_still_reported_truthfully():
     # Clamping belongs to max_pause_seconds at the call site, not here.
     assert parse_retry_after("86400", NOW) == NOW + timedelta(days=1)

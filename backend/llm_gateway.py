@@ -24,24 +24,33 @@ def parse_retry_after(value, now):
     """`Retry-After` (delay-seconds or HTTP-date) as an absolute time, else None.
 
     A past, negative or unparseable value is None: the caller must not pause
-    until a time the provider never gave.
+    until a time the provider never gave. The value crosses a trust boundary
+    (a provider's 429), so nothing here may raise.
     """
-    if not value or not value.strip():
+    if value is None:
         return None
-    raw = value.strip()
+    raw = str(value).strip()
+    if not raw:
+        return None
 
-    if raw.isdigit():
-        return now + timedelta(seconds=int(raw))
+    # isdigit() accepts far more than int() does, e.g. the superscript "²".
+    if raw.isascii() and raw.isdigit():
+        try:
+            when = now + timedelta(seconds=int(raw))
+        except (OverflowError, ValueError):
+            return None
+    else:
+        try:
+            when = parsedate_to_datetime(raw)
+        except (TypeError, ValueError):
+            return None
+        if when is None:
+            return None
+        if when.tzinfo is None:
+            when = when.replace(tzinfo=timezone.utc)
 
-    try:
-        when = parsedate_to_datetime(raw)
-    except (TypeError, ValueError):
-        return None
-    if when is None:
-        return None
-    if when.tzinfo is None:
-        when = when.replace(tzinfo=timezone.utc)
-    return when if when > now else None
+    # Both forms get the same filter: never hand back a time already gone.
+    return when if when >= now else None
 
 
 def next_midnight_pacific(now):
