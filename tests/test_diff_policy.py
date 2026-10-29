@@ -1,0 +1,81 @@
+"""B07: G4 diff policy (contracts §1.1) on crafted diffs + DIAGNOSE evidence-ID validation."""
+from backend.contracts.models import CheckStatus
+from backend.gates.diff_policy import check_diagnosis, g4_result
+
+
+def d(path, plus=1, minus=1, new=False, deleted=False):
+    head = f"diff --git a/{path} b/{path}\n"
+    if new:
+        head += "new file mode 100644\n--- /dev/null\n"
+    else:
+        head += f"--- a/{path}\n"
+    head += "+++ /dev/null\n" if deleted else f"+++ b/{path}\n"
+    return head + f"@@ -1,{minus} +1,{plus} @@\n" + "-old\n" * minus + "+new\n" * plus
+
+
+def reason(diff):
+    r = g4_result(diff, evidence_ids=["e1"])
+    return r.status, r.reason
+
+
+def test_ok_source_fix():
+    assert reason(d("src/click/core.py") + d("src/click/types.py", 3, 0)) == (CheckStatus.PASSED, "ok")
+    assert g4_result(d("src/a.py"), evidence_ids=["e1"]).gate == "G4"
+
+
+def test_rejects_test_file_edits():
+    for p in ("tests/test_core.py", "src/pkg/tests/test_x.py", "testing/test_x.py", "pkg/test_util.py",
+              "pkg/util_test.py", "tests/conftest.py", "conftest.py"):
+        assert reason(d("src/a.py") + d(p)) == (CheckStatus.FAILED, "edits_tests"), p
+
+
+def test_rejects_deleted_test():
+    assert reason(d("tests/test_core.py", 0, 5, deleted=True)) == (CheckStatus.FAILED, "edits_tests")
+
+
+def test_rejects_dependency_files():
+    for p in ("requirements.txt", "requirements/dev.txt", "pyproject.toml", "setup.py", "setup.cfg", "Pipfile",
+              "Pipfile.lock", "poetry.lock", "uv.lock", "docs/requirements-docs.txt"):
+        assert reason(d(p)) == (CheckStatus.FAILED, "dependency_change"), p
+
+
+def test_rejects_github_dir():
+    assert reason(d(".github/workflows/ci.yml")) == (CheckStatus.FAILED, "ci_change")
+
+
+def test_rejects_too_large():
+    assert reason("".join(d(f"src/m{i}.py") for i in range(6))) == (CheckStatus.FAILED, "too_many_files")
+    assert reason(d("src/a.py", 150, 51)) == (CheckStatus.FAILED, "too_many_lines")
+    assert reason(d("src/a.py", 150, 50)) == (CheckStatus.PASSED, "ok")   # exactly 200 is allowed
+
+
+def test_rejects_empty_and_binary():
+    assert reason("") == (CheckStatus.FAILED, "empty_diff")
+    binary = "diff --git a/src/x.bin b/src/x.bin\nGIT binary patch\nliteral 3\n"
+    assert reason(binary) == (CheckStatus.FAILED, "binary_change")
+
+
+def test_rename_counts_both_paths():
+    ren = "diff --git a/src/a.py b/tests/test_a.py\nsimilarity index 100%\nrename from src/a.py\nrename to tests/test_a.py\n"
+    assert reason(ren) == (CheckStatus.FAILED, "edits_tests")
+
+
+def test_check_diagnosis():
+    known = {"ev1", "ev2"}
+    ok = {"hypothesis": "h", "locations": [{"path": "src/a.py", "line": 3}], "evidence_ids": ["ev1"]}
+    assert check_diagnosis(ok, known, lambda p: 10 if p == "src/a.py" else None) is None
+    assert check_diagnosis({**ok, "evidence_ids": ["ev9"]}, known, lambda p: 10) == "unknown_evidence_id"
+    assert check_diagnosis({**ok, "evidence_ids": []}, known, lambda p: 10) == "no_evidence"
+    assert check_diagnosis({**ok, "locations": [{"path": "nope.py", "line": 1}]}, known, lambda p: None) == "unknown_file"
+    assert check_diagnosis({**ok, "locations": [{"path": "src/a.py", "line": 11}]}, known, lambda p: 10) == "line_out_of_range"
+    assert check_diagnosis({**ok, "locations": []}, known, lambda p: 10) == "no_location"
+    assert check_diagnosis({**ok, "hypothesis": " "}, known, lambda p: 10) == "no_hypothesis"
+    assert check_diagnosis(None, known, lambda p: 10) == "no_result"
+    assert check_diagnosis({**ok, "locations": [{"path": "../etc/passwd", "line": 1}]}, known, lambda p: 10) == "unknown_file"
+
+
+def test_check_diagnosis_rejects_malformed_shapes():
+    base = {"hypothesis": "h", "evidence_ids": ["ev1"]}
+    assert check_diagnosis({**base, "locations": ["src/a.py:3"]}, {"ev1"}, lambda p: 10) == "no_location"
+    assert check_diagnosis({**base, "locations": "src/a.py"}, {"ev1"}, lambda p: 10) == "no_result"
+    assert check_diagnosis({**base, "evidence_ids": "ev1", "locations": []}, {"ev1"}, lambda p: 10) == "no_result"
