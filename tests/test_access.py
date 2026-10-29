@@ -61,3 +61,17 @@ def test_forget_run():
     rid = a.post("/api/runs", json={"issue_url": URL}).json()["run_id"]
     assert a.delete(f"/api/runs/{rid}/access").status_code == 204
     assert a.get(f"/api/runs/{rid}").status_code == 404 and a.get("/api/me/runs").json() == []
+
+
+def test_artifacts_are_owner_checked(tmp_path, monkeypatch):
+    from backend import artifacts
+    monkeypatch.setattr(artifacts, "STORE", tmp_path / "artifacts")
+    a, b = browser(), browser()
+    rid = a.post("/api/runs", json={"issue_url": URL}).json()["run_id"]
+    ev, loose = artifacts.put("FAILED tests/x.py::t"), artifacts.put("not referenced by any run")
+    db.emit(db.connect(), rid, "attempt.retry", "fix", evidence_ids=[ev])
+    r = a.get(f"/api/artifacts/{ev}")
+    assert r.status_code == 200 and "FAILED" in r.text and r.headers["x-content-type-options"] == "nosniff"
+    assert a.get(f"/api/artifacts/{ev}?download=true").headers["content-disposition"].startswith("attachment")
+    for client, eid in ((b, ev), (a, loose), (a, "sha256:" + "0" * 64), (a, "sha256:not-hex"), (a, "..%2F..%2Fetc%2Fpasswd")):
+        assert client.get(f"/api/artifacts/{eid}").status_code == 404     # not yours / unreferenced / missing / bad id

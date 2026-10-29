@@ -7,6 +7,7 @@ import Review from "./Review";
 import { Connect, PrOpened } from "./Publish";
 import MyRuns, { RunList, useMyRuns } from "./MyRuns";
 import Eval from "./Eval";
+import { AttemptHistory, DiagnosisCard } from "./Diagnosis";
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
@@ -59,7 +60,7 @@ function Start() {
 
 function Run() {
   const { id = "" } = useParams();
-  const { run, error } = useRun(id);
+  const { run, events, error } = useRun(id);
   if (error) return <section className="panel failed"><h1>Couldn't load this run</h1><p>{error.message}</p><Link to="/">Start a new run</Link></section>;
   if (!run) return <section className="panel"><p>Loading the run…</p></section>;
   const done = !!run.outcome;
@@ -85,13 +86,8 @@ function Run() {
       <div className="run-grid">
         <Stepper run={run} />
         <aside className="side">
-          {run.diagnosis && (
-            <div className="card">
-              <h2>Likely cause</h2>
-              <p>{run.diagnosis.hypothesis}</p>
-              <ul className="tour">{run.diagnosis.tour?.map((t) => <li key={t.path}><code>{t.path}</code> {t.why}</li>)}</ul>
-            </div>
-          )}
+          <DiagnosisCard run={run} />
+          <AttemptHistory events={events} />
           {!done && /^[0-9a-f-]{36}$/.test(id) && (
             <button className="danger-btn" onClick={() => api(`/api/runs/${id}/stop`, { method: "POST" }).catch(() => null)}>
               Stop run and keep the report so far
