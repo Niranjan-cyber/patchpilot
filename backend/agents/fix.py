@@ -44,7 +44,7 @@ def fix(ctx: StepContext) -> GateResult | None:
         return GateResult(gate="G4", status=CheckStatus.NOT_RUN, reason="no_reproduction")
     test_diff = (artifacts.get(run.repro.test_diff_id) or b"").decode("utf-8", "replace")
     feedback = db.get_kv(db.connect(), f"revise:{rid}") if run.revision else None
-    attempts, previous, last = limits()["retries"]["fixer"] + 1, None, None
+    attempts, previous, last = limits()["retries"]["fixer"] + 1, ctx.scratch.pop("verify_feedback", None), None   # A: G5 failure → Fixer (B08)
     for attempt in range(1, attempts + 1):
         name = f"pp-{rid[:8]}-fix-{attempt}-{uuid.uuid4().hex[:4]}"
         if docker.start(image(rid), name, snap(rid)).code:

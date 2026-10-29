@@ -8,3 +8,5 @@ from backend.worker import nodes
 nodes.register(StepId.REPRODUCE, reproduce)
 nodes.register(StepId.DIAGNOSE, diagnose)
 nodes.register(StepId.FIX, fix)
+from backend.agents.verify import verify  # noqa: E402
+nodes.register(StepId.VERIFY, verify)
