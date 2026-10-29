@@ -21,6 +21,7 @@ from backend.github.reader import GitHubError, IssueCheck, check_issue
 ROOT = Path(__file__).resolve().parents[2]
 FIXTURES = ROOT / "fixtures" / "runs"
 DIST = ROOT / "web" / "dist"
+EVAL_RESULTS = ROOT / "eval" / "results.json"
 RUN_MODE = os.getenv("RUN_MODE", "fixture")
 
 app = FastAPI(title="PatchPilot", version=CONTRACTS_VERSION)
@@ -213,6 +214,20 @@ def report(run_id: str, request: Request):
 @app.get("/api/fixtures")
 def list_fixtures():
     return sorted(p.name for p in FIXTURES.iterdir()) if RUN_MODE == "fixture" else []
+
+
+@app.get("/api/eval")
+def eval_results():
+    """B14: public eval table; numbers come only from eval/results.json written by scripts/eval.py."""
+    import json
+    from backend.eval import summarize
+    f = EVAL_RESULTS
+    if not f.exists():
+        raise ApiErr(404, "EVAL_NOT_RUN", "The eval hasn't been run on this server yet.")
+    try:
+        return summarize(json.loads(f.read_text(encoding="utf-8")))
+    except (ValueError, KeyError, TypeError):
+        raise ApiErr(500, "EVAL_UNREADABLE", "The eval results file couldn't be read.")
 
 
 if (DIST / "assets").is_dir():

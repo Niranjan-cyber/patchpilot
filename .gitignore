@@ -10,3 +10,4 @@ __pycache__/
 tests/e2e/screenshots/
 test-results/
 playwright-report/
+eval/results.json

@@ -6,6 +6,7 @@ import IssueCheck from "./IssueCheck";
 import Review from "./Review";
 import { Connect, PrOpened } from "./Publish";
 import MyRuns, { RunList, useMyRuns } from "./MyRuns";
+import Eval from "./Eval";
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
@@ -16,6 +17,7 @@ function Shell({ children }: { children: React.ReactNode }) {
         <nav>
           <NavLink to="/">New run</NavLink>
           <NavLink to="/my-runs">My runs</NavLink>
+          <NavLink to="/eval">Accuracy</NavLink>
           <NavLink to="/connect">Sign in with GitHub</NavLink>
         </nav>
       </header>
@@ -122,6 +124,7 @@ export default function App() {
         <Route path="/connect" element={<Connect />} />
         <Route path="/runs/:id/pr" element={<PrOpened />} />
         <Route path="/my-runs" element={<MyRuns />} />
+        <Route path="/eval" element={<Eval />} />
         <Route path="*" element={<Stub title="Page not found"><Link to="/">Start a new run</Link></Stub>} />
       </Routes>
     </Shell>

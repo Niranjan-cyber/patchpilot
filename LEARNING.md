@@ -53,3 +53,5 @@ Every session appends here after every event: a step started or finished, a deci
 - [2026-10-29 21:20 UTC] A LESSON: fake test data must be copied from real tool output; hand-written approximations hid two real bugs until the fake was replaced with a real transcript.
 - [2026-10-29 22:05 UTC] C EVENT: opened PR #16 (B14) for A's review.
 - [2026-10-29 22:20 UTC] C EVENT: reviewed B11 (publisher + OAuth): 10 findings posted (run-claim across accounts, wrong-fork push, async fork, force-with-lease re-publish, false 'nothing published', token in argv).
+- [2026-10-29 21:55 UTC] C EVENT: B14 eval built: backend/eval.py (verdicts: false_verified listed first; unknown official = unknown), scripts/eval.py (5 SWE-bench Lite + 5 planted placeholders, official tests graded from pytest -rA like SWE-bench), GET /api/eval (404 EVAL_NOT_RUN until a real run), /eval page. 173 tests + eval e2e.
+- [2026-10-29] C LESSON: Playwright e2e from the repo root needs NODE_PATH=web/node_modules (config imports @playwright/test) and `playwright install chromium-headless-shell` once per machine.
