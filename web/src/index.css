@@ -159,3 +159,9 @@ abbr { text-decoration: underline dotted; cursor: help; }
 .shortlist { list-style: none; padding: 0; display: grid; gap: 0.75rem; }
 .sl-head { display: flex; justify-content: space-between; gap: 0.75rem; align-items: baseline; flex-wrap: wrap; }
 .why { margin: 0.5rem 0; padding-left: 1.1rem; }
+
+/* B16 progress */
+.progress { margin: 1.5rem 0 2rem; }
+.gh-merged { color: var(--pass); font-weight: 700; }
+.gh-closed { color: var(--slate); font-weight: 700; }
+.gh-open, .gh-draft { color: var(--act); font-weight: 700; }
