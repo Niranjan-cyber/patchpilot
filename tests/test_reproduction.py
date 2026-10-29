@@ -273,3 +273,8 @@ def test_g3_result_contract_shape():
     from backend.gates.reproduction import g3_result
     r = g3_result(["src/a.py"], ["", ""])
     assert r.gate == "G3" and r.status == CheckStatus.FAILED and r.reason == "diff_touches_source"
+
+
+def test_did_not_raise_counts_as_assertion():
+    from tests.test_agents import FAIL_OUT
+    assert classify_run(FAIL_OUT) == "assertion"

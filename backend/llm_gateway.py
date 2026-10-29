@@ -77,3 +77,75 @@ def resume_at(now, retry_after=None, daily_quota=False):
     if daily_quota:
         return next_midnight_pacific(now)
     return None
+
+
+# ---- LLM calls (A, B06 takeover). The only path to a model. Never sees credentials beyond the provider key. ----
+import os as _os
+import re as _re
+
+from backend import db as _db
+from backend.config import limits as _limits
+
+MODELS = {"agent": _os.getenv("PP_AGENT_MODEL", "gemini/gemini-2.5-flash"),
+          "short": _os.getenv("PP_SHORT_MODEL", "groq/openai/gpt-oss-120b")}
+_SECRET = _re.compile(r"(gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|AIza[0-9A-Za-z_-]{30,}|gsk_[A-Za-z0-9]{20,}|"
+                      r"sk-[A-Za-z0-9]{20,}|Authorization:\s*\S+(?:\s+\S+)?)")
+_CALLS = """CREATE TABLE IF NOT EXISTS llm_calls(id INTEGER PRIMARY KEY, run_id TEXT, role TEXT, model TEXT, prompt_tokens INTEGER,
+  completion_tokens INTEGER, latency_ms INTEGER, status TEXT, ts TEXT)"""
+
+
+class QuotaPause(Exception):
+    """Provider limit hit. resume_at is None when the provider didn't say (contracts §6: never guessed)."""
+    def __init__(self, resume_at, provider):
+        super().__init__(f"{provider} quota"); self.resume_at, self.provider = resume_at, provider
+
+
+class BudgetExceeded(Exception):
+    def __init__(self, scope):
+        super().__init__(scope); self.scope = scope
+
+
+def redact(text: str) -> str:
+    return _SECRET.sub("[redacted]", text)
+
+
+def tokens_used(run_id: str | None = None, day: str | None = None) -> int:
+    c = _db.connect(); c.execute(_CALLS)
+    if run_id:
+        q, a = "SELECT COALESCE(SUM(prompt_tokens+completion_tokens),0) FROM llm_calls WHERE run_id=?", (run_id,)
+    else:
+        q, a = "SELECT COALESCE(SUM(prompt_tokens+completion_tokens),0) FROM llm_calls WHERE substr(ts,1,10)=?", (day,)
+    return c.execute(q, a).fetchone()[0]
+
+
+def complete(messages: list[dict], *, run_id: str, role: str, kind: str = "agent", _completion=None) -> str:
+    """One chat completion with budgets (per run + global/day), redaction, logging, and quota → QuotaPause."""
+    import time
+    lim = _limits()
+    if tokens_used(run_id=run_id) >= lim["run_llm_tokens"]:
+        raise BudgetExceeded("run")
+    if lim["global_llm_tokens_per_day"] <= 0 or tokens_used(day=_db.now().date().isoformat()) >= lim["global_llm_tokens_per_day"]:
+        raise BudgetExceeded("global")
+    if _completion is None:
+        import litellm
+        _completion = litellm.completion
+    model = MODELS[kind]
+    msgs = [{**m, "content": redact(m["content"])} for m in messages]
+    t0 = time.time()
+    c = _db.connect(); c.execute(_CALLS)
+    log = lambda status, p=0, k=0: c.execute("INSERT INTO llm_calls(run_id,role,model,prompt_tokens,completion_tokens,latency_ms,status,ts) "
+                                             "VALUES(?,?,?,?,?,?,?,?)", (run_id, role, model, p, k, int((time.time() - t0) * 1000),
+                                                                         status, _db.now().isoformat()))
+    try:
+        r = _completion(model=model, messages=msgs, temperature=0.2, timeout=120)
+    except Exception as e:
+        if "RateLimit" in type(e).__name__ or "429" in str(e):
+            log("rate_limited")
+            hdrs = getattr(getattr(e, "response", None), "headers", None) or {}
+            daily = "per day" in str(e).lower() or "PerDay" in str(e)
+            raise QuotaPause(resume_at(_db.now(), hdrs.get("retry-after"), daily_quota=daily and model.startswith("gemini")),
+                             model.split("/")[0]) from e
+        log("error"); raise
+    u = getattr(r, "usage", None)
+    log("ok", getattr(u, "prompt_tokens", 0) or 0, getattr(u, "completion_tokens", 0) or 0)
+    return r.choices[0].message.content or ""

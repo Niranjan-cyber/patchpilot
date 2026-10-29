@@ -82,3 +82,17 @@ def make_snapshot(volume: str, host_dir: str) -> Result:
 
 def rm_volume(volume: str) -> None:
     _docker("volume", "rm", "-f", volume)
+
+
+def start(image: str, name: str, snapshot_volume: str) -> Result:
+    """Long-lived agent container (one per agent attempt): same hardening, no network, source copied into tmpfs /src."""
+    return _docker("run", "-d", "--name", name, *HARDEN, "--network", "none", "--read-only", "-e", "HOME=/tmp", "-w", "/src",
+                   "--tmpfs", "/tmp:rw,exec,size=512m", "--tmpfs", "/src:rw,exec,size=1g,uid=1000,gid=1000",
+                   "-v", f"{snapshot_volume}:/snap:ro", image, "sh", "-c", "cp -a /snap/. /src/ && exec sleep 86400")
+
+
+def exec_(name: str, script: str, timeout: int = 120) -> Result:
+    r = _docker("exec", "-w", "/src", name, "sh", "-c", script, timeout=timeout)
+    if r.timed_out:
+        _docker("exec", name, "sh", "-c", "pkill -u 1000 -f -- '-c' || true")
+    return r

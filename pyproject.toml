@@ -11,6 +11,7 @@ dependencies = [
   "langgraph-checkpoint-sqlite>=3.1.2",
   "cryptography>=50.0.2",
   "tzdata>=2026.6",
+  "litellm>=1.106.6",
 ]
 
 [dependency-groups]

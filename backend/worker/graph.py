@@ -39,6 +39,13 @@ def _step_node(step: StepId):
         db.emit(c, rid, "step.started", step.value, run.revision, attempt=1, headline=HEAD(step))
         ctx = StepContext(rid, run, lambda t, s=None, **p: db.emit(c, rid, t, s, run.revision, **p))
         res = NODES[step](ctx)
+        while (q := ctx.scratch.pop("pause", None)) is not None:     # provider quota: pause, never guess a resume time
+            since = ctx.scratch.setdefault("paused_since", __import__("time").time())
+            if not _wait_out_pause(c, rid, q, since):
+                return {"end_reason": EndReason.PAUSE_TIMEOUT.value if not db.stop_requested(c, rid) else EndReason.USER_STOPPED.value,
+                        "stopped_at": step.value}
+            ctx.run = db.get_run(c, rid)
+            res = NODES[step](ctx)
         run = db.get_run(c, rid)   # a step may have saved its own fields
         stubbed = step.value in ctx.scratch.get("stub_steps", [])
         status = res.status if res else (CheckStatus.NOT_RUN if stubbed else CheckStatus.PASSED)
@@ -47,6 +54,8 @@ def _step_node(step: StepId):
         run.steps[step] = StepState(status=status, started_at=run.steps[step].started_at, finished_at=db.now(),
                                     attempt=1, headline=line)
         out: S = {}
+        if ctx.scratch.get("end_reason"):
+            out["end_reason"] = ctx.scratch["end_reason"]
         if res:
             run.gates[res.gate] = res.status; out["gates"] = {res.gate: res.status.value}
             db.emit(c, rid, "gate.result", step.value, run.revision, gate=res.gate, status=res.status.value,
@@ -58,6 +67,32 @@ def _step_node(step: StepId):
                 evidence_ids=res.evidence_ids if res else [])
         return out
     return node
+
+
+def _wait_out_pause(c, rid: str, q, since: float) -> bool:
+    """True = resume; False = paused too long (or user stopped). Polls every 60 s when the reset time is unknown."""
+    import time
+    from backend.config import limits
+    from backend.contracts.models import PauseInfo
+    run = db.get_run(c, rid)
+    run.status, run.pause = RunStatus.PAUSED, PauseInfo(reason="provider_quota", provider=q.provider, resume_at=q.resume_at)
+    db.save_run(c, run)
+    db.emit(c, rid, "run.paused", None, run.revision, reason="provider_quota", resume_at=q.resume_at.isoformat() if q.resume_at else None)
+    deadline = since + limits()["max_pause_seconds"]   # counted from the FIRST pause, not each retry
+    while time.time() < deadline:
+        if db.stop_requested(c, rid):
+            return False
+        wait = (q.resume_at - db.now()).total_seconds() if q.resume_at else 60
+        if wait <= 0:
+            break
+        time.sleep(min(wait, 30))
+        if not q.resume_at:
+            break                                  # unknown reset: try again every minute
+    else:
+        return False
+    run = db.get_run(c, rid); run.status, run.pause = RunStatus.RUNNING, None; db.save_run(c, run)
+    db.emit(c, rid, "run.resumed", None, run.revision, from_step="reproduce")
+    return True
 
 
 def HEAD(step: StepId) -> str:

@@ -64,7 +64,9 @@ def classify_run(output, issue_error=None):
         if issue_error and _raised(output, issue_error):
             return "issue_error"
         # Older pytest prints a rewritten comparison as a bare `E  assert x == y`.
-        if _raised(output, "AssertionError") or _raised(output, "assert"):
+        # pytest.raises that didn't raise ("Failed: DID NOT RAISE <class X>") is an assertion about the issue's
+        # expected exception (A, B06 takeover; B please review).
+        if _raised(output, "AssertionError") or _raised(output, "assert") or re.search(r"^E\s+Failed: DID NOT RAISE", output, re.M):
             return "assertion"
         return "other_error"
 
