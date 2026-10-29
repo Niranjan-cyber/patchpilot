@@ -23,3 +23,4 @@ Every session appends here after every event: a step started or finished, a deci
 - [2026-10-30] A EVENT: B04 end-to-end on localhost: run created → worker killed mid "Existing tests" → /healthz showed worker false after 30 s → restarted worker took the expired lease → `run.interrupted` → `run.resumed` → finished. Kill/resume works outside tests too.
 - [2026-10-30] A LESSON: until B05–B09 register real steps, real runs end "Stopped, report so far" with every step "Not run": honest, but don't demo real runs before B05.
 - [2026-10-30] A BUG→FIX: pushed B04 with one failing test (a shell chain hid pytest's exit code; the test read the live DB) → test isolated with a temp DB; from now on `set -o pipefail` before test-then-push.
+- [2026-10-30] A EVENT: B04 handoff posted (how B registers nodes; how C wires S-02 → POST /api/runs). C still silent: B03 takeover planned if silent 60 more min.
