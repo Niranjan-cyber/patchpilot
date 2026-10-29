@@ -229,8 +229,9 @@ def get_bisect(run_id: str, request: Request):
         _fixture(run_id)
         return {"status": "pending", "reason": "sample_run"}
     _own(request, run_id)
-    raw = db.get_kv(db.connect(), f"bisect:{run_id}")
-    return json.loads(raw) if raw else {"status": "pending", "reason": "not_run_yet"}
+    raw, var = db.get_kv(db.connect(), f"bisect:{run_id}"), db.get_kv(db.connect(), f"variant:{run_id}")
+    return {**(json.loads(raw) if raw else {"status": "pending", "reason": "not_run_yet"}),
+            "variant": json.loads(var) if var else None}   # hidden-variant reason (RunView only carries its status)
 
 
 @app.get("/api/runs/{run_id}/report.md")

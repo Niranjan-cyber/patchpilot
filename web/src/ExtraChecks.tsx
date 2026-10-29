@@ -3,18 +3,26 @@ import { api } from "./api";
 import type { RunView } from "./contracts";
 
 type Bisect = { status: "found" | "not_run" | "inconclusive" | "pending"; reason: string; first_bad?: string | null;
-  last_good?: string | null; url?: string; probes?: { sha: string; result: "pass" | "fail" | null }[]; window?: number };
+  last_good?: string | null; url?: string; probes?: { sha: string; result: "pass" | "fail" | null }[]; window?: number;
+  variant?: { status: string; reason: string } | null };
 
+const VREASON: Record<string, string> = {
+  no_sandbox: "the sandbox for writing the variant didn't start", ai_unavailable: "the AI was unavailable or over budget",
+  no_variant_written: "no variant test was written", edits_non_test_files: "the variant changed non-test files",
+  variant_not_failing_on_base: "the variant didn't fail on the original code, so it would prove nothing",
+  no_verified_fix: "there was no verified fix to check",
+};
 const HV: Record<string, [string, string]> = {
   passed: ["pass", "The fix also passes a hidden variant of the test that the fixer never saw."],
   failed: ["fail", "The fix passes the visible test but FAILS a hidden variant. It may only handle the exact case in the test."],
-  not_run: ["muted", "Not run: we couldn't write a variant that fails on the original code, so it would prove nothing."],
+  not_run: ["muted", "Not run."],
   inconclusive: ["muted", "Unclear: the hidden variant's run didn't give a clean pass or fail."],
 };
 const WHY: Record<string, string> = {
   step_cap: "the search needed more test runs than our limit (6)", no_passing_commit_in_range: "the bug is older than the commits we checked",
   probe_unclear: "the test couldn't run cleanly on an older commit", history_unavailable: "GitHub didn't give us the commit history",
-  no_history: "there's no earlier history to search", time_budget: "the run was close to its time limit", not_run_yet: "still running", sample_run: "sample run",
+  no_history: "there's no earlier history to search", stopped: "the run was stopped",
+  non_linear_history: "the passing and failing commits aren't parent and child (merges), so we can't name one commit", time_budget: "the run was close to its time limit", not_run_yet: "still running", sample_run: "sample run",
 };
 
 /** S-04 extra rows: hidden test variant (S4) and the commit that introduced the bug (S6). Unknown is shown as unknown. */
@@ -27,7 +35,10 @@ export default function ExtraChecks({ run }: { run: RunView }) {
   }, [run.run_id, run.repro, run.updated_at]);
   if (!run.repro || !run.outcome) return null;
   const hv = run.verify?.hidden_variant;
-  const [cls, text] = hv ? HV[hv] ?? ["muted", hv] : ["muted", "Not run: there was no verified fix to check."];
+  const why = b?.variant?.reason;
+  const [cls, base] = hv ? HV[hv] ?? ["muted", hv] : ["muted", "Not run."];
+  const text = hv === "passed" || hv === "failed" ? base
+    : `${base.replace(/\.$/, "")}${why ? `: ${VREASON[why] ?? why}` : hv ? "" : ": there was no verified fix to check"}.`;
   const sha = (s?: string | null) => (s ? s.slice(0, 7) : "");
   return (
     <section className="card extra" aria-label="Extra checks">

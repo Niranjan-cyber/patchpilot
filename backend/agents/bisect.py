@@ -26,8 +26,11 @@ def probe_result(out: str) -> str | None:
     return "pass" if n.get("passed") else None
 
 
-def bisect(commits: list[str], probe, cap: int = CAP, time_left=lambda: 10**9) -> dict:
-    """commits: newest first; commits[0] is the pinned base, where the repro test fails (G3)."""
+def bisect(commits: list[str], probe, cap: int = CAP, time_left=lambda: 10**9, stopped=lambda: False,
+           parent_of=lambda sha: None) -> dict:
+    """commits: newest first; commits[0] is the pinned base, where the repro test fails (G3).
+    parent_of(sha) -> that commit's parent shas, or None if unknown: a pair that isn't parent/child (the API list
+    isn't first-parent history across merges) is reported inconclusive, never as the commit that introduced the bug."""
     probes: list[dict] = []
     out = lambda status, reason, bad=None, good=None: {"status": status, "reason": reason, "first_bad": bad, "last_good": good,
                                                       "probes": probes, "window": len(commits)}
@@ -35,6 +38,8 @@ def bisect(commits: list[str], probe, cap: int = CAP, time_left=lambda: 10**9) -
         return out("not_run", "no_history")
     def p(i):
         r = probe(commits[i]); probes.append({"sha": commits[i], "result": r}); return r
+    if stopped():
+        return out("not_run", "stopped")
     if time_left() < MIN_LEFT:
         return out("not_run", "time_budget")
     first = p(len(commits) - 1)
@@ -46,6 +51,8 @@ def bisect(commits: list[str], probe, cap: int = CAP, time_left=lambda: 10**9) -
     while good - bad > 1:
         if len(probes) >= cap:
             return out("not_run", "step_cap")
+        if stopped():
+            return out("not_run", "stopped")
         if time_left() < MIN_LEFT:
             return out("not_run", "time_budget")
         mid = (bad + good) // 2
@@ -53,14 +60,18 @@ def bisect(commits: list[str], probe, cap: int = CAP, time_left=lambda: 10**9) -
         if r is None:
             return out("inconclusive", "probe_unclear")
         bad, good = (mid, good) if r == "fail" else (bad, mid)
+    parents = parent_of(commits[bad])
+    if parents is not None and commits[good] not in parents:
+        return out("inconclusive", "non_linear_history", None, None)
     return out("found", "ok", commits[bad], commits[good])
 
 
-def _commits(repo: str, base_sha: str) -> list[str]:
+def _commits(repo: str, base_sha: str) -> tuple[list[str], dict[str, list[str]]]:
     with httpx.Client(headers=_gh_headers(), timeout=20) as h:
         r = h.get(f"{GH}/repos/{repo}/commits", params={"sha": base_sha, "per_page": WINDOW})
         r.raise_for_status()
-        return [c["sha"] for c in r.json()]
+        items = r.json()
+        return [c["sha"] for c in items], {c["sha"]: [p["sha"] for p in c.get("parents", [])] for c in items}
 
 
 def time_left_fn(run):
@@ -75,7 +86,7 @@ def run_bisect(run, test_diff: str) -> dict:
     """Live: commit list from GitHub, one fresh sandbox per probe. Stores the result in kv bisect:<run_id>."""
     rid, tests = run.run_id, " ".join(sorted({t.split("::")[0] for t in run.repro.test_ids})) if run.repro else ""
     try:
-        commits = _commits(run.issue.repo, run.base_sha)
+        commits, parents = _commits(run.issue.repo, run.base_sha)
     except Exception:
         res = {"status": "not_run", "reason": "history_unavailable", "first_bad": None, "last_good": None, "probes": [], "window": 0}
     else:
@@ -93,7 +104,8 @@ def run_bisect(run, test_diff: str) -> dict:
                 return None
             finally:
                 docker.rm_volume(vol); shutil.rmtree(WORK / key, ignore_errors=True)
-        res = bisect(commits, probe, time_left=time_left_fn(run))
+        res = bisect(commits, probe, time_left=time_left_fn(run), stopped=lambda: db.stop_requested(db.connect(), rid),
+                     parent_of=parents.get)
     if res["status"] == "found":
         res["url"] = f"https://github.com/{run.issue.repo}/commit/{res['first_bad']}"
     db.put_kv(db.connect(), f"bisect:{rid}", json.dumps(res))
