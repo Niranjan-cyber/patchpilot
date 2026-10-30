@@ -123,3 +123,20 @@ def test_revise_resumes_at_fix_only(env):
     drain(c, g)
     assert calls == [S.FIX, S.VERIFY, S.REVIEW]
     assert db.get_run(c, v.run_id).status.value == "awaiting_approval"
+
+
+def test_reap_removes_sandboxes_whose_run_has_no_live_lease(env, monkeypatch):
+    # a worker restart mid-step left agent containers running for an hour (runs 8, 9), eating the host's memory
+    from backend.sandbox import docker
+    c, _ = env
+    live = db.create_run(c, IssueSpec(html_url="https://github.com/o/r/issues/1", repo="o/r", number=1, title="t"), "sha")
+    dead = db.create_run(c, IssueSpec(html_url="https://github.com/o/r/issues/2", repo="o/r", number=2, title="t"), "sha")
+    W.lease_job(c)                                                          # leases live's job (lowest id)
+    names = [f"pp-{live.run_id[:8]}-td-1-aaaa", f"pp-{dead.run_id[:8]}-td-1-bbbb", "pp-proxpi"]
+    monkeypatch.setattr(docker, "_docker", lambda *a, **k: docker.Result(0, "\n".join(names)))
+    removed = []
+    monkeypatch.setattr(docker, "rm", lambda *n: removed.extend(n))
+    monkeypatch.setattr(docker, "rm_image", lambda *a: None)
+    monkeypatch.setattr(docker, "rm_volume", lambda *a: None)
+    W.reap(c)
+    assert removed == [f"pp-{dead.run_id[:8]}-td-1-bbbb"]

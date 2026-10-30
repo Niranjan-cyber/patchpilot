@@ -1,6 +1,7 @@
 """Worker process: leases jobs from SQLite, runs the graph, heartbeats, resumes after a crash (contracts §7).
 Run: uv run python -m backend.worker.main"""
 import os
+import re
 import socket
 import threading
 import time
@@ -92,6 +93,10 @@ def reap(c) -> None:
                             "AND updated_at < ? AND 'reaped:' || run_id NOT IN (SELECT key FROM kv)", (cutoff,)):
         docker.rm_image(image(rid)); docker.rm_volume(snap(rid))
         db.put_kv(c, f"reaped:{rid}", db.now().isoformat())
+    # a sandbox outlives its step only if the worker died mid-step: keep containers of runs with a live lease, drop the rest
+    live = {r[0][:8] for r in c.execute("SELECT run_id FROM jobs WHERE state='running' AND lease_expires_at>?", (db.now().isoformat(),))}
+    names = docker._docker("ps", "-a", "--format", "{{.Names}}").out.split()
+    docker.rm(*[n for n in names if (m := re.match(r"pp-([0-9a-f]{8})-", n)) and m[1] not in live])
 
 
 def main():
