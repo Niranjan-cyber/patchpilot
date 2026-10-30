@@ -92,6 +92,9 @@ def reproduce(ctx: StepContext) -> GateResult:
             ctx.scratch["headline"] = "We wrote a test that fails because of this bug. It failed twice, as expected."
             return last
         previous = f"G3 said '{last.reason}'. The test must fail twice, on an assertion or the issue's error, and touch only tests/."
+        if seen := next((ln[4:].strip() for ln in outs[0].splitlines() if ln.startswith("E   ")), None):   # say what it saw
+            previous += (f" It failed with: {seen[:200]}. If that error is the bug's symptom, catch it and assert the behaviour "
+                         "the issue expects, so the test fails on an assert.")
         ctx.emit("attempt.retry", "reproduce", role="test_designer", attempt=attempt, max=retries + 1, reason=last.reason)
     ctx.scratch["headline"] = "We couldn't make the bug happen in a test after 3 tries."
     return GateResult(gate="G3", status=CheckStatus.FAILED, reason=last.reason if last else "no_attempt",

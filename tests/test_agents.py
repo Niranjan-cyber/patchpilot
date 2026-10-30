@@ -364,3 +364,13 @@ def test_a_resumed_reproduce_keeps_the_attempts_it_already_used(node):
     mp.setattr(R.loop, "run", lambda *a, **k: (calls.append(1), ({"test_ids": ["tests/test_patchpilot_issue_1.py::t"]}, []))[1])
     mp.setattr(R, "_check_run", lambda rid, d, t: "E   ModuleNotFoundError: No module named 'nope'\n1 error in 0.1s\n")
     assert R.reproduce(ctx).status == CheckStatus.FAILED and len(calls) == 1
+
+
+def test_reproduce_retry_feedback_quotes_the_error_it_saw(node):
+    # run 13: three tests crashed with BadPayload; the feedback only said "other_error", so the model repeated itself
+    ctx, mp = node
+    prompts = []
+    mp.setattr(R.loop, "run", lambda task, *a, **k: (prompts.append(task), ({"test_ids": ["tests/test_patchpilot_issue_1.py::t"]}, []))[1])
+    mp.setattr(R, "_check_run", lambda rid, d, t: "E   itsdangerous.exc.BadPayload: Could not load the payload\n1 failed in 0.05s\n")
+    R.reproduce(ctx)
+    assert "BadPayload: Could not load the payload" in prompts[1] and "assert" in prompts[1]
