@@ -1,0 +1,17 @@
+diff --git a/tinycalc/ops.py b/tinycalc/ops.py
+index fc07b0c..960ff4f 100644
+--- a/tinycalc/ops.py
++++ b/tinycalc/ops.py
+@@ -10,10 +10,8 @@ def subtract(a, b):
+ 
+ 
+ def divide(a, b):
+-    try:
+-        return a / b
+-    except ZeroDivisionError:
+-        return 0
++    # Let ZeroDivisionError propagate naturally instead of swallowing it.
++    return a / b
+ 
+ 
+ def power(a, b):
