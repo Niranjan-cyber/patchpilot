@@ -98,16 +98,19 @@ def chain(kind: str) -> list[str]:
     """Models to try in order (PP_AGENT_MODELS). Short calls may end on a local model (PP_LOCAL_MODEL); agent work never
     does: the 7B model made up evidence and looped (runs 1, 3), so agents pause instead.
     Free-tier quotas are per model, so the list holds several strong ones (verified on the team's keys 2026-10-30). Groq is
-    first: fast; gemini-3.8-flash took 48-120 s a call (run 9) and 3.5-flash's free daily cap is a dozen calls."""
-    groq = bool(_os.getenv("GROQ_API_KEY"))
-    agent = [m for m in _os.getenv("PP_AGENT_MODELS", f"{GROQ_MODEL},groq/qwen/qwen3.8-27b,gemini/gemini-3.8-flash,"
-                                   "gemini/gemini-3.5-flash").split(",") if m and (groq or not m.startswith("groq/"))]
+    first: fast; gemini-3.8-flash took 48-120 s a call (run 9) and 3.5-flash's free daily cap is a dozen calls.
+    Nebius is paid credit: after the free Groq models (short Groq waits are waited out, so it only runs when Groq is out
+    for longer), one cheap fast model ($0.15/M input, 0.8 s a call); the daily token budget caps its spend."""
+    keyed = {"groq/": bool(_os.getenv("GROQ_API_KEY")), "nebius/": bool(_os.getenv("NEBIUS_API_KEY"))}
+    agent = [m for m in _os.getenv("PP_AGENT_MODELS", f"{GROQ_MODEL},groq/qwen/qwen3.8-27b,nebius/openai/gpt-oss-120b,"
+                                   "gemini/gemini-3.8-flash,gemini/gemini-3.5-flash").split(",")
+             if m and all(ok or not m.startswith(p) for p, ok in keyed.items())]
     if kind != "short":
         return list(dict.fromkeys(agent))
     return list(dict.fromkeys(m for m in (_os.getenv("PP_SHORT_MODEL") or agent[0], *agent, _os.getenv("PP_LOCAL_MODEL")) if m))
 
 
-_SECRET = _re.compile(r"(gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|AIza[0-9A-Za-z_-]{30,}|gsk_[A-Za-z0-9]{20,}|"
+_SECRET = _re.compile(r"(gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|AIza[0-9A-Za-z_-]{30,}|gsk_[A-Za-z0-9]{20,}|v1\.[A-Za-z0-9_-]{40,}|"
                       r"sk-[A-Za-z0-9]{20,}|Authorization:\s*\S+(?:\s+\S+)?)")
 _CALLS = """CREATE TABLE IF NOT EXISTS llm_calls(id INTEGER PRIMARY KEY, run_id TEXT, role TEXT, model TEXT, prompt_tokens INTEGER,
   completion_tokens INTEGER, latency_ms INTEGER, status TEXT, ts TEXT)"""

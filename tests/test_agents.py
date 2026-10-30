@@ -289,7 +289,11 @@ def test_default_chain_uses_every_strong_model_quota_before_pausing(monkeypatch)
         monkeypatch.delenv(k, raising=False)
     monkeypatch.setenv("GROQ_API_KEY", "gsk_test")
     monkeypatch.setenv("PP_LOCAL_MODEL", "ollama_chat/qwen2.5-coder:7b")
+    monkeypatch.delenv("NEBIUS_API_KEY", raising=False)
     assert G.chain("agent") == ["groq/openai/gpt-oss-120b", "groq/qwen/qwen3.8-27b", "gemini/gemini-3.8-flash", "gemini/gemini-3.5-flash"]
+    monkeypatch.setenv("NEBIUS_API_KEY", "v1.test")      # paid credit: only after both free Groq models
+    assert G.chain("agent")[:3] == ["groq/openai/gpt-oss-120b", "groq/qwen/qwen3.8-27b", "nebius/openai/gpt-oss-120b"]
+    monkeypatch.delenv("NEBIUS_API_KEY")
     assert G.chain("short")[0] == "groq/openai/gpt-oss-120b" and G.chain("short")[-1] == "ollama_chat/qwen2.5-coder:7b"
     monkeypatch.delenv("GROQ_API_KEY")
     assert G.chain("agent") == ["gemini/gemini-3.8-flash", "gemini/gemini-3.5-flash"]      # no key: Groq models dropped
@@ -343,3 +347,9 @@ def test_a_quota_pause_resumes_from_the_step_it_paused_in(tmp_path, monkeypatch)
     ev = [e for e in db.events_after(c, v.run_id, 0) if e.type == "run.resumed"]
     assert ev and ev[-1].payload["from_step"] == "diagnose"
     assert db.get_run(c, v.run_id).status == RunStatus.RUNNING
+
+
+def test_nebius_keys_are_redacted_and_ordinary_versions_are_not():
+    fake = "v1." + "CmQKHHN0YXRpY2tleS1lMDB" + "x" * 40     # shape of a Nebius Token Factory key, not a real one
+    assert "CmQK" not in G.redact(f"key={fake}")
+    assert G.redact("python v1.2.3 and api/v1.json") == "python v1.2.3 and api/v1.json"
