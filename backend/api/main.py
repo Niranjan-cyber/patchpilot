@@ -16,7 +16,7 @@ from backend import db
 from backend.api import session
 from backend.config import limits, llm_budget_set
 from backend.contracts.models import CONTRACTS_VERSION, Event, PublishBlocker, RunView
-from backend.github.reader import GitHubError, IssueCheck, check_issue
+from backend.github.reader import GitHubError, IssueCheck, check_issue, g0_status
 
 ROOT = Path(__file__).resolve().parents[2]
 FIXTURES = ROOT / "fixtures" / "runs"
@@ -128,7 +128,8 @@ def create_run(body: NewRun, request: Request, response: Response):
     missing = [w for w in chk.warnings if w not in body.continue_despite]
     if missing:
         raise ApiErr(409, "ELIGIBILITY_WARNING", "This issue has warnings you need to accept first: " + ", ".join(missing))
-    v = db.create_run(c, chk.issue, base_sha=chk.base_sha or "pending", owner_session_hash=sid, owner_account_id=aid)
+    v = db.create_run(c, chk.issue, base_sha=chk.base_sha or "pending", owner_session_hash=sid, owner_account_id=aid,
+                      g0=g0_status(chk.issue.checks))   # recorded, so the run page and report never say "not run" for G0
     if chk.policy.ai_policy == "forbidden":
         v.policy = chk.policy
         v.publish_blockers.append(PublishBlocker.REPO_FORBIDS_AI)

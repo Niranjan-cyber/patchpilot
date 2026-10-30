@@ -3,7 +3,8 @@ from pathlib import Path
 
 import pytest
 
-from backend.github.reader import GitHubError, ai_policy, detect, expected_actual, linked_open_prs, parse_url
+from backend.contracts.models import CheckStatus as C
+from backend.github.reader import GitHubError, ai_policy, detect, expected_actual, g0_status, linked_open_prs, parse_url
 
 FX = Path("fixtures/github")
 load = lambda n: json.loads((FX / n).read_text(encoding="utf-8"))
@@ -63,3 +64,10 @@ def test_expected_actual_with_markdown_bold():
     # tinycalc #1: "**Expected:** `ZeroDivisionError`" came out as "** `ZeroDivisionError`"
     assert expected_actual("**Expected:** `ZeroDivisionError`, like `/`.\n**Actual**: returns 0")[0] == "`ZeroDivisionError`, like `/`."
     assert expected_actual("**Actual**: returns 0")[1] == "returns 0"
+
+def test_g0_status_follows_contracts_table():
+    ok = {"open": C.PASSED, "public": C.PASSED, "python": C.PASSED, "tests_found": C.PASSED, "unassigned": C.PASSED, "no_linked_pr": C.PASSED}
+    assert g0_status(ok) == (C.PASSED, "eligible")
+    assert g0_status(ok | {"unassigned": C.FAILED}) == (C.FAILED, "assigned")          # accepted warning: recorded as failed
+    assert g0_status(ok | {"no_linked_pr": C.INCONCLUSIVE}) == (C.INCONCLUSIVE, "lookup_failed")
+    assert g0_status(ok | {"open": C.FAILED, "no_linked_pr": C.INCONCLUSIVE})[0] == C.FAILED

@@ -7,7 +7,7 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 
 from backend.config import ROOT
-from backend.contracts.models import Event, IssueSpec, RunStatus, RunView
+from backend.contracts.models import CheckStatus, Event, IssueSpec, RunStatus, RunView
 
 DB_PATH = os.getenv("PP_DB", str(ROOT / "data" / "app.db"))
 SCHEMA = """
@@ -68,15 +68,19 @@ def emit(c, run_id: str, type_: str, step: str | None = None, revision: int = 0,
 
 
 def create_run(c, issue: IssueSpec, base_sha: str, owner_session_hash: str | None = None,
-               owner_account_id: int | None = None) -> RunView:
-    """Run + job + run.queued in ONE transaction: the worker can't see the job before the run is committed."""
+               owner_account_id: int | None = None, g0: tuple[CheckStatus, str] | None = None) -> RunView:
+    """Run + job + run.queued in ONE transaction: the worker can't see the job before the run is committed.
+    g0 = (status, reason) from the API's eligibility check, recorded in the same transaction so the worker can't overwrite it."""
     t = now()
-    v = RunView(run_id=str(uuid.uuid4()), status=RunStatus.QUEUED, issue=issue, base_sha=base_sha, created_at=t, updated_at=t)
+    v = RunView(run_id=str(uuid.uuid4()), status=RunStatus.QUEUED, issue=issue, base_sha=base_sha, created_at=t, updated_at=t,
+                gates={"G0": g0[0]} if g0 else {})
     with tx(c):
         c.execute("INSERT INTO runs VALUES(?,?,?,?,0,?,?,?)", (v.run_id, owner_session_hash, owner_account_id,
                   v.status.value, v.model_dump_json(), t.isoformat(), t.isoformat()))
         c.execute("INSERT INTO jobs(run_id,kind,state,available_at) VALUES(?,?,?,?)", (v.run_id, "analyze", "queued", t.isoformat()))
         _append(c, v.run_id, "run.queued", position=c.execute("SELECT COUNT(*) FROM jobs WHERE state='queued'").fetchone()[0])
+        if g0:
+            _append(c, v.run_id, "gate.result", "intake", 0, gate="G0", status=g0[0].value, reason=g0[1], evidence_ids=[])
     return v
 
 

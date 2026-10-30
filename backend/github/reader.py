@@ -77,6 +77,17 @@ def ai_policy(texts: list[str]) -> str:
     return "unknown"
 
 
+def g0_status(checks: dict[str, CheckStatus]) -> tuple[CheckStatus, str]:
+    """G0 for the run's gates (contracts §1.1): a failed check the user accepted = failed, a failed lookup = inconclusive."""
+    failed = [code for key, code in (("open", "closed"), ("unassigned", "assigned"), ("no_linked_pr", "linked_pr"))
+              if checks.get(key) == CheckStatus.FAILED]
+    if failed:
+        return CheckStatus.FAILED, failed[0]
+    if any(s == CheckStatus.INCONCLUSIVE for s in checks.values()):
+        return CheckStatus.INCONCLUSIVE, "lookup_failed"
+    return CheckStatus.PASSED, "eligible"
+
+
 def _client() -> httpx.Client:
     tok = os.getenv("GITHUB_READ_TOKEN")
     return httpx.Client(base_url=GH, timeout=10, headers={"Accept": "application/vnd.github+json",
