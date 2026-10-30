@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Loading } from "./components";
 import { Link } from "react-router-dom";
 import { api, ApiError } from "./api";
 import ProgressView from "./Progress";
@@ -37,14 +38,15 @@ export default function MyRuns() {
   const { items, err, load } = useMyRuns();
   const forget = (id: string) => api(`/api/runs/${id}/access`, { method: "DELETE" }).catch(() => null).then(load);
   if (err) return <section className="panel failed"><h1>Couldn't load your runs</h1><p>{err.message}</p><button onClick={load}>Try again</button></section>;
-  if (!items) return <section className="panel"><p>Loading your runs…</p></section>;
+  if (!items) return <Loading label="Loading your runs…" />;
   return (
     <section>
       <h1>My runs</h1>
       <p className="hint">These runs open only in this browser. Sign in with GitHub to see them on other devices.</p>
       {!!items.length && <ProgressView />}
       {items.length ? <RunList items={items} onForget={forget} />
-        : <div className="panel"><p>No runs yet. Paste an issue to start.</p><Link className="button" to="/">New run</Link></div>}
+        : <div className="panel empty"><h2>No runs yet. Paste an issue to start.</h2>
+            <p>Each run you start in this browser shows up here, with its proof and report.</p><Link className="button" to="/">New run</Link></div>}
     </section>
   );
 }

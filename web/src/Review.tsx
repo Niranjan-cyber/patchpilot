@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api, ApiError } from "./api";
+import { Loading } from "./components";
 
 type Ctx = { revision: number; diff: string; diff_hash: string; evidence_hash: string; files: string[];
   publish_blockers: string[]; approved: boolean; pr_title: string; pr_summary: string };
@@ -53,8 +54,8 @@ export default function Review() {
     catch (e) { setErr(e as ApiError); return null; } finally { setBusy(null); }
   };
 
-  if (!ctx) return err ? <section className="panel failed"><h1>Couldn't open the change</h1><p>{err.message}</p><Link to={`/runs/${id}`}>Back to the run</Link></section>
-    : <section className="panel"><p>Loading the exact change…</p></section>;
+  if (!ctx) return err ? <section className="panel failed"><h1>Couldn't open the change</h1><p>{err.message}</p><Link className="button secondary" to={`/runs/${id}`}>Back to the run</Link></section>
+    : <Loading label="Loading the exact change…" />;
 
   const hard = ctx.publish_blockers.filter((b) => !["not_approved", "not_signed_in", "issue_changed"].includes(b));
   const allTicked = BOXES.every(([k]) => boxes[k]);
@@ -67,9 +68,16 @@ export default function Review() {
 
   return (
     <section className="review">
-      <p className="issue-ref"><Link to={`/runs/${id}`}>Back to the run</Link></p>
-      <h1>Review the exact change</h1>
-      <p className="lede">This is everything that would go into the pull request: {ctx.files.length} file{ctx.files.length === 1 ? "" : "s"}. Nothing is published until you approve it and connect GitHub.</p>
+      <div className="chapter">
+        <p className="issue-ref"><Link to={`/runs/${id}`}>Back to the run</Link></p>
+        <h1>Review the exact change</h1>
+        <p className="lede">This is everything that would go into the pull request: {ctx.files.length} file{ctx.files.length === 1 ? "" : "s"}. Nothing is published until you approve it and connect GitHub.</p>
+      </div>
+      <ol className="consequences" aria-label="What happens when you approve">
+        <li><strong>You approve this exact diff.</strong> If anything in it changes later, the approval is cancelled.</li>
+        <li><strong>We open a draft pull request</strong> with this change, after checking nothing changed upstream.</li>
+        <li><strong>Nothing merges.</strong> Maintainers read the draft and decide.</li>
+      </ol>
       {ctx.publish_blockers.filter((b) => BLOCKER[b]).map((b) => <p key={b} className="notice warn">{BLOCKER[b]}</p>)}
       {ctx.publish_blockers.includes("deps_inconclusive") && <button className="secondary-btn" onClick={() => post(`/api/runs/${id}/recheck-deps`, undefined, "Re-checking dependencies…").then(load)}>Re-check dependencies</button>}
       <Diff text={ctx.diff} />

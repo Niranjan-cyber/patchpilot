@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { api, ApiError } from "./api";
 import type { IssueCheck as Check, RunView } from "./contracts";
-import { Status } from "./components";
+import { Loading, Status } from "./components";
 
 const CHECKS: Record<string, string> = {
   open: "The issue is open", public: "The repository is public", python: "It's a Python project",
@@ -49,7 +49,7 @@ export default function IssueCheck() {
       <div className="row">{err.code === "GITHUB_UNAVAILABLE" && <button onClick={load}>Try again</button>}<Link to="/" className="button secondary">Paste a different link</Link></div>
     </section>
   );
-  if (!chk) return <section className="panel"><p>Reading the issue and checking the repository…</p></section>;
+  if (!chk) return <Loading label="Reading the issue and checking the repository…" />;
 
   const i = chk.issue;
   const blocked = !!chk.unsupported;

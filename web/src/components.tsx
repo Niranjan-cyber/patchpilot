@@ -21,14 +21,16 @@ export function SampleBadge() {
   return <span className="sample" title="This screen shows sample data, not a real run">Sample data</span>;
 }
 
+type StepMap = Record<string, { status?: CheckStatus | "running"; headline?: string | null }>;
+
 export function Stepper({ run }: { run: RunView }) {
-  const steps = (run.steps ?? {}) as Record<string, { status?: CheckStatus | "running"; headline?: string | null }>;
+  const steps = (run.steps ?? {}) as StepMap;
   return (
-    <ol className="stepper">
+    <ol className="stepper" aria-label="What PatchPilot did">
       {STEPS.map((st) => {
         const s = steps[st.id];
         return (
-          <li key={st.id} className={`step step-${s?.status ?? "not_run"}`}>
+          <li key={st.id} className={`step step-${s?.status ?? "not_run"}`} aria-current={s?.status === "running" ? "step" : undefined}>
             <div className="step-head"><span className="step-name">{st.label}</span><Status s={s?.status} /></div>
             {s?.headline && <p className="step-line">{s.headline}</p>}
           </li>
@@ -36,6 +38,47 @@ export function Stepper({ run }: { run: RunView }) {
       })}
     </ol>
   );
+}
+
+/** A designed loading state: what we're doing in words, plus a quiet placeholder of the content to come. */
+export function Loading({ label }: { label: string }) {
+  return (
+    <section className="panel loading" aria-busy="true" aria-live="polite">
+      <p>{label}</p>
+      <div className="skel" aria-hidden><span /><span /><span /></div>
+    </section>
+  );
+}
+
+/** For a run that's still going: which step is on, and how far along it is. Counts only recorded step states. */
+export function LiveStatus({ run }: { run: RunView }) {
+  const steps = (run.steps ?? {}) as StepMap;
+  const done = STEPS.filter((st) => steps[st.id]?.status && steps[st.id]?.status !== "running" && steps[st.id]?.status !== "not_run").length;
+  const now = STEPS.find((st) => steps[st.id]?.status === "running") ?? STEPS.find((st) => !steps[st.id]?.status || steps[st.id]?.status === "not_run");
+  const label = run.status === "queued" ? "Waiting for a free sandbox" : now ? `Now: ${now.label}` : "Finishing up";
+  return (
+    <div className="live">
+      <p className="live-now">{label}</p>
+      <div className="meter" role="progressbar" aria-label="Steps finished" aria-valuemin={0} aria-valuemax={STEPS.length} aria-valuenow={done}>
+        <span style={{ width: `${(done / STEPS.length) * 100}%` }} />
+      </div>
+      <p className="live-count">{done} of {STEPS.length} steps finished. You can leave this page; the run keeps going.</p>
+    </div>
+  );
+}
+
+const VERDICT: Record<string, string> = {
+  CANNOT_REPRODUCE: "We couldn't make the bug happen in a test, so there's no fix to prove. The report says what we tried.",
+  ENV_FAILED: "We couldn't install this project in the sandbox, so none of its code ran. The report has the install log.",
+  BLOCKED: "A dependency looked malicious, so nothing from this repository was installed or run.",
+  STOPPED: "This run was stopped. Everything recorded up to that point is kept below.",
+  SYSTEM_ERROR: "Something on our side failed. The report has what we know; nothing was published.",
+};
+
+/** Runs that end without a proof strip still say plainly why, never an empty space. */
+export function VerdictNote({ run }: { run: RunView }) {
+  const text = run.outcome && VERDICT[run.outcome];
+  return text && !run.repro?.runs_on_base?.length ? <p className="verdict-note">{text}</p> : null;
 }
 
 const BADGE: Record<string, string> = {
