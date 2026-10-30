@@ -85,3 +85,4 @@ Every session appends here after every event: a step started or finished, a deci
 - [2026-10-30 02:31 UTC] A LESSON: the G0 linked-PR check worked live: itsdangerous #429 was refused (someone already has a PR open).
 - [2026-10-30 02:31 UTC] A LESSON: Python on a Windows console reads piped UTF-8 as cp1252, so "…" looked like "â€¦" in my debug output; the API was correct. Verify encodings with PYTHONIOENCODING=utf-8 before "fixing" them.
 - [2026-10-30 02:31 UTC] A EVENT: creating the public tinycalc repo was blocked by the permission system again, even with the human's OK → the human runs it, or adds a permission rule.
+- [2026-10-30 02:43 UTC] A EVENT: live run 2 (with the 503 fix) reached REPRODUCE, then paused on Gemini's free-tier DAILY quota with the real reset time (07:00 UTC); ~4.5k tokens used. The free tier's requests/day, not tokens, is the bottleneck. HANDOFF.md written for a fresh A session.
