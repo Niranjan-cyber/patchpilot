@@ -168,6 +168,7 @@ def _ok_resp(text="ok"):
 
 @pytest.fixture
 def three_models(tmpdb, monkeypatch):
+    monkeypatch.setattr(G, "_out", {})
     monkeypatch.setattr(__import__("time"), "sleep", lambda s: None)
     monkeypatch.delenv("PP_AGENT_MODEL", raising=False)
     monkeypatch.setenv("GROQ_API_KEY", "gsk_test")
@@ -217,3 +218,31 @@ def test_a_real_error_is_not_hidden_by_fallback(three_models):
     with pytest.raises(ValueError):
         G.complete([{"role": "user", "content": "x"}], run_id="r", role="x", _completion=fake)
     assert len(seen) == 1
+
+
+class _RL(Exception):
+    def __init__(self, msg, h=None): super().__init__(msg); self.response = type("R", (), {"headers": h or {}})
+    __name__ = "RateLimitError"
+
+
+def test_a_short_retry_after_waits_for_the_same_provider(three_models, monkeypatch):
+    slept, seen = [], []
+    monkeypatch.setattr(__import__("time"), "sleep", lambda s: slept.append(s))
+    def fake(model, **k):
+        seen.append(model.split("/")[0])
+        if model.startswith("gemini"): raise _RL("429 quota per day")
+        if model.startswith("groq") and seen.count("groq") == 1: raise _RL("429", {"retry-after": "7"})
+        return _ok_resp()
+    G.complete([{"role": "user", "content": "x"}], run_id="r", role="x", _completion=fake)
+    assert seen == ["gemini", "groq", "groq"] and slept and max(slept) <= 8      # the 7B local model is not used
+
+
+def test_a_provider_out_until_a_known_reset_is_skipped(three_models):
+    seen = []
+    def fake(model, **k):
+        seen.append(model.split("/")[0])
+        if model.startswith("gemini"): raise _RL("429 quota per day")
+        return _ok_resp()
+    for _ in range(2):
+        G.complete([{"role": "user", "content": "x"}], run_id="r", role="x", _completion=fake)
+    assert seen == ["gemini", "groq", "groq"]

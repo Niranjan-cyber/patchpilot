@@ -90,6 +90,10 @@ from backend.config import limits as _limits
 GROQ_MODEL = "groq/openai/gpt-oss-120b"
 
 
+# shortcut: per-process memory of providers out until a known reset; lost on worker restart (harmless: one extra 429).
+_out: dict = {}
+
+
 def chain(kind: str) -> list[str]:
     """Models to try in order: Gemini, then Groq (if keyed), then a local model (PP_LOCAL_MODEL, e.g. ollama_chat/qwen2.5-coder:7b)."""
     gemini = _os.getenv("PP_AGENT_MODEL", "gemini/gemini-3.5-flash")
@@ -139,12 +143,21 @@ def complete(messages: list[dict], *, run_id: str, role: str, kind: str = "agent
         import litellm
         _completion = litellm.completion
     msgs = [{**m, "content": redact(m["content"])} for m in messages]
-    models, pauses = chain(kind), []
+    now, pauses = _db.now(), []
+    models = [m for m in chain(kind) if not (m in _out and _out[m] > now)]   # out until a known reset: don't ask again
+    if not models:
+        raise QuotaPause(min(_out[m] for m in chain(kind)), chain(kind)[0].split("/")[0])
     for i, model in enumerate(models):
-        try:     # back off on overload only when no fallback is left
-            return _call(model, msgs, run_id, role, _completion, backoff=i == len(models) - 1)
-        except QuotaPause as q:
-            pauses.append(q)
+        for again in (True, False):
+            try:     # back off on overload only when no fallback is left
+                return _call(model, msgs, run_id, role, _completion, backoff=i == len(models) - 1)
+            except QuotaPause as q:
+                wait = (q.resume_at - _db.now()).total_seconds() if q.resume_at else None
+                if again and wait is not None and wait <= 60:     # e.g. Groq's per-minute cap: a short wait beats a weaker model
+                    __import__("time").sleep(max(wait, 1)); continue
+                if wait is not None and wait > 60:
+                    _out[model] = q.resume_at
+                pauses.append(q); break
     known = [p.resume_at for p in pauses if p.resume_at]     # resume when the first provider is back; unknown stays None
     raise QuotaPause(min(known) if known else None, pauses[0].provider)
 
