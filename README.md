@@ -8,6 +8,8 @@ Paste an issue from a public Python project. PatchPilot reproduces the bug in a 
 and shows you the same test **failing twice on the original code and passing twice after the fix**, in a brand-new sandbox.
 Then *you* decide whether to open a draft pull request.
 
+**[Try the read-only showcase →](https://patchpilot-demo.vercel.app)** (real recorded runs, nothing to install)
+
 [Run it locally](#run-it-locally) · [How it works](#how-it-works) · [What's real](#whats-real-today) · [Safety](#safety)
 
 <sub>AgentX Hackathon 2026 · PS-05: bug-fix agent for code repositories</sub>
@@ -151,6 +153,7 @@ PatchPilot publishes to the repo directly if you can push to it, and otherwise t
 | Issue check, sandboxed install, baseline, reproduce, diagnose, fix, fresh-sandbox verify, review | **Real**, on any public Python repo with pytest tests |
 | Draft PRs after approval | **Real**: [tinycalc #4](https://github.com/Niranjan-cyber/tinycalc/pull/4), [#5](https://github.com/Niranjan-cyber/tinycalc/pull/5), [#6](https://github.com/Niranjan-cyber/tinycalc/pull/6) |
 | Sample runs on the home page | **Sample data**, labelled in the app |
+| [patchpilot-demo.vercel.app](https://patchpilot-demo.vercel.app) | **Recorded**: a real tinycalc run plus the sample runs, served as static files; nothing runs there |
 | SupplyGuard dependency check | Real, but it's the team's own scanner and isn't public yet. Without it the check reports **inconclusive** and publishing stays off. It never reports a false "clean". |
 | Accuracy page (eval set) | The eval set exists (`eval/`); numbers aren't published yet |
 | gVisor sandbox runtime, hosted deployment | **Planned**: the deploy kit (`infra/vm-setup.sh`) is ready, and the prototype runs on a laptop |
