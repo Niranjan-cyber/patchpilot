@@ -5,9 +5,9 @@ fails in **both** recorded runs with an assertion error or the issue's own
 error. One run failing and one passing is `inconclusive` (flaky, and the
 caller counts it as a failed attempt). Everything else is `failed`.
 
-shortcut: statuses and reasons are returned as plain strings; swap to
-`CheckStatus` from backend/contracts once B02 lands it (the values already
-match). Reasons are the gate.result `reason` code (contracts.md:172).
+`evaluate_g3` returns plain strings whose values match `CheckStatus`; callers
+that need the contract shape use `g3_result`, which wraps it in a
+`GateResult`. Reasons are the gate.result `reason` code (contracts.md:172).
 """
 
 import re
