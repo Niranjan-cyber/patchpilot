@@ -62,3 +62,10 @@ def test_baseline_sets_with_rerun():
 
 def test_junit_garbage_is_empty_not_crash():
     assert junit_outcomes("not xml") == {}
+
+
+def test_junit_followed_by_stderr_still_parses():
+    # run 11: `git apply` warned "new blank line at EOF" on stderr, which lands after the XML in docker output → a verified
+    # fix (298 passed) read as no_results
+    out = junit_outcomes(XML + "/tmp/d0.diff:59: new blank line at EOF.\n+\nwarning: 1 line adds whitespace errors.\n")
+    assert out == junit_outcomes(XML) and out

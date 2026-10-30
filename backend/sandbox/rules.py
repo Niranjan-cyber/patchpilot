@@ -50,8 +50,9 @@ def evaluate_setup(install_code: int, install_timed_out: bool, collect_code: int
 def junit_outcomes(xml_text: str) -> dict[str, bool]:
     """test id -> passed? (skipped tests are left out: they never passed or failed)."""
     out: dict[str, bool] = {}
+    end = xml_text.rfind("</testsuites>")    # docker output appends stderr (e.g. git apply warnings) after the XML
     try:
-        root = ET.fromstring(xml_text)
+        root = ET.fromstring(xml_text[:end + len("</testsuites>")] if end >= 0 else xml_text)
     except ET.ParseError:
         return out
     for tc in root.iter("testcase"):
