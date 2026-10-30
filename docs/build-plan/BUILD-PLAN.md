@@ -38,30 +38,30 @@
 
 | ID | Phase | Goal | Use cases / screens | Skills | Est. | After | Track | Status |
 |---|---|---|---|---|---|---|---|---|
-| B01 | Prototype | Anyone can open the public Funnel URL and click through stub screens S-01 to S-08 labelled sample data. | UC-01, S-01, S-02, S-03, S-04, S-05, S-06, S-07, S-08 | frontend-design, code-review | 2 h | — | ALL | todo |
-| B02 | Prototype | A judge can open a fixture run on the URL and watch S-03 and S-04 render it from the real API. | UC-04, UC-07, S-03, S-04 | tdd, frontend-design, code-review | 3 h | B01 | ALL | todo |
-| B03 | Prototype | A user who pastes a real GitHub issue URL on S-01 sees the real eligibility card on S-02. | UC-01, S-01, S-02 | tdd, security-best-practices, frontend-design | 3 h | B02 | C | todo |
-| B04 | Prototype | A user who clicks Start run on S-02 sees S-03 move from Queued to Running and keep going after the worker is killed. | UC-02, UC-07, S-02, S-03 | langgraph-fundamentals, langgraph-persistence, tdd | 3 h | B02 | A | todo |
-| B05 | Prototype | A user who starts a run on a team demo repo sees the real install and the real baseline test results on S-03. | UC-02, S-03, S-04 | container-hardening, tdd, security-review, diagnosing-bugs | 4 h | B04 | A | todo |
-| B06 | Prototype | A user sees PatchPilot write a test that fails twice on the original code for the demo bug, with its output on S-03. | UC-03, S-03, S-04 | tdd, langgraph-fundamentals, diagnosing-bugs | 3 h | B05 | B | todo |
-| B07 | Prototype | A user sees the likely cause with file:line links, a short codebase tour and a fix diff that passed the diff policy on S-03. | UC-03, S-03 | tdd, frontend-design | 3 h | B06 | B | todo |
-| B08 | Prototype | A user sees the reproduction test go red on the original code and green after the fix in a brand-new container on S-04. | UC-04, S-04 | tdd, frontend-design | 3 h | B07 | B | todo |
-| B09 | Prototype | A user can read a plain-language explanation and download a report whose every status matches the recorded results. | UC-04, S-04 | tdd, write-pr-description | 3 h | B08 | B | todo |
-| B10 | Prototype | A user can approve the exact diff on S-05 after ticking the 3-item checklist. | UC-05, UC-06, S-05 | langgraph-human-in-the-loop, tdd, frontend-design | 3 h | B08 | C | todo |
-| B11 | Prototype | A signed-in contributor sees a draft PR opened from their fork after approving, with the next steps on S-07. | UC-05, S-06, S-07 | security-best-practices, write-pr-description, security-review | 3 h | B10 | C | todo |
-| B12 | Prototype | A user's runs can only be opened from their own browser or GitHub account. | UC-07, S-01, S-06, S-08 | security-best-practices, tdd, security-review | 3 h | B04 | C | todo |
-| B13 🏁 | Prototype | A judge can walk the whole demo path on the URL and see an honest triage report on a second issue. | UC-01, UC-02, UC-03, UC-04, UC-05, UC-07, S-01, S-02, S-03, S-04, S-05, S-06, S-07, S-08 | code-review, security-review, hackathon-demo-submission | 3 h | B09, B11, B12 | ALL | todo |
-| B14 | MVP | A judge can see PatchPilot's outcomes compared with the official tests on an /eval page. | UC-04, S-04 | tdd | 2 h | B13 | B | todo |
-| B15 | MVP | A first-time contributor can ask Why this file? on S-03/S-04 and get an answer citing evidence. | UC-08, S-03, S-04 | langgraph-human-in-the-loop, frontend-design | 2 h | B13 | C | todo |
-| B16 | MVP | A signed-in user can see their issues, outcomes and PR statuses over time on S-08. | UC-09, S-08 | frontend-design | 2 h | B13 | C | todo |
-| B17 | MVP | A user sees on S-04 whether the fix also passes a hidden test variant and which commit introduced the bug. | UC-04, S-04 | tdd | 3 h | B13 | B | todo |
-| B18 | MVP | A user who pastes a repo URL sees 3 to 5 issues PatchPilot can likely run, with reasons. | UC-10, S-09 | frontend-design | 2 h | B13 | C | todo |
-| B19 🏁 | MVP | A real user can use PatchPilot on an always-on Linux host where sandboxes run under gVisor. | UC-07, S-01 | container-hardening, security-review | 3 h | B14, B15, B16, B17, B18 | A | todo |
+| B01 | Prototype | Anyone can open the public Funnel URL and click through stub screens S-01 to S-08 labelled sample data. | UC-01, S-01, S-02, S-03, S-04, S-05, S-06, S-07, S-08 | frontend-design, code-review | 2 h | — | ALL | done |
+| B02 | Prototype | A judge can open a fixture run on the URL and watch S-03 and S-04 render it from the real API. | UC-04, UC-07, S-03, S-04 | tdd, frontend-design, code-review | 3 h | B01 | ALL | done |
+| B03 | Prototype | A user who pastes a real GitHub issue URL on S-01 sees the real eligibility card on S-02. | UC-01, S-01, S-02 | tdd, security-best-practices, frontend-design | 3 h | B02 | C | done |
+| B04 | Prototype | A user who clicks Start run on S-02 sees S-03 move from Queued to Running and keep going after the worker is killed. | UC-02, UC-07, S-02, S-03 | langgraph-fundamentals, langgraph-persistence, tdd | 3 h | B02 | A | done |
+| B05 | Prototype | A user who starts a run on a team demo repo sees the real install and the real baseline test results on S-03. | UC-02, S-03, S-04 | container-hardening, tdd, security-review, diagnosing-bugs | 4 h | B04 | A | done |
+| B06 | Prototype | A user sees PatchPilot write a test that fails twice on the original code for the demo bug, with its output on S-03. | UC-03, S-03, S-04 | tdd, langgraph-fundamentals, diagnosing-bugs | 3 h | B05 | B | done |
+| B07 | Prototype | A user sees the likely cause with file:line links, a short codebase tour and a fix diff that passed the diff policy on S-03. | UC-03, S-03 | tdd, frontend-design | 3 h | B06 | B | done |
+| B08 | Prototype | A user sees the reproduction test go red on the original code and green after the fix in a brand-new container on S-04. | UC-04, S-04 | tdd, frontend-design | 3 h | B07 | B | done |
+| B09 | Prototype | A user can read a plain-language explanation and download a report whose every status matches the recorded results. | UC-04, S-04 | tdd, write-pr-description | 3 h | B08 | B | done |
+| B10 | Prototype | A user can approve the exact diff on S-05 after ticking the 3-item checklist. | UC-05, UC-06, S-05 | langgraph-human-in-the-loop, tdd, frontend-design | 3 h | B08 | C | done |
+| B11 | Prototype | A signed-in contributor sees a draft PR opened from their fork after approving, with the next steps on S-07. | UC-05, S-06, S-07 | security-best-practices, write-pr-description, security-review | 3 h | B10 | C | done |
+| B12 | Prototype | A user's runs can only be opened from their own browser or GitHub account. | UC-07, S-01, S-06, S-08 | security-best-practices, tdd, security-review | 3 h | B04 | C | done |
+| B13 🏁 | Prototype | A judge can walk the whole demo path on the URL and see an honest triage report on a second issue. | UC-01, UC-02, UC-03, UC-04, UC-05, UC-07, S-01, S-02, S-03, S-04, S-05, S-06, S-07, S-08 | code-review, security-review, hackathon-demo-submission | 3 h | B09, B11, B12 | ALL | done |
+| B14 | MVP | A judge can see PatchPilot's outcomes compared with the official tests on an /eval page. | UC-04, S-04 | tdd | 2 h | B13 | B | in-progress |
+| B15 | MVP | A first-time contributor can ask Why this file? on S-03/S-04 and get an answer citing evidence. | UC-08, S-03, S-04 | langgraph-human-in-the-loop, frontend-design | 2 h | B13 | C | done |
+| B16 | MVP | A signed-in user can see their issues, outcomes and PR statuses over time on S-08. | UC-09, S-08 | frontend-design | 2 h | B13 | C | done |
+| B17 | MVP | A user sees on S-04 whether the fix also passes a hidden test variant and which commit introduced the bug. | UC-04, S-04 | tdd | 3 h | B13 | B | done |
+| B18 | MVP | A user who pastes a repo URL sees 3 to 5 issues PatchPilot can likely run, with reasons. | UC-10, S-09 | frontend-design | 2 h | B13 | C | done |
+| B19 🏁 | MVP | A real user can use PatchPilot on an always-on Linux host where sandboxes run under gVisor. | UC-07, S-01 | container-hardening, security-review | 3 h | B14, B15, B16, B17, B18 | A | blocked |
 
 ## Steps
 
 ### B01 — App shell live on the Funnel URL
-- **Status:** todo
+- **Status:** done
 - **Goal:** Anyone can open the public Funnel URL and click through stub screens S-01 to S-08 labelled sample data.
 - **Why now:** Forces the real deploy path (laptop + FastAPI serving the SPA + Funnel) to work on day one; tests the Funnel risk first.
 - **Slice:** UC UC-01 · Screens S-01, S-02, S-03, S-04, S-05, S-06, S-07, S-08 · Components —
@@ -88,7 +88,7 @@
 - **Notes:** Whole team pairs on this; everyone needs the same layout and deploy path.
 
 ### B02 — Walking skeleton on the contracts
-- **Status:** todo
+- **Status:** done
 - **Goal:** A judge can open a fixture run on the URL and watch S-03 and S-04 render it from the real API.
 - **Why now:** Freezes contracts v0.2 in code so the four roles can build in parallel without integration surprises.
 - **Slice:** UC UC-04, UC-07 · Screens S-03, S-04 · Components —
@@ -117,7 +117,7 @@
 - **Notes:** After B02, roles A-D branch off. Contract changes only via a PR reviewed by all four.
 
 ### B03 — Real issue check (M1)
-- **Status:** todo
+- **Status:** done
 - **Goal:** A user who pastes a real GitHub issue URL on S-01 sees the real eligibility card on S-02.
 - **Why now:** First real external data source; Role C can build it while A builds the runtime.
 - **Slice:** UC UC-01 · Screens S-01, S-02 · Components —
@@ -144,7 +144,7 @@
 - **Prompt:** `prompts/B03-real-issue-check-m1.md`
 
 ### B04 — Durable runs that survive a worker crash
-- **Status:** todo
+- **Status:** done
 - **Goal:** A user who clicks Start run on S-02 sees S-03 move from Queued to Running and keep going after the worker is killed.
 - **Why now:** Every later step runs inside this job loop; crash/resume is a stated risk.
 - **Slice:** UC UC-02, UC-07 · Screens S-02, S-03 · Components —
@@ -170,7 +170,7 @@
 - **Prompt:** `prompts/B04-durable-runs-that-survive-a-worker-crash.md`
 
 ### B05 — Real setup and baseline in a per-run sandbox (M2)
-- **Status:** todo
+- **Status:** done
 - **Goal:** A user who starts a run on a team demo repo sees the real install and the real baseline test results on S-03.
 - **Why now:** Riskiest unknown: setup is where most runs fail, and Docker Desktop on Windows is unproven.
 - **Slice:** UC UC-02 · Screens S-03, S-04 · Components —
@@ -200,7 +200,7 @@
 - **Notes:** Record setup time per repo; it feeds the S-03 time estimate and the eval slide.
 
 ### B06 — AI reproduction test that fails 2/2 (M3, G3)
-- **Status:** todo
+- **Status:** done
 - **Goal:** A user sees PatchPilot write a test that fails twice on the original code for the demo bug, with its output on S-03.
 - **Why now:** Second riskiest unknown: free-tier quota and model quality decide whether the product works at all.
 - **Slice:** UC UC-03 · Screens S-03, S-04 · Components —
@@ -228,7 +228,7 @@
 - **Notes:** Role B can start on recorded outputs and a stub sandbox while B05 finishes.
 
 ### B07 — Diagnosis, codebase tour and policy-checked fix (M3, G4)
-- **Status:** todo
+- **Status:** done
 - **Goal:** A user sees the likely cause with file:line links, a short codebase tour and a fix diff that passed the diff policy on S-03.
 - **Why now:** Completes the agent chain needed before verification.
 - **Slice:** UC UC-03 · Screens S-03 · Components —
@@ -252,7 +252,7 @@
 - **Prompt:** `prompts/B07-diagnosis-codebase-tour-and-policy.md`
 
 ### B08 — Fresh-container red to green proof (M4, G5)
-- **Status:** todo
+- **Status:** done
 - **Goal:** A user sees the reproduction test go red on the original code and green after the fix in a brand-new container on S-04.
 - **Why now:** The winning feature; must be real and demoable as early as possible.
 - **Slice:** UC UC-04 · Screens S-04 · Components —
@@ -277,7 +277,7 @@
 - **Prompt:** `prompts/B08-fresh-container-red-to-green-proof-m4-g5.md`
 
 ### B09 — Honest report with review and download (M4, G6)
-- **Status:** todo
+- **Status:** done
 - **Goal:** A user can read a plain-language explanation and download a report whose every status matches the recorded results.
 - **Why now:** Every path must end in a trustworthy report before publishing is built on top.
 - **Slice:** UC UC-04 · Screens S-04 · Components —
@@ -303,7 +303,7 @@
 - **Prompt:** `prompts/B09-honest-report-with-review-and-download.md`
 
 ### B10 — Approve the exact diff, or revise (M5)
-- **Status:** todo
+- **Status:** done
 - **Goal:** A user can approve the exact diff on S-05 after ticking the 3-item checklist.
 - **Why now:** The human gate the PS requires; the publisher depends on its hash contract.
 - **Slice:** UC UC-05, UC-06 · Screens S-05 · Components —
@@ -331,7 +331,7 @@
 - **Notes:** Can start on fixture runs (verified_fix, upstream_changed) before B08 lands.
 
 ### B11 — Draft PR from the fork after GitHub sign-in (M5)
-- **Status:** todo
+- **Status:** done
 - **Goal:** A signed-in contributor sees a draft PR opened from their fork after approving, with the next steps on S-07.
 - **Why now:** Completes the golden path; fork permissions are a stated risk.
 - **Slice:** UC UC-05 · Screens S-06, S-07 · Components —
@@ -360,7 +360,7 @@
 - **Prompt:** `prompts/B11-draft-pr-from-the-fork-after-github.md`
 
 ### B12 — Private runs and fair limits (UC-07)
-- **Status:** todo
+- **Status:** done
 - **Goal:** A user's runs can only be opened from their own browser or GitHub account.
 - **Why now:** Isolation and abuse limits are P0 trust items before a public URL is shared with judges.
 - **Slice:** UC UC-07 · Screens S-01, S-06, S-08 · Components —
@@ -388,7 +388,7 @@
 - **Notes:** Role D also owns the shared page-state components and keeps the Playwright regression suite green for all roles.
 
 ### B13 — Prototype exit: the full demo path, twice 🏁 prototype exit
-- **Status:** todo
+- **Status:** done
 - **Goal:** A judge can walk the whole demo path on the URL and see an honest triage report on a second issue.
 - **Why now:** Prototype exit criteria and submission deliverables; feature freeze starts here.
 - **Slice:** UC UC-01, UC-02, UC-03, UC-04, UC-05, UC-07 · Screens S-01, S-02, S-03, S-04, S-05, S-06, S-07, S-08 · Components —
@@ -416,7 +416,7 @@
 - **Notes:** Role A leads; everyone joins.
 
 ### B14 — Eval slide numbers
-- **Status:** todo
+- **Status:** in-progress
 - **Goal:** A judge can see PatchPilot's outcomes compared with the official tests on an /eval page.
 - **Why now:** Reliability is 20% of judging; cheapest proof. Highest-value Should.
 - **Slice:** UC UC-04 · Screens S-04 · Components —
@@ -438,7 +438,7 @@
 - **Notes:** Run overnight on the host.
 
 ### B15 — Ask why, and optional guided pauses (S2)
-- **Status:** todo
+- **Status:** done
 - **Goal:** A first-time contributor can ask Why this file? on S-03/S-04 and get an answer citing evidence.
 - **Why now:** Serves the beginner user; builds on the Explainer.
 - **Slice:** UC UC-08 · Screens S-03, S-04 · Components —
@@ -460,7 +460,7 @@
 - **Prompt:** `prompts/B15-ask-why-and-optional-guided-pauses-s2.md`
 
 ### B16 — My progress (S3)
-- **Status:** todo
+- **Status:** done
 - **Goal:** A signed-in user can see their issues, outcomes and PR statuses over time on S-08.
 - **Why now:** Should feature; extends S-08.
 - **Slice:** UC UC-09 · Screens S-08 · Components —
@@ -482,7 +482,7 @@
 - **Prompt:** `prompts/B16-my-progress-s3.md`
 
 ### B17 — Hidden-variant test and bisect rows (S4, S6)
-- **Status:** todo
+- **Status:** done
 - **Goal:** A user sees on S-04 whether the fix also passes a hidden test variant and which commit introduced the bug.
 - **Why now:** Integrity and triage extras once the loop is stable.
 - **Slice:** UC UC-04 · Screens S-04 · Components —
@@ -504,7 +504,7 @@
 - **Prompt:** `prompts/B17-hidden-variant-test-and-bisect-rows-s4.md`
 
 ### B18 — Explore one repo (S5)
-- **Status:** todo
+- **Status:** done
 - **Goal:** A user who pastes a repo URL sees 3 to 5 issues PatchPilot can likely run, with reasons.
 - **Why now:** Should feature for first-time contributors.
 - **Slice:** UC UC-10 · Screens S-09 · Components —
@@ -526,7 +526,7 @@
 - **Prompt:** `prompts/B18-explore-one-repo-s5.md`
 
 ### B19 — MVP exit: hardened host with gVisor 🏁 MVP exit
-- **Status:** todo
+- **Status:** blocked
 - **Goal:** A real user can use PatchPilot on an always-on Linux host where sandboxes run under gVisor.
 - **Why now:** Replaces the prototype simplifications (laptop, no gVisor).
 - **Slice:** UC UC-07 · Screens S-01 · Components —

@@ -451,3 +451,8 @@ The three Claude sessions (A Niranjan-cyber · B swaralipatil11 · C DevanshNarl
 - Run 4958e9fd (tinycalc #1) went issue → VERIFIED → approve → GitHub sign-in → publish → **draft PR https://github.com/Niranjan-cyber/tinycalc/pull/4** with evidence, limitations and the AI note.
 - It needed one fix first (561538c): on Windows the publisher's text-mode stdin turned the diff's LF into CRLF and `git apply` failed. Publish failures are now logged for operators.
 - C: PR #4 is a great real artifact for the deck (real PR, real evidence block). Second B13 pass (tinycalc #3) is next; then B19.
+
+### [2026-10-30 11:47 UTC] A→ALL: ✅ B13 EXIT PASSED
+- The full demo path twice on https://laptop-o90994nd.tail1ffac6.ts.net with real GitHub sign-in: draft PRs **tinycalc #4** (run 4958e9fd) and **#5** (run fafaac96). PR #5 even carries the reviewer's locale caveat in Limitations.
+- `docs/build-plan/plan.json` statuses updated and re-rendered: B01–B13 + B15–B18 done, **B14 in-progress (C, eval)**, **B19 blocked (human creates the VM)**. Note the plan's deadline: **2026-11-12 10:00 IST**.
+- Left for the hackathon: B19 (VM + gVisor), B14 numbers, the unclear_bug contracts PR, demo video + README + submission.

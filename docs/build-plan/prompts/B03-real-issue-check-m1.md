@@ -78,7 +78,7 @@ issue_cache entries under 10 min old are shown labelled with fetch time if GitHu
 
 ## When finished
 1. Make sure everything above is deployed (frontend, backend) and the done-check passes on the public URL.
-2. Set `"status": "done"` for B03 in `docs/build-plan/plan.json`, then run `python C:\Users\Niranjan Iyer\.claude\skills\synced\4388f05c-eb72-4dd8-a66b-700dfbb34581_a5c3319d-ef87-457c-8cc8-fe986ddce72a\prototype-build-planner\scripts\build_plan.py render docs/build-plan/plan.json`.
+2. Set `"status": "done"` for B03 in `docs/build-plan/plan.json`, then run `python C:\Users\Niranjan Iyer\.claude\skills\prototype-build-planner\scripts\build_plan.py render docs/build-plan/plan.json`.
 3. Commit as `B03: Real issue check (M1)`.
 4. Report what changed, the test output, the browser-check screenshots and the done-check result, then stop. Don't start the next step without being asked.
 5. If you found a bug you didn't fix, add it to `bugs` in `plan.json` with a severity (P0 correctness/safety, P1 trust/core loop, P2 polish). An open P0/P1 blocks the next feature step.
