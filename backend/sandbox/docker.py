@@ -48,7 +48,9 @@ def run(image: str, script: str, *, name: str, network: str = "none", timeout: i
     if snapshot_volume:
         args += ["-v", f"{snapshot_volume}:/snap:ro"]
     if network == SETUP_NET:
-        args += ["-e", f"PIP_INDEX_URL={INDEX_URL}", "-e", f"PIP_TRUSTED_HOST={PROXY}", "-e", f"UV_INDEX_URL={INDEX_URL}"]
+        # 120 s: the proxy fetches an uncached package from PyPI on first use (15.2 s for setuptools; pip gives up at 15)
+        args += ["-e", f"PIP_INDEX_URL={INDEX_URL}", "-e", f"PIP_TRUSTED_HOST={PROXY}", "-e", f"UV_INDEX_URL={INDEX_URL}",
+                 "-e", "PIP_DEFAULT_TIMEOUT=120"]
     prelude = "cp -a /snap/. /src/ 2>/dev/null; " if snapshot_volume else ""
     r = _docker(*args, image, "sh", "-c", prelude + script, timeout=timeout)
     if r.timed_out:

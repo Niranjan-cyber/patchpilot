@@ -64,7 +64,8 @@ def run_supplyguard(rid: str) -> SGReport:
     if cmd and src.exists():
         try:
             argv = shlex.split(cmd, posix=os.name != "nt")
-            argv[0] = shutil.which(argv[0]) or argv[0]
+            # absolute: a relative "data/..." .CMD path is read by cmd.exe as command "data" + switch "/tools" (never ran)
+            argv[0] = os.path.abspath(found) if (found := shutil.which(argv[0])) else argv[0]
             p = subprocess.run(argv + ["analyze", str(src), "--json"], capture_output=True, text=True,
                                encoding="utf-8", errors="replace", timeout=180)
             code, log = p.returncode, p.stdout[-200000:] + p.stderr[-20000:]

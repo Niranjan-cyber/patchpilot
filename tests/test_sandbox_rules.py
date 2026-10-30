@@ -69,3 +69,21 @@ def test_junit_followed_by_stderr_still_parses():
     # fix (298 passed) read as no_results
     out = junit_outcomes(XML + "/tmp/d0.diff:59: new blank line at EOF.\n+\nwarning: 1 line adds whitespace errors.\n")
     assert out == junit_outcomes(XML) and out
+
+
+def test_supplyguard_runs_with_an_absolute_executable(tmp_path, monkeypatch):
+    # Windows: `which` returns tsx.CMD as a relative forward-slash path; cmd.exe read "data/..." as a command "data" with a
+    # "/tools" switch, so SupplyGuard never ran and G1 was inconclusive on every run
+    import os
+    from backend import db
+    from backend.sandbox import steps
+    monkeypatch.setattr(db, "DB_PATH", str(tmp_path / "app.db"))
+    monkeypatch.setattr(steps, "WORK", tmp_path)
+    (tmp_path / "r" / "src").mkdir(parents=True)
+    monkeypatch.setenv("SUPPLYGUARD_CMD", "data/tools/sg/.bin/tsx data/tools/sg/cli/index.ts")
+    monkeypatch.setattr(steps.shutil, "which", lambda x: "data/tools/sg/.bin\tsx.CMD")
+    seen = []
+    class P: returncode, stdout, stderr = 0, "{}", ""
+    monkeypatch.setattr(steps.subprocess, "run", lambda argv, **k: (seen.append(argv), P)[1])
+    steps.run_supplyguard("r")
+    assert os.path.isabs(seen[0][0])
