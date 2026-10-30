@@ -124,7 +124,8 @@ INSTALL = r"""cd /src
     for x in "[test]" "[tests]" "[testing]" "[dev]" ""; do echo "~ trying pip install -e .$x"; o=$(pip install -q -e ".$x" 2>&1); c=$?; echo "$o"
       [ $c -eq 0 ] && ! echo "$o" | grep -q "does not provide the extra" && { echo "+ pip install -e .$x"; break; }; [ -z "$x" ] && exit 1; done
   fi
-  pip install -q -U "pip>=25.1" >/dev/null 2>&1
+  # no -U: pp-base already has pip>=25.1, and -U still asks the index (a 203 s stall on Docker's flaky network)
+  pip install -q "pip>=25.1" >/dev/null 2>&1
   if grep -q '^\[dependency-groups\]' pyproject.toml 2>/dev/null; then
     for g in test tests dev; do grep -qE "^$g *=" pyproject.toml && { echo "+ pip install --group $g"; pip install -q --group "$g"; }; done
   fi
