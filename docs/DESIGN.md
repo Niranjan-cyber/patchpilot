@@ -24,12 +24,12 @@ It is implemented in `web/src/index.css`.
 They are never brand colour: fail `#D63A2C` (text `#F2877C`), pass `#2F8A46` (text `#7FC98A`), warning `#E9B65A`.
 
 ## Gradient and texture
-- **Hero glow:** burnt orange over `#0F0B08`, on the home hero only.
+- **Hero glow:** one faint burnt-orange ellipse over `#0F0B08`, on the home hero only. The hero's right column is the real proof from tinycalc PR #4 (no mock data), not decoration.
 - **App screens:** mostly solid. No heavy shadows, glass effects or decorative gradients.
 
 ## Typography
 - **Inter** 400/700 is the primary UI family. The scale is 52 (hero) / 36 / 22 / 16 / 15 / 14.
-- **JetBrains Mono** 400/500 is for technical labels: section labels, metadata, IDs, logs, step status and page numbers. These labels are uppercase and tracked, in orange highlight.
+- **JetBrains Mono** 400/500 is only for things that are literally code: test IDs, file paths, repo refs, diffs, logs and step numbers. Labels, step status, badges and table headers are Inter, sentence case, never uppercase-tracked (2026-10-30 polish: the all-caps mono eyebrows read as template chrome).
 
 ## Shape and spacing
 - **Spacing:** 8px base (0.5 / 1 / 1.5 / 2 / 3 / 4 rem).

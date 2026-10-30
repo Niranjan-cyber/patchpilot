@@ -29,7 +29,7 @@ code { font: 0.88em var(--mono); color: var(--text-2); }
 /* Type */
 h1 { font-size: 2.25rem; line-height: 1.2; margin: 0 0 var(--s1); color: var(--text); letter-spacing: -0.01em; }
 h2 { font-size: 1.375rem; line-height: 1.3; margin: 0 0 var(--s1); color: var(--text); }
-h3 { font: 500 0.78rem/1.4 var(--mono); text-transform: uppercase; letter-spacing: 0.06em; margin: 0 0 0.6rem; color: var(--orange-hi); }
+h3 { font-size: 0.9375rem; line-height: 1.4; font-weight: 700; margin: 0 0 0.6rem; color: var(--text-2); }
 p { margin: 0 0 var(--s2); }
 .lede { color: var(--text-2); font-size: 1.125rem; max-width: 42rem; }
 .hint { color: var(--muted); font-size: 0.9375rem; }
@@ -37,7 +37,7 @@ p { margin: 0 0 var(--s2); }
 .issue-ref a { color: var(--orange-hi); }
 
 /* Shell */
-.demo-banner { background: var(--raised); color: var(--muted); font: 0.75rem/2rem var(--mono); padding: 0 var(--bleed); border-bottom: 1px solid var(--line); }
+.demo-banner { background: var(--raised); color: var(--muted); font-size: 0.8125rem; line-height: 1.5; padding: 0.4rem var(--bleed); border-bottom: 1px solid var(--line); }
 .top { display: flex; align-items: center; justify-content: space-between; gap: var(--s2); min-height: 4rem; padding: 0 var(--bleed);
   background: rgba(15, 11, 8, 0.94); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 10; }
 .brand { display: inline-flex; align-items: center; gap: 0.6rem; font-weight: 700; font-size: 1.2rem; letter-spacing: 0.02em; color: var(--text); text-decoration: none; white-space: nowrap; }
@@ -76,35 +76,36 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 /* Home */
 .start { max-width: none; }
 .hero { margin: -2.5rem calc(50% - 50vw) 0; padding: 5.5rem var(--bleed) var(--s5); border-bottom: 1px solid var(--line);
-  background: radial-gradient(ellipse 60% 70% at 88% 0%, rgba(232, 101, 43, 0.30), rgba(232, 101, 43, 0) 70%),
-              radial-gradient(ellipse 40% 50% at 100% 100%, rgba(120, 45, 14, 0.25), rgba(120, 45, 14, 0) 70%), var(--canvas); }
-.hero > * { max-width: 44rem; }
+  background: radial-gradient(ellipse 50% 60% at 85% 10%, rgba(232, 101, 43, 0.18), rgba(232, 101, 43, 0) 70%), var(--canvas);
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 27rem); gap: var(--s5); }
+.hero-copy { max-width: 40rem; }
 .hero h1 { font-size: 3.25rem; line-height: 1.1; margin-bottom: var(--s2); letter-spacing: -0.02em; }
 .hero .lede { font-size: 1.3rem; line-height: 1.55; }
 .paste { margin-top: var(--s4); }
-.paste label { display: block; margin-bottom: var(--s1); font: 500 0.78rem var(--mono); text-transform: uppercase; letter-spacing: 0.06em; color: var(--orange-hi); }
+.paste label { display: block; margin-bottom: var(--s1); font-weight: 700; color: var(--text-2); }
 .paste-row { display: flex; gap: var(--s1); }
 .paste .hint { margin: 0.75rem 0 0; }
 .try { margin: var(--s2) 0 0; color: var(--text-2); }
-.how { list-style: none; counter-reset: how; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s2);
-  max-width: none; margin: var(--s5) 0 0; padding: 0; }
-.how li { counter-increment: how; display: grid; align-content: start; gap: 0.35rem; padding: var(--s3) var(--s3) var(--s3) 3.75rem; position: relative;
-  background: rgba(25, 17, 13, 0.72); border: 1px solid var(--line); border-radius: var(--r-lg); }
-.how li::before { content: counter(how, decimal-leading-zero); position: absolute; left: var(--s3); top: 1.55rem; font: 500 0.85rem var(--mono); color: var(--orange); }
-.how strong { font-size: 1.1rem; color: var(--text); }
-.how span { color: var(--muted); }
-.preview { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--s4); align-items: center; padding: var(--s5) 0; border-bottom: 1px solid var(--line); }
-.preview p { margin: 0; max-width: 34rem; }
-.mini-proof { display: flex; align-items: center; gap: var(--s1); flex-wrap: wrap; }
-.mini-proof .run { flex: none; min-width: 0; font-size: 0.9375rem; padding: 0.75rem 1rem; }
-.mini-arrow { font-size: 1.25rem; color: var(--orange); padding: 0 0.25rem; }
+/* the steps are a real sequence, so they keep numbers, but as a quiet list under the form, not three cards */
+.how { list-style: none; counter-reset: how; display: grid; gap: 0.6rem; max-width: 36rem; margin: var(--s4) 0 0; padding: var(--s3) 0 0; border-top: 1px solid var(--line); }
+.how li { counter-increment: how; padding-left: 2rem; position: relative; color: var(--muted); }
+.how li::before { content: counter(how); position: absolute; left: 0; top: 0.1rem; width: 1.3rem; height: 1.3rem; border-radius: 6px; display: grid; place-items: center;
+  font: 500 0.75rem var(--mono); color: var(--orange-hi); border: 1px solid var(--line-strong); }
+.how strong { color: var(--text); margin-right: 0.4rem; }
+.hero-proof { margin: 0; align-self: center; padding: var(--s3); background: var(--raised); border: 1px solid var(--line-strong); border-radius: var(--r-xl); display: grid; gap: var(--s2); }
+.hero-proof figcaption { color: var(--text-2); }
+.hero-proof code { font-size: 0.8rem; color: var(--text); }
+.proof-rows { display: grid; grid-template-columns: auto 1fr; gap: var(--s1) var(--s2); align-items: center; margin: 0; }
+.proof-rows dt { color: var(--muted); font-size: 0.875rem; }
+.proof-rows dd { display: flex; gap: var(--s1); margin: 0; }
+.proof-rows .run { min-width: 0; font-size: 1rem; padding: 0.8rem 0.5rem; }
+.hero-proof .hint { margin: 0; }
 .samples { margin-top: var(--s5); }
 .samples > .hint { margin-top: -0.25rem; }
-.sample-grid { list-style: none; padding: 0; margin: var(--s2) 0 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: var(--s1); }
-.sample-grid li { display: flex; }
-.sample-grid a { flex: 1; display: block; padding: 0.85rem 1rem; background: var(--raised); border: 1px solid var(--line); border-radius: var(--r); color: var(--text); font-weight: 700; text-decoration: none; }
-.sample-grid a:hover { border-color: var(--orange); background: var(--elevated); color: var(--text); }
-.sample { font: 500 0.7rem var(--mono); text-transform: uppercase; letter-spacing: 0.05em; color: var(--orange-hi); border: 1px solid rgba(240, 138, 87, 0.45);
+.sample-grid { list-style: none; padding: 0; margin: var(--s2) 0 0; display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.sample-grid a { display: block; padding: 0.4rem 0.85rem; border: 1px solid var(--line-strong); border-radius: 999px; color: var(--text-2); font-size: 0.9375rem; text-decoration: none; }
+.sample-grid a:hover { border-color: var(--orange); color: var(--text); }
+.sample { font: 500 0.75rem Inter, Arial, Helvetica, sans-serif; color: var(--orange-hi); border: 1px solid rgba(240, 138, 87, 0.45);
   border-radius: 999px; padding: 0.15rem 0.55rem; vertical-align: middle; white-space: nowrap; }
 
 /* Form fields */
@@ -183,7 +184,7 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 .step-name { font-weight: 700; color: var(--text); }
 .step-not_run .step-name { color: var(--muted); font-weight: 400; }
 .step-line { margin: 0.2rem 0 0; color: var(--text-2); max-width: 62ch; }
-.status { font: 500 0.78rem var(--mono); text-transform: uppercase; letter-spacing: 0.04em; white-space: nowrap; }
+.status { font-size: 0.875rem; font-weight: 700; white-space: nowrap; }
 .status-passed { color: var(--orange-hi); } .status-failed, .status-blocked { color: var(--fail); }
 .status-inconclusive { color: var(--warn); } .status-not_run { color: var(--muted); } .status-running { color: var(--text); }
 .side { display: flex; flex-direction: column; gap: 0.75rem; }
@@ -216,9 +217,10 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 .pill-published { color: var(--pass); border-color: rgba(127, 201, 138, 0.4); }
 
 /* Review */
-.consequences { list-style: none; counter-reset: c; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s1); padding: 0; margin: 0 0 var(--s3); }
-.consequences li { counter-increment: c; padding: var(--s2) var(--s2) var(--s2) 3.1rem; position: relative; background: var(--raised); border: 1px solid var(--line); border-radius: var(--r-lg); color: var(--text-2); }
-.consequences li::before { content: counter(c, decimal-leading-zero); position: absolute; left: var(--s2); top: 1.1rem; font: 500 0.8rem var(--mono); color: var(--orange); }
+.consequences { list-style: none; counter-reset: c; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s3); padding: 0 0 var(--s3); margin: 0 0 var(--s3); border-bottom: 1px solid var(--line); }
+.consequences li { counter-increment: c; padding-left: 2rem; position: relative; color: var(--text-2); }
+.consequences li::before { content: counter(c); position: absolute; left: 0; top: 0.1rem; width: 1.3rem; height: 1.3rem; border-radius: 6px; display: grid; place-items: center;
+  font: 500 0.75rem var(--mono); color: var(--orange-hi); border: 1px solid var(--line-strong); }
 .consequences strong { color: var(--text); }
 .review .card { margin-top: var(--s3); }
 .diff { background: var(--canvas); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 0 0 var(--s1); overflow-x: auto; font: 0.85rem/1.65 var(--mono); margin: 0; color: var(--text-2); }
@@ -249,7 +251,7 @@ abbr { text-decoration: underline dotted; cursor: help; }
 .table-wrap { overflow-x: auto; margin: var(--s2) 0; border: 1px solid var(--line); border-radius: var(--r-lg); }
 .evaltable { width: 100%; border-collapse: collapse; background: var(--raised); }
 .evaltable th, .evaltable td { text-align: left; padding: 0.7rem 0.85rem; border-top: 1px solid var(--line); vertical-align: top; color: var(--text-2); }
-.evaltable th { font: 500 0.75rem var(--mono); text-transform: uppercase; letter-spacing: 0.05em; color: var(--orange-hi); border-top: 0; background: var(--elevated); }
+.evaltable th { font-size: 0.875rem; font-weight: 700; color: var(--text-2); border-top: 0; background: var(--elevated); }
 .row-bad td { background: var(--fail-bg); color: var(--fail); }
 .pill-pass { color: var(--pass); font-weight: 700; }
 .pill-fail { color: var(--fail); font-weight: 700; }
@@ -303,9 +305,8 @@ abbr { text-decoration: underline dotted; cursor: help; }
 
 /* Small screens */
 @media (max-width: 760px) {
-  .run-grid, .proof, .preview { grid-template-columns: 1fr; }
+  .run-grid, .proof, .hero { grid-template-columns: 1fr; }
   .how, .consequences { grid-template-columns: 1fr; }
-  .how { margin-top: var(--s4); }
   .proof-arrow { transform: rotate(90deg); padding: 0; justify-self: center; }
   .proof > *, .proof-runs .run { min-width: 0; }
   .run { font-size: 1.05rem; padding: var(--s2) 0.5rem; }
