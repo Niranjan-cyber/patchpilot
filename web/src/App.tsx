@@ -52,6 +52,7 @@ function Start() {
   return (
     <section className="start">
       <div className="hero">
+        <div className="hero-copy">
         <h1>Turn a GitHub issue into a tested fix.</h1>
         <p className="lede">We reproduce the bug in a sandbox, test a fix, and show you the proof. You decide whether to open a pull request.</p>
         <form onSubmit={(e) => { e.preventDefault(); check(url); }} className="paste">
@@ -67,18 +68,18 @@ function Start() {
         <ol className="how" aria-label="How a run works">
           {HOW.map(([t, d]) => <li key={t}><strong>{t}</strong><span>{d}</span></li>)}
         </ol>
+        </div>
+        {/* real: tinycalc PR #4's verified run (B13 exit), not sample data */}
+        <figure className="hero-proof" aria-label="What a finished run shows you">
+          <figcaption>Every fix comes with proof. From a real run on <a href={TRY}>tinycalc #1</a>:</figcaption>
+          <code>tests/test_patchpilot_issue_1.py::<wbr />test_divide_by_zero_raises</code>
+          <dl className="proof-rows">
+            <dt>Original code</dt><dd><span className="run run-failed">Failed</span><span className="run run-failed">Failed</span></dd>
+            <dt>With the fix</dt><dd><span className="run run-passed">Passed</span><span className="run run-passed">Passed</span></dd>
+          </dl>
+          <p className="hint">The same new test, twice on each side, every run in a fresh sandbox. <a href="https://github.com/Niranjan-cyber/tinycalc/pull/4">See the draft pull request it opened</a></p>
+        </figure>
       </div>
-      <section className="preview" aria-label="What a finished run shows you">
-        <div>
-          <h2>Every fix comes with proof</h2>
-          <p className="hint">The same new test, run twice on the original code and twice on the fix, each time in a fresh sandbox. From a real run on tinycalc #1.</p>
-        </div>
-        <div className="mini-proof" aria-hidden>
-          <span className="run run-failed">Run 1: Failed</span><span className="run run-failed">Run 2: Failed</span>
-          <span className="mini-arrow">➜</span>
-          <span className="run run-passed">Run 1: Passed</span><span className="run run-passed">Run 2: Passed</span>
-        </div>
-      </section>
       {!!mine.items?.length && (
         <div className="samples"><h2>Your recent runs</h2><RunList items={mine.items.slice(0, 5)} /></div>
       )}
