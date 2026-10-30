@@ -71,3 +71,14 @@ def test_files_generated_at_setup_reach_later_steps_but_never_the_diff(tmp_path)
         assert "gen_version.py" not in r.out.replace("made-at-install", "")   # ignored file: not part of any diff
     finally:
         docker.rm(name); docker.rm_image(img); docker.rm_volume(vol)
+
+
+def test_install_adds_the_plugin_an_addopts_flag_needs(tmp_path):   # tablib: --cov in pytest.ini, pytest-cov nowhere
+    (tmp_path / "pytest.ini").write_text("[pytest]\naddopts = -rsxX --cov=demo --cov-report term\n")
+    vol = project(tmp_path)
+    try:
+        r = run(STUB_PIP + INSTALL + "\ncat /tmp/calls", snapshot_volume=vol, read_only=False)
+        assert "pip install -q pytest-cov" in r.out and "+ pip install pytest-cov" in r.out
+        assert "pytest-socket" not in r.out and "pytest-xdist" not in r.out
+    finally:
+        docker.rm_volume(vol)

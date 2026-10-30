@@ -116,7 +116,7 @@ def preflight(ctx: StepContext) -> GateResult:
 
 
 INSTALL = r"""cd /src
-( for f in requirements.txt requirements-dev.txt requirements-test.txt requirements-tests.txt requirements/test.txt requirements/tests.txt requirements/dev.txt; do
+( for f in requirements.txt requirements-dev.txt requirements-test.txt requirements-tests.txt test-requirements.txt requirements/test.txt requirements/tests.txt requirements/dev.txt tests/requirements.txt; do
     [ -f "$f" ] && { echo "+ pip install -r $f"; pip install -q -r "$f" || exit 1; }; done
   if [ -f pyproject.toml ] || [ -f setup.py ]; then
     # pip only warns (exit 0) on an extra the project doesn't have, so keep going until one really exists (#26)
@@ -128,7 +128,12 @@ INSTALL = r"""cd /src
   if grep -q '^\[dependency-groups\]' pyproject.toml 2>/dev/null; then
     for g in test tests dev; do grep -qE "^$g *=" pyproject.toml && { echo "+ pip install --group $g"; pip install -q --group "$g"; }; done
   fi
-  pip install -q pytest ) > /tmp/install.log 2>&1
+  pip install -q pytest
+  # pytest refuses to start on an addopts flag whose plugin isn't installed (tablib's --cov, twine's --disable-socket)
+  cfg=$(cat pytest.ini tox.ini setup.cfg pyproject.toml 2>/dev/null)
+  for p in "--cov:pytest-cov" "--disable-socket:pytest-socket" "--timeout:pytest-timeout" "--reruns:pytest-rerunfailures" \
+           "-n auto:pytest-xdist" "--numprocesses:pytest-xdist" "--benchmark-:pytest-benchmark"; do
+    case "$cfg" in *"${p%%:*}"*) pip install -q "${p#*:}" && echo "+ pip install ${p#*:}";; esac; done ) > /tmp/install.log 2>&1
 echo "INSTALL_EXIT=$?"; tail -c 30000 /tmp/install.log
 # #26: /src is tmpfs, so files the install generated (e.g. setuptools_scm's _version.py) would vanish from later steps.
 # Keep the git-ignored ones in the committed image; docker.run/start unpack them over the snapshot.
