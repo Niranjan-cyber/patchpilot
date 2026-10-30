@@ -1,0 +1,34 @@
+diff --git a/src/itsdangerous/serializer.py b/src/itsdangerous/serializer.py
+index 5ed949c..c6de36e 100644
+--- a/src/itsdangerous/serializer.py
++++ b/src/itsdangerous/serializer.py
+@@ -256,15 +256,26 @@ class Serializer(t.Generic[_TSerialized]):
+             use_serializer = serializer
+             is_text = is_text_serializer(serializer)
+ 
++        # ``serializer_kwargs`` may contain arguments that are only valid for
++        # ``dumps`` (e.g. ``skipkeys`` for the JSON serializer).  If the
++        # underlying ``loads`` does not accept them it will raise ``TypeError``.
++        # In that case we retry the call without the extra kwargs to maintain
++        # compatibility with serializers that do not support them.
+         try:
++            if is_text:
++                return use_serializer.loads(
++                    payload.decode("utf-8"),
++                    **self.serializer_kwargs,  # type: ignore[arg-type]
++                )
++            return use_serializer.loads(payload, **self.serializer_kwargs)  # type: ignore[arg-type]
++        except TypeError:
++            # Fallback without kwargs
+             if is_text:
+                 return use_serializer.loads(payload.decode("utf-8"))  # type: ignore[arg-type]
+-
+             return use_serializer.loads(payload)  # type: ignore[arg-type]
+         except Exception as e:
+             raise BadPayload(
+-                "Could not load the payload because an exception"
+-                " occurred on unserializing the data.",
++                "Could not load the payload because an exception occurred on unserializing the data.",
+                 original_error=e,
+             ) from e
+ 

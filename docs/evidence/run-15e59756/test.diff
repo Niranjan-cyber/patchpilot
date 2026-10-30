@@ -1,0 +1,59 @@
+diff --git a/tests/test_patchpilot_issue_389.py b/tests/test_patchpilot_issue_389.py
+new file mode 100644
+index 0000000..922f19a
+--- /dev/null
++++ b/tests/test_patchpilot_issue_389.py
+@@ -0,0 +1,53 @@
++import json
++
++import pytest
++
++from itsdangerous import Serializer
++
++
++class DummySerializer:
++    """A minimal serializer that records kwargs passed to dumps and loads."""
++
++    def __init__(self):
++        self.dumps_kwargs = None
++        self.loads_kwargs = None
++
++    def dumps(self, obj, **kwargs):
++        # Record the kwargs and return a JSON-encoded bytes payload.
++        self.dumps_kwargs = kwargs
++        return json.dumps(obj).encode()
++
++    def loads(self, payload, **kwargs):
++        # Record the kwargs and return the decoded JSON object.
++        self.loads_kwargs = kwargs
++        return json.loads(payload)
++
++
++def test_serializer_kwargs_are_passed_to_load():
++    """
++    The Serializer should forward ``serializer_kwargs`` to both the
++    ``dumps`` and ``loads`` calls of the underlying serializer.
++    The current implementation forgets to pass them to ``loads``,
++    causing this test to fail.
++    """
++    dummy = DummySerializer()
++    # Provide an explicit serializer_kwargs dict.
++    serializer_kwargs = {"extra": 42}
++    s = Serializer(
++        secret_key="test-secret",
++        serializer=dummy,
++        serializer_kwargs=serializer_kwargs,
++    )
++    data = {"value": "test"}
++
++    signed = s.dumps(data)
++    # The DummySerializer.dumps should have received the kwargs.
++    assert dummy.dumps_kwargs == serializer_kwargs
++
++    # Loading should also pass the same kwargs to the serializer.
++    result = s.loads(signed)
++    # The test fails if loads_kwargs is empty or None.
++    assert dummy.loads_kwargs == serializer_kwargs
++    # And the round‑trip data should be intact.
++    assert result == data
++
