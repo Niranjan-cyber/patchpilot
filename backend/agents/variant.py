@@ -1,13 +1,13 @@
 """B17 / S4: a hidden test variant the Fixer never sees (written after the fix, against the ORIGINAL code).
 It can only LOWER readiness, through the Reviewer (contracts: only the Reviewer lowers readiness)."""
-import re
+import shlex
 import uuid
 
 from backend import artifacts, db
 from backend.agents import loop
 from backend.agents.bisect import probe_result
 from backend.contracts.models import CheckStatus, Verification
-from backend.gates.diff_policy import is_test_path
+from backend.gates.diff_policy import diff_paths, is_test_path
 from backend.llm_gateway import BudgetExceeded, QuotaPause
 from backend.sandbox import docker
 from backend.sandbox.steps import image, snap
@@ -51,7 +51,8 @@ def _run(rid: str, diffs: list[str], test_file: str) -> str:
 
 
 REASON = {"no_sandbox": "the sandbox for writing the variant didn't start", "ai_unavailable": "the AI was unavailable or over budget",
-          "no_variant_written": "no variant test was written", "edits_non_test_files": "the variant changed non-test files",
+          "no_variant_written": "no variant test was written",
+          "variant_paths_unclear": "the files the variant changed couldn't be read from its diff", "edits_non_test_files": "the variant changed non-test files",
           "variant_not_failing_on_base": "the variant didn't fail on the original code, so it would prove nothing",
           "variant_run_unclear": "the variant's run didn't give a clean pass or fail", "ok": "", "fix_fails_hidden_variant": ""}
 
@@ -92,13 +93,15 @@ def _hidden_variant(rid: str) -> tuple[CheckStatus, str, list[str]]:
     finally:
         docker.rm(name)
     ev = [artifacts.put("\n\n".join(f"[{m['role']}]\n{m['content']}" for m in transcript))] if transcript else []
-    paths = re.findall(r"^diff --git a/\S+ b/(\S+)$", diff, re.M)
+    paths, parsed_all = diff_paths(diff)      # shared parser: a path with a space used to be invisible here too
     if not (res and diff.strip() and paths):
         return CheckStatus.NOT_RUN, "no_variant_written", ev
+    if not parsed_all:
+        return CheckStatus.NOT_RUN, "variant_paths_unclear", ev
     if not all(is_test_path(p) for p in paths):
         return CheckStatus.NOT_RUN, "edits_non_test_files", ev
     fix = (artifacts.get(run.patch.fix_diff_id) or b"").decode("utf-8", "replace")
-    test_file = " ".join(sorted(set(paths)))
+    test_file = " ".join(shlex.quote(p) for p in sorted(paths))   # a filename with a space must stay one pytest argument
     base_out, fix_out = _run(rid, [diff], test_file), _run(rid, [fix, diff], test_file)
     status, reason = variant_result(base_out, fix_out)
     return status, reason, [*ev, artifacts.put(diff), artifacts.put(base_out), artifacts.put(fix_out)]

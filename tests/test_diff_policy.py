@@ -122,3 +122,56 @@ def test_broad_catch_is_a_concern_even_when_logged_and_tests_are_ignored():
     assert "catches every error" in swallowed_excepts(broad)[0]["text"]
     assert "catches every error" in swallowed_excepts(broad.replace("except Exception:", "except:"))[0]["text"]
     assert swallowed_excepts(broad.replace("p/m.py", "tests/test_m.py")) == []
+
+
+# --- paths with spaces used to be invisible to the gate (bug:P0) ----------
+
+
+def test_a_test_file_with_a_space_still_fails_g4():
+    # git does not quote a space in the `diff --git a/X b/Y` header, so the old
+    # \S+ pattern matched nothing and the file was never checked: the Fixer
+    # could neuter the reproduction test and still pass G4.
+    assert g4_result(d("tests/my test.py"), evidence_ids=[]).reason == "edits_tests"
+    assert g4_result(d("tests/my_test.py"), evidence_ids=[]).reason == "edits_tests"
+
+
+def test_a_workflow_with_a_space_still_fails_g4():
+    assert g4_result(d(".github/workflows/my flow.yml"), evidence_ids=[]).reason == "ci_change"
+
+
+def test_a_source_file_with_a_space_still_passes():
+    assert g4_result(d("src/my module.py"), evidence_ids=[]).status is CheckStatus.PASSED
+
+
+def test_spaced_paths_count_towards_the_file_limit():
+    many = "".join(d(f"src/file {i}.py") for i in range(6))
+    assert g4_result(many, evidence_ids=[]).reason == "too_many_files"
+
+
+def test_a_header_that_cannot_be_parsed_fails_the_gate():
+    # git quotes non-ASCII paths; a file we can't name is a file we can't check,
+    # so the diff is refused rather than silently accepted.
+    quoted = 'diff --git "a/tests/t\303\251st.py" "b/tests/t\303\251st.py"\n--- a/x\n+++ b/x\n@@ -1 +1 @@\n-a\n+b\n'
+    r = g4_result(d("src/ok.py") + quoted, evidence_ids=[])
+    assert (r.status, r.reason) == (CheckStatus.FAILED, "unparseable_diff")
+
+
+def test_diff_paths_reports_both_sides_of_a_rename():
+    from backend.gates.diff_policy import diff_paths
+    rename = ("diff --git a/src/old.py b/tests/new.py\nsimilarity index 100%\n"
+              "rename from src/old.py\nrename to tests/new.py\n")
+    paths, parsed_all = diff_paths(rename)
+    assert paths == {"src/old.py", "tests/new.py"} and parsed_all
+    assert g4_result(rename, evidence_ids=[]).reason == "edits_tests"
+
+
+def test_an_empty_diff_is_still_empty_not_unparseable():
+    assert g4_result("", evidence_ids=[]).reason == "empty_diff"
+    assert g4_result("no headers here\n", evidence_ids=[]).reason == "empty_diff"
+
+
+def test_a_concern_in_a_spaced_file_is_attributed_to_it():
+    diff = ("diff --git a/src/my module.py b/src/my module.py\n--- a/src/my module.py\n+++ b/src/my module.py\n"
+            "@@ -1,2 +1,3 @@\n try:\n     x()\n+except Exception:\n+    pass\n")
+    concerns = swallowed_excepts(diff)
+    assert len(concerns) == 1 and "src/my module.py" in concerns[0]["text"]

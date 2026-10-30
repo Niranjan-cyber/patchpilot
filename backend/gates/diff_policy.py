@@ -6,7 +6,39 @@ from backend.contracts.models import CheckStatus, GateResult
 
 MAX_FILES, MAX_LINES = 5, 200
 DEP_FILES = {"pyproject.toml", "setup.py", "setup.cfg", "pipfile", "pipfile.lock", "poetry.lock", "uv.lock", "pdm.lock"}
-_HEADER = re.compile(r"^diff --git a/(\S+) b/(\S+)$", re.M)
+_HEADER = re.compile(r"^diff --git (.+)$", re.M)
+
+
+def diff_paths(diff: str) -> tuple[set[str], bool]:
+    """Every path a git diff touches, and whether every header could be parsed.
+
+    git does not quote a space in `diff --git a/X b/Y`, so that line is ambiguous in general.
+    The identical-path case (every diff that isn't a rename) is resolved with a backreference;
+    a header we can't split is reported so the caller refuses the diff instead of silently
+    ignoring the file it names. Paths quoted by git (non-ASCII, specials) also land in the
+    unparsed bucket, i.e. they fail closed.
+    """
+    paths, parsed_all = set(), True
+    for body in (b.rstrip() for b in _HEADER.findall(diff)):
+        if (m := re.fullmatch(r"a/(.+) b/\1", body)):
+            paths.add(m.group(1))
+        elif (m := re.fullmatch(r"a/(\S+) b/(\S+)", body)):   # rename or copy
+            paths.update(m.groups())
+        else:
+            parsed_all = False
+    return paths, parsed_all
+
+
+def _header_new_path(line: str) -> str | None:
+    """The post-image path of a `diff --git` line, "" when it can't be parsed, None if not a header."""
+    if not (m := _HEADER.match(line)):
+        return None
+    body = m.group(1).rstrip()
+    if (x := re.fullmatch(r"a/(.+) b/\1", body)):
+        return x.group(1)
+    if (x := re.fullmatch(r"a/(\S+) b/(\S+)", body)):
+        return x.group(2)
+    return ""
 
 
 def is_test_path(p: str) -> bool:
@@ -24,9 +56,11 @@ def is_dep_path(p: str) -> bool:
 
 def g4_result(diff: str, *, evidence_ids: list[str]) -> GateResult:
     fail = lambda r: GateResult(gate="G4", status=CheckStatus.FAILED, reason=r, evidence_ids=evidence_ids)
-    paths = {p for pair in _HEADER.findall(diff) for p in pair}
-    if not paths:
+    paths, parsed_all = diff_paths(diff)
+    if not paths and parsed_all:
         return fail("empty_diff")
+    if not parsed_all:   # a file we can't name is a file we can't check: refuse the diff
+        return fail("unparseable_diff")
     if "GIT binary patch" in diff or re.search(r"^Binary files .* differ$", diff, re.M):
         return fail("binary_change")
     if any(is_test_path(p) for p in paths):
@@ -109,8 +143,8 @@ def swallowed_excepts(diff: str) -> list[dict]:
     handler neither re-raises nor logs (a retry, `pass`, `return <default>`), may hide real errors (run 11's TypeError retry)."""
     out, path, lines = [], None, diff.splitlines()
     for i, line in enumerate(lines):
-        if (h := _HEADER.match(line)):
-            path = h.group(2)
+        if (h := _header_new_path(line)) is not None:
+            path = h or None      # unparseable header: attribute its hunks to no file
             continue
         if not path or is_test_path(path) or not path.endswith(".py") or not line.startswith("+") or line.startswith("+++"):
             continue
