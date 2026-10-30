@@ -177,7 +177,9 @@ def _call(model, msgs, run_id, role, _completion, backoff):
             r = _completion(model=model, messages=msgs, timeout=600 if model.startswith("ollama") else 120)
             break
         except Exception as e:
-            if "ServiceUnavailable" in type(e).__name__ or "503" in str(e) or "overloaded" in str(e).lower():
+            # overload or a dropped network (DNS/connect, not TLS) is transient: the local model needs no network
+            if "ServiceUnavailable" in type(e).__name__ or "503" in str(e) or "overloaded" in str(e).lower() or \
+                    ("CERTIFICATE" not in str(e) and _re.search(r"getaddrinfo|ConnectError|Connection (refused|reset|error)", str(e))):
                 log("unavailable"); overloaded = True; continue
             _raise_classified(e, model, log)
     if r is None and overloaded:      # still overloaded: pause until capacity is back; time unknown → never guessed

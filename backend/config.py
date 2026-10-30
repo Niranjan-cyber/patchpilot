@@ -8,7 +8,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 @cache
 def limits() -> dict:
-    return tomllib.loads((ROOT / "config" / "limits.toml").read_text())
+    return tomllib.loads((ROOT / "config" / "limits.toml").read_text(encoding="utf-8"))
 
 
 def llm_budget_set() -> bool:
@@ -19,7 +19,7 @@ def load_env(path=ROOT / ".env") -> None:
     """Minimal KEY=VALUE loader (no dependency). Real environment variables win."""
     import os
     if path.exists():
-        for line in path.read_text().splitlines():
+        for line in path.read_text(encoding="utf-8").splitlines():
             k, sep, v = line.partition("=")
             if sep and k.strip() and not k.lstrip().startswith("#"):
                 v = v.split(" #", 1)[0].strip().strip('"')

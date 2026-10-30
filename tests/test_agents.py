@@ -256,3 +256,18 @@ def test_groq_wait_in_the_message_is_used_when_headers_are_lost(tmpdb, msg, secs
     with pytest.raises(G.QuotaPause) as e:
         G._call("groq/x", [], "r", "x", boom, backoff=False)
     assert round((e.value.resume_at - db.now()).total_seconds()) in (secs - 1, secs)
+
+
+def test_a_network_drop_falls_back_to_the_local_model(three_models):
+    class InternalServerError(Exception): pass
+    def fake(model, **k):
+        if not model.startswith("ollama"): raise InternalServerError("GroqException - [Errno 11001] getaddrinfo failed")
+        return _ok_resp("local")
+    assert G.complete([{"role": "user", "content": "x"}], run_id="r", role="x", _completion=fake) == "local"
+
+
+def test_a_certificate_mismatch_is_never_treated_as_transient(three_models):
+    class InternalServerError(Exception): pass
+    def fake(model, **k): raise InternalServerError("[SSL: CERTIFICATE_VERIFY_FAILED] Hostname mismatch")
+    with pytest.raises(InternalServerError):
+        G.complete([{"role": "user", "content": "x"}], run_id="r", role="x", _completion=fake)

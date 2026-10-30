@@ -176,7 +176,7 @@ def get_run(run_id: str, request: Request):
         if not v:
             raise ApiErr(404, "NOT_FOUND", "This run isn't available.")
         return v
-    return RunView.model_validate_json((_fixture(run_id) / "state.json").read_text())
+    return RunView.model_validate_json((_fixture(run_id) / "state.json").read_text(encoding="utf-8"))
 
 
 @app.get("/api/runs/{run_id}/events")
@@ -185,7 +185,7 @@ def get_events(run_id: str, request: Request, after: int = 0):
         _own(request, run_id)
         evs = db.events_after(db.connect(), run_id, after)
         return {"events": [e.model_dump(mode="json") for e in evs], "next_after": evs[-1].seq if evs else after}
-    lines = (_fixture(run_id) / "events.jsonl").read_text().splitlines()
+    lines = (_fixture(run_id) / "events.jsonl").read_text(encoding="utf-8").splitlines()
     evs = [e for e in (Event.model_validate_json(l) for l in lines) if e.seq > after]
     return {"events": [e.model_dump(mode="json") for e in evs], "next_after": evs[-1].seq if evs else after}
 
