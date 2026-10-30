@@ -54,6 +54,13 @@ def test_official_result_from_pytest_ra():
     assert official_result([], [], st) is None
 
 
+def test_parse_ra_matches_swebench_ids_cut_at_the_first_space():
+    from backend.eval import parse_ra
+    st = parse_ra("PASSED t.py::test_x[a b]\nPASSED t.py::test_y[c d]\nFAILED t.py::test_y[c e] - boom\n")
+    assert st["t.py::test_x[a b]"] == "PASSED" and st["t.py::test_x[a"] == "PASSED"   # SWE-bench writes the cut id
+    assert st["t.py::test_y[c"] == "FAILED"                                            # shared prefix: failure wins
+
+
 def test_api_eval_not_run_and_results(tmp_path, monkeypatch):
     import json
     from fastapi.testclient import TestClient

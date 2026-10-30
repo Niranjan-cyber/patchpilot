@@ -34,10 +34,16 @@ def summarize(results: dict) -> dict:
 def parse_ra(out: str) -> dict[str, str]:
     """`pytest -rA` summary lines -> {test id: PASSED|FAILED|ERROR|...} (the way SWE-bench grades)."""
     st = {}
+    bad = ("FAILED", "ERROR")
     for line in out.splitlines():
         word, _, rest = line.partition(" ")
         if word in ("PASSED", "FAILED", "ERROR", "XFAIL", "XPASS", "SKIPPED") and rest:
-            st[rest.split(" - ")[0].strip()] = word
+            full = rest.split(" - ")[0].strip()
+            # SWE-bench ids stop at the first space (`test_x[a b]` -> `test_x[a`), so key both ways;
+            # two params can share that prefix, and then a failure always wins over a pass
+            for k in {full, full.split()[0]}:
+                if st.get(k) not in bad:
+                    st[k] = word
     return st
 
 
