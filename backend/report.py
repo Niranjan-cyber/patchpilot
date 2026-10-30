@@ -22,9 +22,17 @@ def render(v: RunView, narrative: str | None = None) -> str:
         sg = v.supplyguard
         vulns = [f for f in sg.findings if f.get("type") == "vulnerability"]
         susp = [f for f in sg.findings if f.get("type") == "suspicious"]
+        # #29: counts are only totals when the scan finished; unknown is never "none" or 0
+        names = ', '.join(str(f.get('package')) for f in susp)
+        if sg.status in (CheckStatus.PASSED, CheckStatus.BLOCKED):
+            susp_txt, vuln_txt = names or "none", f"{len(vulns)}"
+        elif set(sg.failures) & {"supplyguard_unavailable", "no_supported_dependency_files"}:
+            susp_txt = vuln_txt = "unknown (the check didn't run)"
+        else:
+            susp_txt, vuln_txt = names or "none found before the check stopped", f"at least {len(vulns)} (the check didn't finish)"
         L += ["## Dependencies (SupplyGuard)", f"- Status: {WORD[sg.status]}", f"- Files checked: {', '.join(sg.files) or 'none found'}",
-              f"- Suspicious packages: {', '.join(str(f.get('package')) for f in susp) or 'none'}",
-              f"- Known vulnerabilities: {len(vulns)} (reported, not blocking: tests run offline in a sandbox)",
+              f"- Suspicious packages: {susp_txt}",
+              f"- Known vulnerabilities: {vuln_txt} (reported, not blocking: tests run offline in a sandbox)",
               *([f"- Couldn't complete: {', '.join(sg.failures)}"] if sg.failures else []),
               "- Not a proof of security; no full transitive or malware analysis is claimed.", ""]
     if v.env:
