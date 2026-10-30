@@ -3,7 +3,7 @@ session_runs_per_day = 2      # plus hashed-IP backstop
 account_runs_per_day = 5
 active_runs_per_owner = 1
 global_concurrent_runs = 1    # 2 on a VM
-global_llm_tokens_per_day = 0 # REQUIRED: set from a measured run before the demo. 0 = unset -> no runs, /healthz red. Never unlimited.
+global_llm_tokens_per_day = 600_000 # PROVISIONAL (2 runs) for the measurement run on 2026-10-30; replace with measured value ×N. Was 0 = REQUIRED: set from a measured run before the demo. 0 = unset -> no runs, /healthz red. Never unlimited.
 budget_measured_tokens_per_run = 0
 budget_measured_on = ""
 run_llm_tokens = 300_000

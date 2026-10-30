@@ -1,4 +1,5 @@
 import tomllib
+import os
 from functools import cache
 from pathlib import Path
 
@@ -27,3 +28,5 @@ def load_env(path=ROOT / ".env") -> None:
 
 
 load_env()
+if os.getenv("GOOGLE_API_KEY") and not os.getenv("GEMINI_API_KEY"):   # LiteLLM reads GEMINI_API_KEY
+    os.environ["GEMINI_API_KEY"] = os.environ["GOOGLE_API_KEY"]

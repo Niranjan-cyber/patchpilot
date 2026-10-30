@@ -86,8 +86,9 @@ import re as _re
 from backend import db as _db
 from backend.config import limits as _limits
 
-MODELS = {"agent": _os.getenv("PP_AGENT_MODEL", "gemini/gemini-2.5-flash"),
-          "short": _os.getenv("PP_SHORT_MODEL", "groq/openai/gpt-oss-120b")}
+# gemini-2.5-flash is closed to new keys (verified 2026-10-30); 3.5-flash answers on the team's key.
+MODELS = {"agent": _os.getenv("PP_AGENT_MODEL", "gemini/gemini-3.5-flash")}
+MODELS["short"] = _os.getenv("PP_SHORT_MODEL") or ("groq/openai/gpt-oss-120b" if _os.getenv("GROQ_API_KEY") else MODELS["agent"])
 _SECRET = _re.compile(r"(gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|AIza[0-9A-Za-z_-]{30,}|gsk_[A-Za-z0-9]{20,}|"
                       r"sk-[A-Za-z0-9]{20,}|Authorization:\s*\S+(?:\s+\S+)?)")
 _CALLS = """CREATE TABLE IF NOT EXISTS llm_calls(id INTEGER PRIMARY KEY, run_id TEXT, role TEXT, model TEXT, prompt_tokens INTEGER,
