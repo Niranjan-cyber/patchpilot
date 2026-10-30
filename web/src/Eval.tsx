@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Loading } from "./components";
 import { api, ApiError } from "./api";
 
 type Row = { id: string; kind: "planted" | "swebench"; issue_url: string | null; run_id: string | null;
@@ -30,7 +31,7 @@ export default function Eval() {
       <p className="hint">Results appear here after the eval script runs on the server. We show no numbers until then.</p>
     </section>
   );
-  if (!s) return <section className="panel"><p>Loading the eval…</p></section>;
+  if (!s) return <Loading label="Loading the eval…" />;
   const c = s.counts;
   return (
     <section className="eval">
