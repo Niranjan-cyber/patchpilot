@@ -57,3 +57,9 @@ def test_agents_get_the_whole_issue_body_not_600_chars(monkeypatch):
               "/repos/o/r": {"language": "Python", "default_branch": "main"}}
     monkeypatch.setattr(R, "_get", lambda h, path, required=True: canned.get(path))
     assert "unsigned = s.loads(signed)" in R.check_issue("https://github.com/o/r/issues/1").issue.summary
+
+
+def test_expected_actual_with_markdown_bold():
+    # tinycalc #1: "**Expected:** `ZeroDivisionError`" came out as "** `ZeroDivisionError`"
+    assert expected_actual("**Expected:** `ZeroDivisionError`, like `/`.\n**Actual**: returns 0")[0] == "`ZeroDivisionError`, like `/`."
+    assert expected_actual("**Actual**: returns 0")[1] == "returns 0"

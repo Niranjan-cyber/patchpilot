@@ -48,7 +48,7 @@ def parse_url(url: str) -> tuple[str, int]:
 
 def expected_actual(body: str) -> tuple[str | None, str | None]:
     """Rule-based: lines starting 'Expected' / 'Actual' (common issue templates). None when not stated."""
-    grab = lambda k: (m.group(1).strip()[:300] if (m := re.search(rf"(?im)^\W*{k}[^:\n]*:\s*(.+)$", body or "")) else None)
+    grab = lambda k: (m.group(1).strip()[:300] if (m := re.search(rf"(?im)^\W*{k}[^:\n]*:[\s*]*(.+)$", body or "")) else None)
     return grab("expected"), grab("actual")
 
 
