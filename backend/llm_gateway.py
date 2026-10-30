@@ -87,8 +87,17 @@ from backend import db as _db
 from backend.config import limits as _limits
 
 # gemini-2.5-flash is closed to new keys (verified 2026-10-30); 3.5-flash answers on the team's key.
-MODELS = {"agent": _os.getenv("PP_AGENT_MODEL", "gemini/gemini-3.5-flash")}
-MODELS["short"] = _os.getenv("PP_SHORT_MODEL") or ("groq/openai/gpt-oss-120b" if _os.getenv("GROQ_API_KEY") else MODELS["agent"])
+GROQ_MODEL = "groq/openai/gpt-oss-120b"
+
+
+def chain(kind: str) -> list[str]:
+    """Models to try in order: Gemini, then Groq (if keyed), then a local model (PP_LOCAL_MODEL, e.g. ollama_chat/qwen2.5-coder:7b)."""
+    gemini = _os.getenv("PP_AGENT_MODEL", "gemini/gemini-3.5-flash")
+    groq = GROQ_MODEL if _os.getenv("GROQ_API_KEY") else None
+    first = (_os.getenv("PP_SHORT_MODEL") or groq or gemini) if kind == "short" else gemini
+    return list(dict.fromkeys(m for m in (first, gemini, groq, _os.getenv("PP_LOCAL_MODEL")) if m))
+
+
 _SECRET = _re.compile(r"(gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|AIza[0-9A-Za-z_-]{30,}|gsk_[A-Za-z0-9]{20,}|"
                       r"sk-[A-Za-z0-9]{20,}|Authorization:\s*\S+(?:\s+\S+)?)")
 _CALLS = """CREATE TABLE IF NOT EXISTS llm_calls(id INTEGER PRIMARY KEY, run_id TEXT, role TEXT, model TEXT, prompt_tokens INTEGER,
@@ -121,7 +130,6 @@ def tokens_used(run_id: str | None = None, day: str | None = None) -> int:
 
 def complete(messages: list[dict], *, run_id: str, role: str, kind: str = "agent", _completion=None) -> str:
     """One chat completion with budgets (per run + global/day), redaction, logging, and quota → QuotaPause."""
-    import time
     lim = _limits()
     if tokens_used(run_id=run_id) >= lim["run_llm_tokens"]:
         raise BudgetExceeded("run")
@@ -130,19 +138,30 @@ def complete(messages: list[dict], *, run_id: str, role: str, kind: str = "agent
     if _completion is None:
         import litellm
         _completion = litellm.completion
-    model = MODELS[kind]
     msgs = [{**m, "content": redact(m["content"])} for m in messages]
+    models, pauses = chain(kind), []
+    for i, model in enumerate(models):
+        try:     # back off on overload only when no fallback is left
+            return _call(model, msgs, run_id, role, _completion, backoff=i == len(models) - 1)
+        except QuotaPause as q:
+            pauses.append(q)
+    known = [p.resume_at for p in pauses if p.resume_at]     # resume when the first provider is back; unknown stays None
+    raise QuotaPause(min(known) if known else None, pauses[0].provider)
+
+
+def _call(model, msgs, run_id, role, _completion, backoff):
+    import time
     t0 = time.time()
     c = _db.connect(); c.execute(_CALLS)
     log = lambda status, p=0, k=0: c.execute("INSERT INTO llm_calls(run_id,role,model,prompt_tokens,completion_tokens,latency_ms,status,ts) "
                                              "VALUES(?,?,?,?,?,?,?,?)", (run_id, role, model, p, k, int((time.time() - t0) * 1000),
                                                                          status, _db.now().isoformat()))
     r, overloaded = None, False
-    for wait in (0, 5, 15, 30):       # provider overload (503 "high demand") is transient: back off, don't fail the step
+    for wait in (0, 5, 15, 30) if backoff else (0,):   # provider overload (503 "high demand") is transient
         if wait:
             time.sleep(wait)
-        try:
-            r = _completion(model=model, messages=msgs, timeout=120)   # no temperature: deprecated for Gemini 3+
+        try:     # no temperature: deprecated for Gemini 3+; a local model on a laptop GPU is slow, so it gets longer
+            r = _completion(model=model, messages=msgs, timeout=600 if model.startswith("ollama") else 120)
             break
         except Exception as e:
             if "ServiceUnavailable" in type(e).__name__ or "503" in str(e) or "overloaded" in str(e).lower():
@@ -157,7 +176,7 @@ def complete(messages: list[dict], *, run_id: str, role: str, kind: str = "agent
 
 def _raise_classified(e, model, log):
     if True:
-        if "RateLimit" in type(e).__name__ or "429" in str(e):
+        if "RateLimit" in type(e).__name__ or "429" in str(e) or "413" in str(e):   # Groq: 413 = per-minute token cap
             log("rate_limited")
             hdrs = getattr(getattr(e, "response", None), "headers", None) or {}
             daily = "per day" in str(e).lower() or "PerDay" in str(e)

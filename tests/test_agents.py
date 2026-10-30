@@ -156,3 +156,64 @@ def test_persistent_503_pauses_with_unknown_resume(tmpdb, monkeypatch):
     with pytest.raises(G.QuotaPause) as e:
         G.complete([{"role": "user", "content": "x"}], run_id="r", role="x", _completion=down)
     assert e.value.resume_at is None
+
+
+def _ok_resp(text="ok"):
+    class U: prompt_tokens, completion_tokens = 1, 1
+    class M: content = text
+    class Ch: message = M
+    class Resp: usage, choices = U, [Ch]
+    return Resp
+
+
+@pytest.fixture
+def three_models(tmpdb, monkeypatch):
+    monkeypatch.setattr(__import__("time"), "sleep", lambda s: None)
+    monkeypatch.delenv("PP_AGENT_MODEL", raising=False)
+    monkeypatch.setenv("GROQ_API_KEY", "gsk_test")
+    monkeypatch.setenv("PP_LOCAL_MODEL", "ollama_chat/qwen2.5-coder:7b")
+    assert [m.split("/")[0] for m in G.chain("agent")] == ["gemini", "groq", "ollama_chat"]
+
+
+def test_quota_on_gemini_falls_back_to_groq(three_models):
+    class RateLimitError(Exception): pass
+    seen = []
+    def fake(model, **k):
+        seen.append(model)
+        if model.startswith("gemini"): raise RateLimitError("429 quota exceeded per day")
+        return _ok_resp("from groq")
+    assert G.complete([{"role": "user", "content": "x"}], run_id="r", role="x", _completion=fake) == "from groq"
+    assert [m.split("/")[0] for m in seen] == ["gemini", "groq"]
+
+
+def test_overload_and_quota_fall_through_to_local(three_models):
+    class ServiceUnavailableError(Exception): pass
+    class RateLimitError(Exception): pass
+    seen = []
+    def fake(model, **k):
+        seen.append(model)
+        if model.startswith("gemini"): raise ServiceUnavailableError("503")
+        if model.startswith("groq"): raise RateLimitError("413 Request too large for model")
+        return _ok_resp("local")
+    assert G.complete([{"role": "user", "content": "x"}], run_id="r", role="x", _completion=fake) == "local"
+    assert [m.split("/")[0] for m in seen] == ["gemini", "groq", "ollama_chat"]   # no backoff retries before a fallback exists
+
+
+def test_all_providers_out_pauses_at_the_earliest_known_resume(three_models):
+    class RateLimitError(Exception):
+        def __init__(self, msg, h): super().__init__(msg); self.response = type("R", (), {"headers": h})
+    def fake(model, **k):
+        if model.startswith("groq"): raise RateLimitError("429", {"retry-after": "60"})
+        raise RateLimitError("429", {})
+    with pytest.raises(G.QuotaPause) as e:
+        G.complete([{"role": "user", "content": "x"}], run_id="r", role="x", _completion=fake)
+    assert e.value.resume_at is not None and (e.value.resume_at - db.now()).total_seconds() <= 61
+
+
+def test_a_real_error_is_not_hidden_by_fallback(three_models):
+    seen = []
+    def fake(model, **k):
+        seen.append(model); raise ValueError("bad request")
+    with pytest.raises(ValueError):
+        G.complete([{"role": "user", "content": "x"}], run_id="r", role="x", _completion=fake)
+    assert len(seen) == 1
