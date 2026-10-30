@@ -14,6 +14,8 @@ import ExtraChecks from "./ExtraChecks";
 import Explore from "./Explore";
 
 function Shell({ children }: { children: React.ReactNode }) {
+  const [me, setMe] = useState<{ signed_in: boolean; login: string | null } | null>(null);
+  useEffect(() => { api<{ signed_in: boolean; login: string | null }>("/api/me").then(setMe).catch(() => setMe(null)); }, []);
   return (
     <>
       <div className="demo-banner">Running on a demo machine. Runs may stop if it goes offline.</div>
@@ -24,7 +26,7 @@ function Shell({ children }: { children: React.ReactNode }) {
           <NavLink to="/explore">Explore a repo</NavLink>
           <NavLink to="/my-runs">My runs</NavLink>
           <NavLink to="/eval">Accuracy</NavLink>
-          <NavLink to="/connect">Sign in with GitHub</NavLink>
+          {me?.signed_in ? <span className="hint">Signed in as {me.login}</span> : <NavLink to="/connect">Sign in with GitHub</NavLink>}
         </nav>
       </header>
       <main>{children}</main>
