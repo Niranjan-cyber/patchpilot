@@ -105,6 +105,13 @@ def keep_tour(tour, line_count) -> tuple[list[dict], list[str]]:
     return kept, dropped
 
 
+def full_ids(res, known) -> None:
+    """Models often cite an evidence ID without its "sha256:" prefix (run a863ee86). Restore it in place, but only when the
+    full form is a known ID: anything else stays as cited and the check that follows still rejects it."""
+    if isinstance(res, dict) and isinstance(res.get("evidence_ids"), list):
+        res["evidence_ids"] = [f"sha256:{i}" if f"sha256:{i}" in known else i for i in res["evidence_ids"]]
+
+
 def check_diagnosis(res: dict | None, known_ids: set[str], line_count) -> str | None:
     """None = valid. line_count(path) -> number of lines, or None if the file doesn't exist in the pinned source."""
     if not isinstance(res, dict):

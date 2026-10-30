@@ -6,7 +6,7 @@ import uuid
 from backend import artifacts, db
 from backend.agents import loop
 from backend.contracts.models import Diagnosis, Location, TourItem
-from backend.gates.diff_policy import check_diagnosis, keep_tour
+from backend.gates.diff_policy import check_diagnosis, full_ids, keep_tour
 from backend.llm_gateway import BudgetExceeded, QuotaPause
 from backend.sandbox import docker
 from backend.sandbox.steps import image, snap
@@ -93,6 +93,7 @@ def diagnose(ctx: StepContext):
             def line_count(path: str) -> int | None:
                 r = docker.exec_(name, f"test -f {shlex.quote(path)} && awk 'END{{print NR}}' {shlex.quote(path)}", timeout=20)
                 return int(r.out.strip()) if r.code == 0 and r.out.strip().isdigit() else None
+            full_ids(res, menu)
             why = check_diagnosis(res, set(menu), line_count)
             # Inside the container: line_count needs it, and it's removed below.
             tour_kept, tour_dropped = keep_tour((res.get("tour") or [])[:5], line_count) if why is None else ([], [])

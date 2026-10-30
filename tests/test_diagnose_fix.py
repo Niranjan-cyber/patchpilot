@@ -50,6 +50,21 @@ def test_valid_diagnosis_is_saved_with_real_citations(run):
     assert "end_reason" not in ctx.scratch
 
 
+def test_cited_id_without_sha256_prefix_is_matched_to_the_menu(run):
+    # run a863ee86: gpt-oss cited the right IDs minus "sha256:" twice -> TRIAGE_ONLY on a correct diagnosis
+    ctx, mp, ev, events = run
+    mp.setattr(D.docker, "exec_", lines(40))
+    bare = ev[2].removeprefix("sha256:")
+    mp.setattr(D.loop, "run", lambda *a, **k: ({"hypothesis": "divide returns 0.", "locations": [{"path": "src/calc.py", "line": 12}],
+                                               "evidence_ids": [bare, "sha256:" + "0" * 64]}, []))
+    D.diagnose(ctx)   # a made-up full ID alongside still fails: only bare hashes that ARE on the menu are matched
+    assert [p["reason"] for t, p in events if t == "attempt.retry"] == ["unknown_evidence_id"] * 2
+    mp.setattr(D.loop, "run", lambda *a, **k: ({"hypothesis": "divide returns 0.", "locations": [{"path": "src/calc.py", "line": 12}],
+                                               "evidence_ids": [bare]}, []))
+    D.diagnose(ctx)
+    assert db.get_run(db.connect(), ctx.run_id).diagnosis.evidence_ids[0] == ev[2]   # stored in the full form
+
+
 def test_invalid_twice_ends_triage_with_diagnosis_unavailable(run):
     ctx, mp, ev, events = run
     calls = []

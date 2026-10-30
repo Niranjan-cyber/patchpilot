@@ -5,6 +5,7 @@ import re
 
 from backend import artifacts, db, llm_gateway
 from backend.contracts.models import RunView
+from backend.gates.diff_policy import full_ids
 from backend.llm_gateway import BudgetExceeded, QuotaPause
 
 QUESTIONS = {"why_file": "Why does PatchPilot point at {path}?", "why_fails": "Why does the new test fail on the original code?",
@@ -95,6 +96,7 @@ def ask(v: RunView, question: str, path: str | None, *, complete=None) -> dict:
             raise ExplainerUnavailable("budget")
         except Exception:
             raise ExplainerUnavailable("error", 60)
+        full_ids(res, ev)
         why = check_answer(res, set(ev))
         if why is None:
             return {"question": q, "answer": str(res["answer"]).strip()[:1500], "evidence_ids": list(dict.fromkeys(res["evidence_ids"]))}

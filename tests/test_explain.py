@@ -55,6 +55,15 @@ def test_ask_returns_cited_answer(run):
     assert a["evidence_ids"] == [ev[2]] and "returns 0" in a["answer"]
 
 
+def test_ask_matches_a_citation_missing_its_sha256_prefix(run):
+    v, ev, fix = run
+    reply = json.dumps({"answer": "divide returns 0.", "evidence_ids": [ev[2].removeprefix("sha256:")]})
+    assert X.ask(v, "why_fails", None, complete=lambda msgs, **k: reply)["evidence_ids"] == [ev[2]]
+    bogus = json.dumps({"answer": "divide returns 0.", "evidence_ids": ["0" * 64]})   # bare but not on the menu: still rejected
+    with pytest.raises(X.ExplainerUnavailable):
+        X.ask(v, "why_fails", None, complete=lambda msgs, **k: bogus)
+
+
 def test_ask_rejects_uncited_twice_then_unavailable(run):
     v, ev, fix = run
     calls = []
