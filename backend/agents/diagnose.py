@@ -6,7 +6,7 @@ import uuid
 from backend import artifacts, db
 from backend.agents import loop
 from backend.contracts.models import Diagnosis, Location, TourItem
-from backend.gates.diff_policy import check_diagnosis
+from backend.gates.diff_policy import check_diagnosis, keep_tour
 from backend.llm_gateway import BudgetExceeded, QuotaPause
 from backend.sandbox import docker
 from backend.sandbox.steps import image, snap
@@ -94,6 +94,8 @@ def diagnose(ctx: StepContext):
                 r = docker.exec_(name, f"test -f {shlex.quote(path)} && awk 'END{{print NR}}' {shlex.quote(path)}", timeout=20)
                 return int(r.out.strip()) if r.code == 0 and r.out.strip().isdigit() else None
             why = check_diagnosis(res, set(menu), line_count)
+            # Inside the container: line_count needs it, and it's removed below.
+            tour_kept, tour_dropped = keep_tour((res.get("tour") or [])[:5], line_count) if why is None else ([], [])
         finally:
             docker.rm(name)
         tid = artifacts.put("\n\n".join(f"[{m['role']}]\n{m['content']}" for m in transcript))
@@ -102,10 +104,12 @@ def diagnose(ctx: StepContext):
             run.diagnosis = Diagnosis(
                 hypothesis=str(res["hypothesis"]).strip()[:1200],
                 locations=[Location(path=l["path"], line=l.get("line")) for l in res["locations"][:3]],
-                tour=[TourItem(path=str(t.get("path", "")), why=str(t.get("why", ""))[:200])
-                      for t in (res.get("tour") or [])[:5] if isinstance(t, dict) and t.get("path")],
+                tour=[TourItem(path=str(t["path"]), why=str(t.get("why", ""))[:200]) for t in tour_kept],
                 evidence_ids=[*res["evidence_ids"], tid])
             db.save_run(db.connect(), run)
+            if tour_dropped:   # never silent: the model named files that aren't in the pinned source
+                ctx.emit("step.progress", "diagnose",
+                         message=f"Left {len(tour_dropped)} tour file(s) out of the report: not in the pinned source.")
             ctx.scratch["headline"] = f"Likely cause found in {run.diagnosis.locations[0].path}."
             return None
         previous = {"unknown_evidence_id": "you cited an evidence ID that isn't in the list.",
