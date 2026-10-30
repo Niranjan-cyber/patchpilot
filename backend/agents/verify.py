@@ -62,7 +62,7 @@ def _fresh_run(rid: str, diffs: list[str], args: str) -> tuple[dict[str, bool], 
     apply = " && ".join(f"echo {b64(d)} | base64 -d > /tmp/d{i}.diff && git apply /tmp/d{i}.diff" for i, d in enumerate(diffs))
     r = docker.run(image(rid), f"{apply} || {{ echo APPLY_FAILED; exit 3; }}; python -m pytest -p no:cacheprovider -rfE "
                    f"--junitxml=/tmp/j.xml {args} > /tmp/o.log 2>&1; tail -c 20000 /tmp/o.log; echo '{JUNIT_SEP}'; cat /tmp/j.xml",
-                   name=name, timeout=600, snapshot_volume=snap(rid))
+                   name=name, timeout=600, snapshot_volume=snap(rid), log_path="/tmp/o.log")
     log, xml = split_junit(r.out)
     # exit 3 is the apply-failed branch above; the container's own status, so a test that prints
     # "APPLY_FAILED" can't fake it (pytest's status is swallowed by the redirect and the `;` chain).
