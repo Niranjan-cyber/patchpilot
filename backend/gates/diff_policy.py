@@ -73,3 +73,43 @@ def check_diagnosis(res: dict | None, known_ids: set[str], line_count) -> str | 
         if line is not None and not (isinstance(line, int) and 1 <= line <= n):
             return "line_out_of_range"
     return None
+
+
+_EXCEPT = re.compile(r"^(\s*)except\b\s*(.*?)\s*(?:as\s+\w+\s*)?:")
+_BROAD = re.compile(r"^\(?\s*(BaseException|Exception)\s*\)?$")
+_HANDLED = re.compile(r"\braise\b|\blog(?:ger|ging)?\.\w+\(|\bwarnings\.warn\(|\bprint\(.*file\s*=\s*sys\.stderr")
+
+
+def swallowed_excepts(diff: str) -> list[dict]:
+    """Reviewer concerns, decided by code: an `except` the fix ADDS (source files only) that catches everything, or whose
+    handler neither re-raises nor logs (a retry, `pass`, `return <default>`), may hide real errors (run 11's TypeError retry)."""
+    out, path, lines = [], None, diff.splitlines()
+    for i, line in enumerate(lines):
+        if (h := _HEADER.match(line)):
+            path = h.group(2)
+            continue
+        if not path or is_test_path(path) or not path.endswith(".py") or not line.startswith("+") or line.startswith("+++"):
+            continue
+        m = _EXCEPT.match(line[1:])
+        if not m:
+            continue
+        indent, what = len(m.group(1)), m.group(2) or ""
+        body = []
+        for nxt in lines[i + 1:]:   # the handler as it reads after the fix: added + context lines, deeper than `except`
+            if nxt.startswith(("-", "@@", "diff --git")):
+                if nxt.startswith("-"):
+                    continue
+                break
+            code = nxt[1:]
+            if code.strip() and not code.lstrip().startswith("#"):
+                if len(code) - len(code.lstrip()) <= indent:
+                    break
+                body.append(code)
+        if not what or _BROAD.match(what):
+            text = f"The fix adds `except{' ' + what if what else ''}:` in {path}, which catches every error; check it can't hide real bugs."
+        elif not any(_HANDLED.search(b) for b in body):
+            text = f"The fix adds `except {what}:` in {path} that neither re-raises nor logs, so it may hide real errors; check it."
+        else:
+            continue
+        out.append({"severity": "medium", "text": text})
+    return out[:2]   # shortcut: two concerns say enough; upgrade if reviewers want every location listed

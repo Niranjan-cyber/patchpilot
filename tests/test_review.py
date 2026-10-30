@@ -40,3 +40,15 @@ def test_unavailable_review_is_never_a_silent_pass(ctx, fake):
     RV.review(c)
     r = db.get_run(db.connect(), c.run_id).review
     assert r.lowers_readiness is True and r.concerns
+
+
+def test_added_silent_except_lowers_readiness_even_when_the_llm_sees_nothing(ctx):   # run 11's TypeError retry
+    from tests.test_diff_policy import RUN11
+    c, mp = ctx
+    v = db.get_run(db.connect(), c.run_id)
+    v.patch = Patch(fix_diff_id=artifacts.put(RUN11), test_diff_id=artifacts.put("test"), attempt=1, policy_result=CheckStatus.PASSED)
+    db.save_run(db.connect(), v)
+    mp.setattr(RV, "complete", lambda *a, **k: '{"concerns": []}')
+    RV.review(c)
+    r = db.get_run(db.connect(), c.run_id).review
+    assert r.lowers_readiness is True and any("except TypeError:" in x["text"] for x in r.concerns)
