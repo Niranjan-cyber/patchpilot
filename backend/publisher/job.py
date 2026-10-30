@@ -27,6 +27,10 @@ def run_publish(job: dict) -> None:
         db.save_run(c, v)
         emit(status="failed", pr_url=None, compare_url=None, error_code=e.code, message=str(e))
     except Exception as e:   # GitHub/git errors: nothing half-published is claimed as done
+        from backend.llm_gateway import redact   # operator log only (the user sees the generic line); git stderr may hold URLs
+        err = getattr(e, "stderr", None)
+        err = err.decode("utf-8", "replace") if isinstance(err, bytes) else (err or str(e))
+        print(f"publish {rid[:8]} failed: {type(e).__name__} {list(getattr(e, 'cmd', []))[3:5]} {redact(err)[-600:]}", flush=True)
         v.status = RunStatus.AWAITING_APPROVAL
         db.save_run(c, v)
         emit(status="failed", pr_url=None, compare_url=None, error_code="GITHUB_UNAVAILABLE",

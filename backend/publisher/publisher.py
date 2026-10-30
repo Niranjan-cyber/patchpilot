@@ -120,7 +120,9 @@ class GitHubWriter:
         d = tempfile.mkdtemp(prefix="pp-pub-")
         env = {**os.environ, "GIT_TERMINAL_PROMPT": "0", "GIT_CONFIG_COUNT": "1", "GIT_CONFIG_KEY_0": "http.extraHeader",
                "GIT_CONFIG_VALUE_0": f"Authorization: Basic {_basic(self.token)}"}
-        git = lambda *a, inp=None: subprocess.run(["git", "-c", "core.hooksPath=/dev/null", *a], cwd=d, input=inp, text=True,
+        # bytes, not text=True: on Windows text-mode stdin turns the diff's LF into CRLF and `git apply` fails (first live publish)
+        git = lambda *a, inp=None: subprocess.run(["git", "-c", "core.hooksPath=/dev/null", *a], cwd=d,
+                                                  input=inp.encode("utf-8") if inp is not None else None,
                                                   capture_output=True, check=True, env=env)
         try:
             git("init", "-q"); git("remote", "add", "origin", f"https://github.com/{target_repo}.git")
@@ -129,7 +131,7 @@ class GitHubWriter:
             git("apply", "--index", "-", inp=diff)
             git("-c", "user.name=PatchPilot", "-c", "user.email=patchpilot@users.noreply.github.com", "commit", "-qm", message)
             # C review #3: lease against the branch's CURRENT remote sha ("" = must not exist yet), so re-publish after Revise works
-            remote = git("ls-remote", "origin", f"refs/heads/{branch}").stdout.split()
+            remote = git("ls-remote", "origin", f"refs/heads/{branch}").stdout.decode().split()
             git("push", "-q", f"--force-with-lease=refs/heads/{branch}:{remote[0] if remote else ''}", "origin", f"HEAD:refs/heads/{branch}")
         finally:
             shutil.rmtree(d, ignore_errors=True)
