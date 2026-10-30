@@ -27,3 +27,21 @@ def test_inconclusive_is_never_reported_clean():
 
 def test_report_is_owner_scoped_for_real_runs():
     assert c.get("/api/runs/00000000-0000-4000-8000-000000000000/report.md").status_code == 404
+
+def test_unfinished_dependency_scan_is_never_reported_as_none_or_zero():   # #29 (run 11 said "none" and "0")
+    import json
+    from pathlib import Path
+    from backend.contracts.models import CheckStatus, SGReport
+    from backend.report import render
+    v = RunView.model_validate(json.loads(Path("fixtures/runs/needs_attention_deps_inconclusive/state.json").read_text(encoding="utf-8")))
+    v.supplyguard = SGReport(report_id="sha256:" + "0" * 64, status=CheckStatus.INCONCLUSIVE, failures=["supplyguard_unavailable"])
+    t = render(v)
+    assert "Suspicious packages: unknown" in t and "Known vulnerabilities: unknown" in t
+    assert "Suspicious packages: none" not in t and "Known vulnerabilities: 0" not in t
+    v.supplyguard = SGReport(report_id="sha256:" + "0" * 64, status=CheckStatus.INCONCLUSIVE, failures=["OSV lookup timed out"],
+                             findings=[{"type": "vulnerability", "package": "x", "id": "CVE-1"}])
+    t = render(v)
+    assert "Known vulnerabilities: at least 1" in t and "none found before the check stopped" in t
+    v.supplyguard = SGReport(report_id="sha256:" + "0" * 64, status=CheckStatus.PASSED)
+    t = render(v)
+    assert "Suspicious packages: none" in t and "Known vulnerabilities: 0 " in t   # a finished clean scan still says so
