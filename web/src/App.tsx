@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, NavLink, Route, Routes, useNavigate, useParams } from "react-router-dom";
-import { api, useRun } from "./api";
+import { api, SHOWCASE, useRun } from "./api";
 import { LiveStatus, Loading, ProofPanel, ReadinessBadge, SampleBadge, Stepper, VerdictNote } from "./components";
 import IssueCheck from "./IssueCheck";
 import Review from "./Review";
@@ -18,7 +18,7 @@ function Shell({ children }: { children: React.ReactNode }) {
   useEffect(() => { api<{ signed_in: boolean; login: string | null }>("/api/me").then(setMe).catch(() => setMe(null)); }, []);
   return (
     <>
-      <div className="demo-banner">Running on a demo machine. Runs may stop if it goes offline.</div>
+      <div className="demo-banner">{SHOWCASE ? "Showcase: real recorded runs, read-only. New runs need the live app on our demo machine." : "Running on a demo machine. Runs may stop if it goes offline."}</div>
       <header className="top">
         <Link to="/" className="brand">PatchPilot</Link>
         <nav>
