@@ -36,7 +36,7 @@ Each PR contains the new test and the fix. A person reviewed the exact diff befo
 
 ## Why it's different
 
-| | |
+| Principle | What it means |
 |---|---|
 | **Proof, not promises** | A fix counts as verified only when a new test fails 2/2 on the original code and passes 2/2 after the fix, in a fresh container, with every previously passing test still passing. |
 | **Honest when it can't** | If it can't verify a fix, you get a triage report (the reproduction, the likely cause, what was tried), never a fake "fixed". |
@@ -47,19 +47,28 @@ Each PR contains the new test and the fix. A person reviewed the exact diff befo
 ## How it works
 
 ```mermaid
-flowchart LR
-    A[Paste an issue] --> B{Eligible?<br/>open · public · Python · has tests}
-    B -->|no| R[Report, no run]
-    B -->|yes| C[Dependency check<br/>before any install]
-    C --> D[Install in a sandbox<br/>PyPI only]
-    D --> E[Run existing tests<br/>baseline]
-    E --> F[AI writes a failing test<br/>must fail 2/2]
-    F --> G[Diagnose + small fix<br/>diff policy]
-    G --> H[Verify in a FRESH sandbox<br/>2/2 green, no regressions]
-    H --> I[Review]
-    I --> J{You approve<br/>the exact diff}
-    J -->|yes| K[Draft PR]
-    J -->|no| L[Keep the report]
+flowchart TB
+    subgraph check [1 · Check the issue]
+        direction LR
+        A[Paste an issue] --> B{Eligible?<br/>open · public · Python · has tests}
+        B -->|no| R[Report, no run]
+        B -->|yes| C[Dependency check<br/>before any install]
+    end
+    subgraph prove [2 · Prove the fix]
+        direction LR
+        D[Install in a sandbox<br/>PyPI only] --> E[Baseline:<br/>existing tests]
+        E --> F[Failing test<br/>must fail 2/2]
+        F --> G[Diagnose +<br/>small fix]
+        G --> H[Verify in a FRESH sandbox<br/>2/2 green, no regressions]
+    end
+    subgraph decide [3 · You decide]
+        direction LR
+        I[Review] --> J{You approve<br/>the exact diff}
+        J -->|yes| K[Draft PR]
+        J -->|no| L[Keep the report]
+    end
+    C --> D
+    H --> I
 ```
 
 Every arrow is a gate (G0–G6) evaluated by code. A step that can't finish stops the run with a reason. Failures are never shown as empty.
