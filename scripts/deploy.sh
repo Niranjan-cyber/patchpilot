@@ -5,6 +5,14 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 REPO=$(pwd); UV=$(command -v uv || echo "$HOME/.local/bin/uv")
 
+# The units below bake in User=$USER. Run under sudo and they'd run the worker as root,
+# which quietly undoes "sandboxes run as a non-root user in the docker group".
+if [ "$(id -u)" -eq 0 ]; then
+  echo "ERROR: run deploy.sh as the deploy user, not as root or via sudo." >&2
+  exit 1
+fi
+[ -x "$UV" ] || { echo "ERROR: uv not found at '$UV'. Run infra/vm-setup.sh, then log out and back in." >&2; exit 1; }
+
 git pull --rebase=merges
 "$UV" sync
 (cd web && npm ci --no-audit --no-fund && npm run build)
