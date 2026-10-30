@@ -35,7 +35,8 @@ def ensure_infra() -> None:
     if _docker("inspect", PROXY).code:
         # never redirect to PyPI: the sandbox can only reach proxpi
         # 8 threads (image default 2): Docker→PyPI can be ~10× slower than the host, and one slow upstream fetch hung both threads
-        _docker("run", "-d", "--name", PROXY, "--restart", "unless-stopped", "-e", "PROXPI_DOWNLOAD_TIMEOUT=600", "epicwink/proxpi",
+        _docker("run", "-d", "--name", PROXY, "--restart", "unless-stopped", "-e", "PROXPI_DOWNLOAD_TIMEOUT=600",
+                "-e", "PROXPI_INDEX_TTL=86400", "epicwink/proxpi",   # a day: a package fetched once stays fast (default 30 min re-fetched it)
                 "--bind", "0.0.0.0:5000", "--threads", "8", "--no-control-socket")
         _docker("network", "connect", SETUP_NET, PROXY)
 

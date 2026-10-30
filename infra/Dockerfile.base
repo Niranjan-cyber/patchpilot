@@ -6,5 +6,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /
 # apply_patch: the patch tool gpt-oss models use regardless of the prompt (root-owned, read-only to the sandbox user)
 COPY --chmod=755 apply_patch.py /usr/local/bin/apply_patch
 ENV PATH=/opt/venv/bin:$PATH PIP_DISABLE_PIP_VERSION_CHECK=1 PYTHONDONTWRITEBYTECODE=1 HOME=/tmp
+# Tools every setup needs, baked in (built by us, not by repo code): SETUP no longer waits on PyPI for them, and a
+# project that pins its own versions still gets those. pip>=25.1 matches INSTALL's upgrade, so that step is a no-op.
+RUN /opt/venv/bin/pip install --no-cache-dir -q "pip>=25.1" setuptools wheel pytest && chown -R pp:pp /opt/venv
 USER pp
 WORKDIR /src
