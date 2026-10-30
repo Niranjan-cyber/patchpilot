@@ -10,6 +10,13 @@ def _blocks(sig: dict) -> bool:
     return sig.get("kind") == "malicious-advisory" or (sig.get("kind") == "lookalike" and sig.get("confidence") == "high")
 
 
+def release_tag_before(releases: list[dict], commit_date: str) -> str | None:
+    """Newest non-draft GitHub release published at or before the base commit (#26): tagging the source with it gives
+    setuptools_scm / hatch-vcs projects their real version instead of 0.1.dev1. ISO-8601 'Z' dates compare as strings."""
+    older = [r for r in releases if not r.get("draft") and r.get("tag_name") and (r.get("published_at") or "9") <= commit_date]
+    return max(older, key=lambda r: r["published_at"])["tag_name"] if older else None
+
+
 def map_supplyguard(exit_code: int | None, report: dict | None) -> tuple[CheckStatus, str, list[dict]]:
     """G1 from a SupplyGuard run. Unknown is inconclusive, never clean."""
     if exit_code is None or report is None:
