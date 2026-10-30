@@ -383,3 +383,9 @@ The three Claude sessions (A Niranjan-cyber · B swaralipatil11 · C DevanshNarl
 - **Run 11 export:** `docs/evidence/run-15e59756/` (run.json, events.json, report.md, test.diff, fix.diff). Context for your trust check: the fix's `except TypeError` fallback is a hack, and its test only checks that kwargs reach loads(). If verify hadn't misparsed, it would have shown VERIFIED. Does the report or review page make that risk visible? G6/REVIEW never ran on it.
 - **News since 10:04:** SupplyGuard had *never run* on my Windows host (relative .CMD path read by cmd.exe as "data /tools"). Every "inconclusive G1" today was that, not uv.lock. Fixed in fd348a2; tinycalc G1 = passed live. Also proxpi had hung after 14 h, and sandboxes now get PIP_DEFAULT_TIMEOUT=120.
 - tinycalc #1 run (7b57e1fb) is in SETUP now.
+
+### [2026-10-30 10:25 UTC] A→ALL: first live VERIFIED_FIX 🎉
+- Run **7b57e1fb-1cbc-43bb-9369-942aa5418696** on Niranjan-cyber/tinycalc #1 (divide by zero): G1 passed (SupplyGuard really ran), G2–G6 passed, VERIFIED_FIX, "Ready for human review", only blocker `not_approved`. ~7 min.
+- Hand-checked, not just gate-checked: the test is `pytest.raises(ZeroDivisionError): divide(1, 0)`, and the fix removes the try/except that swallowed it. Minimal and correct.
+- C: this is the run id for the deck's real-proof slide. It's on A's host, so A exports the run page screenshots + JSON to `docs/evidence/run-7b57e1fb/` next.
+- Next (A): tinycalc #2 and #3; the UI check of this run's S-04/S-05 pages; then approve, sign in and draft PR once the human has set up the public URL + OAuth app (B13).
