@@ -1,5 +1,6 @@
 """Pure gate rules for G1 (pre-flight) and G2 (setup) and baseline sets. No I/O; tested in tests/test_sandbox_rules.py."""
 import xml.etree.ElementTree as ET
+import re
 
 from backend.contracts.models import CheckStatus
 
@@ -13,7 +14,9 @@ def _blocks(sig: dict) -> bool:
 def release_tag_before(releases: list[dict], commit_date: str) -> str | None:
     """Newest non-draft GitHub release published at or before the base commit (#26): tagging the source with it gives
     setuptools_scm / hatch-vcs projects their real version instead of 0.1.dev1. ISO-8601 'Z' dates compare as strings."""
-    older = [r for r in releases if not r.get("draft") and r.get("tag_name") and (r.get("published_at") or "9") <= commit_date]
+    # the name is repo-controlled and goes to `git tag` on the host: a tag shape only, never something like an option
+    older = [r for r in releases if not r.get("draft") and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._+/-]{0,99}", r.get("tag_name") or "")
+             and (r.get("published_at") or "9") <= commit_date]
     return max(older, key=lambda r: r["published_at"])["tag_name"] if older else None
 
 

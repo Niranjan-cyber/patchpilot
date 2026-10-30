@@ -98,3 +98,11 @@ def test_release_tag_is_newest_release_before_the_base_commit():   # #26: setupt
     assert release_tag_before(rel, "2024-02-15T12:00:00Z") == "8.0.2"   # not the later 8.1.0, not the draft
     assert release_tag_before(rel, "2020-01-01T00:00:00Z") is None        # no release yet: no hint, never a guess
     assert release_tag_before([], "2024-02-15T12:00:00Z") is None
+
+
+def test_release_tags_that_look_like_git_options_are_ignored():
+    # the tag name is untrusted (repo-controlled) and is passed to `git tag` on the HOST
+    rel = lambda t, d: {"tag_name": t, "published_at": d, "draft": False}
+    assert release_tag_before([rel("--file=/etc/passwd", "2026-01-02T00:00:00Z")], "2026-02-01T00:00:00Z") is None
+    assert release_tag_before([rel("v1.2.0", "2026-01-01T00:00:00Z"), rel("-d", "2026-01-02T00:00:00Z")],
+                              "2026-02-01T00:00:00Z") == "v1.2.0"
