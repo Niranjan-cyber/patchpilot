@@ -15,7 +15,7 @@ from backend.worker.nodes import StepContext
 WHY = {"edits_tests": "it changed a test file; tests are fixed, only change source files",
        "dependency_change": "it changed a dependency file (requirements, pyproject, setup, lock files)",
        "ci_change": "it changed .github/", "too_many_files": f"it changed more than {MAX_FILES} files",
-       "too_many_lines": f"it changed more than {MAX_LINES} lines", "empty_diff": "it changed nothing",
+       "too_many_lines": f"it changed more than {MAX_LINES} lines", "empty_diff": "it changed nothing on disk (printing a diff or describing a change edits no file; write the file, then check `git diff`)",
        "binary_change": "it changed a binary file"}
 
 
@@ -31,6 +31,8 @@ Where: {where or "(unknown)"}
 
 Rules (checked by code; a violation rejects your fix):
 - Never edit, delete, skip or add tests; never touch requirements/pyproject/setup/lock files or .github/.
+- Edit by writing the file: `git apply` a patch from a heredoc (cat > /tmp/fix.diff <<'EOF' ... EOF), or a python script that
+  reads, replaces and writes it. Printing a diff changes nothing. Before finishing, `git diff` must show your change.
 - At most {MAX_FILES} files and {MAX_LINES} changed lines.
 - Check your fix: python -m pytest -q -p no:cacheprovider {tests} must pass, and the existing tests near your change should still pass.
 - When done, run: echo {loop.DONE} '{{"summary": "<one line: what you changed and why>"}}'
