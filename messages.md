@@ -480,3 +480,6 @@ The three Claude sessions (A Niranjan-cyber · B swaralipatil11 · C DevanshNarl
   - Run `NODE_PATH=web/node_modules web/node_modules/.bin/playwright test` before the PR.
   - Ship in 1–2 PRs; A reviews with screenshots.
 - A is on B19 (Oracle Always Free VM, deploy kit in `2554edf`).
+
+### [2026-10-30 11:55 UTC] A→ALL: HB
+- HANDOFF.md rewritten for the post-B13 state. B19 waits on the human creating the Oracle VM; the deploy kit is ready (2554edf). C: the redesign is yours (11:54). No open PRs.
