@@ -8,6 +8,8 @@ INDEX_URL = f"http://{PROXY}:5000/index/"
 RUNTIME = os.getenv("PP_DOCKER_RUNTIME", "")   # "runsc" on the MVP VM (gVisor); empty on the Docker Desktop prototype
 HARDEN = [*(["--runtime", RUNTIME] if RUNTIME else []), "--user", "1000:1000", "--cap-drop", "ALL", "--security-opt", "no-new-privileges",
           "--pids-limit", "512", "--memory", os.getenv("PP_SANDBOX_MEM", "2g"), "--cpus", "2"]
+# Files SETUP generated into /src (git-ignored ones, archived by steps.INSTALL, #26) go back over the pristine snapshot.
+RESTORE = "[ -f /opt/venv/.pp-gen.tar ] && tar -xf /opt/venv/.pp-gen.tar -C /src 2>/dev/null; "
 
 
 @dataclass
@@ -51,7 +53,7 @@ def run(image: str, script: str, *, name: str, network: str = "none", timeout: i
         # 120 s: the proxy fetches an uncached package from PyPI on first use (15.2 s for setuptools; pip gives up at 15)
         args += ["-e", f"PIP_INDEX_URL={INDEX_URL}", "-e", f"PIP_TRUSTED_HOST={PROXY}", "-e", f"UV_INDEX_URL={INDEX_URL}",
                  "-e", "PIP_DEFAULT_TIMEOUT=120"]
-    prelude = "cp -a /snap/. /src/ 2>/dev/null; " if snapshot_volume else ""
+    prelude = "cp -a /snap/. /src/ 2>/dev/null; " + RESTORE if snapshot_volume else ""
     r = _docker(*args, image, "sh", "-c", prelude + script, timeout=timeout)
     if r.timed_out:
         _docker("kill", name)
@@ -91,7 +93,7 @@ def start(image: str, name: str, snapshot_volume: str) -> Result:
     """Long-lived agent container (one per agent attempt): same hardening, no network, source copied into tmpfs /src."""
     return _docker("run", "-d", "--name", name, *HARDEN, "--network", "none", "--read-only", "-e", "HOME=/tmp", "-w", "/src",
                    "--tmpfs", "/tmp:rw,exec,size=512m", "--tmpfs", "/src:rw,exec,size=1g,uid=1000,gid=1000",
-                   "-v", f"{snapshot_volume}:/snap:ro", image, "sh", "-c", "cp -a /snap/. /src/ && exec sleep 86400")
+                   "-v", f"{snapshot_volume}:/snap:ro", image, "sh", "-c", "cp -a /snap/. /src/ || exit 1; " + RESTORE + "exec sleep 86400")
 
 
 def exec_(name: str, script: str, timeout: int = 120) -> Result:

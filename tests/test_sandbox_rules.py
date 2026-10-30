@@ -1,5 +1,5 @@
 from backend.contracts.models import CheckStatus as C
-from backend.sandbox.rules import baseline_sets, evaluate_setup, junit_outcomes, map_supplyguard
+from backend.sandbox.rules import baseline_sets, evaluate_setup, junit_outcomes, map_supplyguard, release_tag_before
 
 
 def proj(**kw):
@@ -87,3 +87,14 @@ def test_supplyguard_runs_with_an_absolute_executable(tmp_path, monkeypatch):
     monkeypatch.setattr(steps.subprocess, "run", lambda argv, **k: (seen.append(argv), P)[1])
     steps.run_supplyguard("r")
     assert os.path.isabs(seen[0][0])
+
+
+def test_release_tag_is_newest_release_before_the_base_commit():   # #26: setuptools_scm needs a real tag
+    rel = [{"tag_name": "8.1.0", "published_at": "2024-03-01T00:00:00Z"},
+           {"tag_name": "8.0.2", "published_at": "2024-01-10T00:00:00Z"},
+           {"tag_name": "8.0.3", "published_at": "2024-02-01T00:00:00Z", "draft": True},
+           {"tag_name": "8.0.0", "published_at": "2023-12-31T00:00:00Z"},
+           {"tag_name": "next", "published_at": None}]
+    assert release_tag_before(rel, "2024-02-15T12:00:00Z") == "8.0.2"   # not the later 8.1.0, not the draft
+    assert release_tag_before(rel, "2020-01-01T00:00:00Z") is None        # no release yet: no hint, never a guess
+    assert release_tag_before([], "2024-02-15T12:00:00Z") is None

@@ -15,7 +15,7 @@ from backend import artifacts, db
 from backend.config import ROOT, limits
 from backend.contracts.models import CheckStatus, EnvProfile, GateResult, PublishBlocker, SGReport, StepId, TestRun
 from backend.sandbox import docker
-from backend.sandbox.rules import baseline_sets, evaluate_setup, junit_outcomes, map_supplyguard
+from backend.sandbox.rules import baseline_sets, evaluate_setup, junit_outcomes, map_supplyguard, release_tag_before
 from backend.worker import nodes
 from backend.worker.nodes import StepContext
 
@@ -41,6 +41,7 @@ def fetch_source(repo: str, rid: str, sha: str | None = None) -> tuple[str, str]
             branch = h.get(f"{GH}/repos/{repo}").raise_for_status().json()["default_branch"]
             sha = h.get(f"{GH}/repos/{repo}/commits/{branch}").raise_for_status().json()["sha"]
         data = h.get(f"{GH}/repos/{repo}/tarball/{sha}").raise_for_status().content
+        tag = _release_tag(h, repo, sha)
     if len(data) > MAX_TARBALL:
         raise ValueError("repository tarball is larger than 200 MB")
     dest = WORK / rid / "src"
@@ -53,7 +54,18 @@ def fetch_source(repo: str, rid: str, sha: str | None = None) -> tuple[str, str]
     git = ["git", "-c", "core.hooksPath=/dev/null", "-c", "user.name=PatchPilot", "-c", "user.email=pp@localhost", "-C", str(dest)]
     for args in (["init", "-q"], ["add", "-A"], ["commit", "-qm", f"base {sha}"]):
         subprocess.run(git + args, check=True, capture_output=True)
+    if tag:   # a bad tag name just means no version hint, never a failed fetch
+        subprocess.run(git + ["tag", tag], capture_output=True)
     return sha, str(dest)
+
+
+def _release_tag(h: httpx.Client, repo: str, sha: str) -> str | None:
+    """Version hint for setuptools_scm / hatch-vcs repos (the tarball has no tags). Any API failure = no hint."""
+    try:
+        date = h.get(f"{GH}/repos/{repo}/commits/{sha}").raise_for_status().json()["commit"]["committer"]["date"]
+        return release_tag_before(h.get(f"{GH}/repos/{repo}/releases", params={"per_page": 100}).raise_for_status().json(), date)
+    except Exception:
+        return None
 
 
 def run_supplyguard(rid: str) -> SGReport:
@@ -104,10 +116,13 @@ def preflight(ctx: StepContext) -> GateResult:
 
 
 INSTALL = r"""cd /src
-( for f in requirements.txt requirements-dev.txt requirements-test.txt requirements/test.txt requirements/dev.txt; do
+( for f in requirements.txt requirements-dev.txt requirements-test.txt requirements-tests.txt requirements/test.txt requirements/tests.txt requirements/dev.txt; do
     [ -f "$f" ] && { echo "+ pip install -r $f"; pip install -q -r "$f" || exit 1; }; done
   if [ -f pyproject.toml ] || [ -f setup.py ]; then
-    for x in "[test]" "[tests]" "[dev]" ""; do echo "+ pip install -e .$x"; pip install -q -e ".$x" && break; [ -z "$x" ] && exit 1; done
+    # pip only warns (exit 0) on an extra the project doesn't have, so keep going until one really exists (#26)
+    # only the install that took is logged as "+ " (EnvProfile.install_cmds); tries go to the log as "~ "
+    for x in "[test]" "[tests]" "[testing]" "[dev]" ""; do echo "~ trying pip install -e .$x"; o=$(pip install -q -e ".$x" 2>&1); c=$?; echo "$o"
+      [ $c -eq 0 ] && ! echo "$o" | grep -q "does not provide the extra" && { echo "+ pip install -e .$x"; break; }; [ -z "$x" ] && exit 1; done
   fi
   pip install -q -U "pip>=25.1" >/dev/null 2>&1
   if grep -q '^\[dependency-groups\]' pyproject.toml 2>/dev/null; then
@@ -115,6 +130,11 @@ INSTALL = r"""cd /src
   fi
   pip install -q pytest ) > /tmp/install.log 2>&1
 echo "INSTALL_EXIT=$?"; tail -c 30000 /tmp/install.log
+# #26: /src is tmpfs, so files the install generated (e.g. setuptools_scm's _version.py) would vanish from later steps.
+# Keep the git-ignored ones in the committed image; docker.run/start unpack them over the snapshot.
+# shortcut: archives over 100 MB are dropped (huge build dirs); upgrade to an allow-list if a real project needs more.
+git ls-files -z --others --ignored --exclude-standard 2>/dev/null | grep -zv -e __pycache__ -e '\.pyc$' | tar --null -T - -cf /opt/venv/.pp-gen.tar 2>/dev/null
+[ "$(stat -c %s /opt/venv/.pp-gen.tar 2>/dev/null || echo 0)" -gt 104857600 ] && rm -f /opt/venv/.pp-gen.tar
 python -m pytest --collect-only -q -p no:cacheprovider > /tmp/collect.log 2>&1; echo "COLLECT_EXIT=$?"
 echo "COLLECTED=$(grep -c '::' /tmp/collect.log)"; tail -c 5000 /tmp/collect.log
 """
