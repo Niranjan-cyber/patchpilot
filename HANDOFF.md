@@ -38,7 +38,7 @@ Read this first in a new session, then `COORDINATION.md`, the tail of `messages.
 
 ## Running on this laptop
 - API + worker run as detached processes; restart with `scripts/deploy.ps1` (or the two `Start-Process` lines in it). `limits.toml` is `@cache`d, so restart after editing it. Rebuild `web/dist` (`cd web && npm run build`) after UI changes.
-- **Tailscale Funnel is ON:** https://laptop-o90994nd.tail1ffac6.ts.net (anyone with the link can start runs). Off: `"/c/Program Files/Tailscale/tailscale.exe" funnel --https=443 off`. It's needed for GitHub sign-in (the OAuth callback is registered to that URL).
+- **Tailscale Funnel is ON:** https://<demo-laptop>.<tailnet>.ts.net (anyone with the link can start runs). Off: `"/c/Program Files/Tailscale/tailscale.exe" funnel --https=443 off`. It's needed for GitHub sign-in (the OAuth callback is registered to that URL).
 - `.env`: GOOGLE/GROQ/NEBIUS keys, GITHUB_READ_TOKEN (read-**write** PAT, swap for read-only), OAuth id/secret, FERNET_KEY, PUBLIC_URL, PP_LOCAL_MODEL.
 - `config/limits.toml`: global budget **2.5M** (debug-day value): **set it back to 1_560_000 before the demo.**
 - Model order (`PP_AGENT_MODELS`): groq gpt-oss-120b → groq qwen3.8-27b → nebius gpt-oss-120b (paid, ≈$0.05/run) → gemini 3.8/3.5 flash. The local 7B is for short calls only.
