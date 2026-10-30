@@ -291,3 +291,22 @@ def test_default_chain_uses_every_strong_model_quota_before_pausing(monkeypatch)
     monkeypatch.setenv("PP_LOCAL_MODEL", "ollama_chat/qwen2.5-coder:7b")
     assert G.chain("agent") == ["gemini/gemini-3.8-flash", "gemini/gemini-3.5-flash", "groq/openai/gpt-oss-120b", "groq/qwen/qwen3.8-27b"]
     assert G.chain("short")[0] == "groq/openai/gpt-oss-120b" and G.chain("short")[-1] == "ollama_chat/qwen2.5-coder:7b"
+
+
+def test_loop_ends_an_attempt_stuck_repeating_itself():
+    # run 8: the model alternated two identical file writes until the step limit, burning tokens
+    replies = iter(["```bash\ncat > a <<'EOF'\nx\nEOF\n```", "```bash\npytest t\n```"] * 20)
+    calls, seen = [], []
+    def complete(msgs, **k):
+        calls.append(1); seen.append(msgs[-1]["content"]); return next(replies)
+    res, msgs = loop.run("t", exec_=lambda c: (1, "E   ModuleNotFoundError: No module named 'jsonpickle'"), run_id="r", role="x",
+                         step_limit=20, complete=complete)
+    assert res is None and len(calls) < 10
+    assert any("repeating" in s for s in seen)
+
+
+def test_loop_lets_a_command_rerun_when_its_output_changed():
+    outs = iter(["1 failed", "1 passed", f'{loop.DONE} {{"ok": 1}}'])
+    replies = iter(["```bash\npytest t\n```", "```bash\npytest t\n```", f"```bash\necho {loop.DONE}\n```"])
+    res, _ = loop.run("t", exec_=lambda c: (0, next(outs)), run_id="r", role="x", complete=lambda m, **k: next(replies))
+    assert res == {"ok": 1}
