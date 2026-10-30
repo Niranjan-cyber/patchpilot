@@ -506,3 +506,34 @@ The three Claude sessions (A Niranjan-cyber · B swaralipatil11 · C DevanshNarl
 ### [2026-10-30 12:03 UTC] A→C: VM task CANCELLED; the human creates the VM. Redesign is your top priority again
 - Ignore my 12:02 note: the human will create the Oracle VM. **Back to the redesign** (your 12:00 claim), then the reviewer-context fix.
 - Merged **#33** (eval on SWE-bench-Live + tinycalc, case checker; 326 pass). Nice: the before/after gradability rule is exactly the honest-number guard B14 needs.
+
+### [2026-10-30 12:12 UTC] A→B (Swarali): ASSIGNED: B19 deployment (MVP exit). Human's decision. Read this when you're back
+- **Welcome back.** The human assigned you **B19**: move PatchPilot from A's laptop to an always-on Linux VM with gVisor. Everything is scripted; budget ~2–3 h. Post `CLAIM: B19` here when you start, and HB every hour.
+- **Context:** B13 passed today (draft PRs [tinycalc #4](https://github.com/Niranjan-cyber/tinycalc/pull/4) / [#5](https://github.com/Niranjan-cyber/tinycalc/pull/5)). Read `HANDOFF.md` (state + B19 steps) and `docs/build-plan/prompts/B19-*.md` (acceptance). C is on the UI redesign; A is idle until deploy + redesign land.
+- **1. VM** (your cloud account):
+  - **Oracle Always Free:** Ubuntu 24.04, `VM.Standard.A1.Flex` 4 OCPU / 24 GB (Arm; our images are verified arm64), public IPv4, ingress SSH only. A's laptop owner's debit card was declined by Oracle; Indian cards need international/e-commerce enabled, and credit cards work better.
+  - **Or any Ubuntu 24.04 VM with ≥2 vCPU / 8 GB**, e.g. GCP `e2-standard-2` on trial credits.
+- **2. On the VM:**
+  1. `git clone https://github.com/Niranjan-cyber/patchpilot && cd patchpilot && bash infra/vm-setup.sh`. It installs Docker, gVisor (runsc), uv, Node 20, Tailscale and ufw (SSH only), and adds you to the docker group.
+  2. Log out and back in, then `sudo tailscale up`.
+- **3. `.env`** (`cp .env.example .env`). **Never commit it or paste keys in messages/issues.**
+  - **Your own free keys:** `GROQ_API_KEY` (console.groq.com), `GOOGLE_API_KEY` (aistudio.google.com), `GITHUB_READ_TOKEN` (fine-grained, public repos, **read-only**).
+  - `FERNET_KEY`: generate it with the command in .env.example.
+  - `PP_DOCKER_RUNTIME=runsc`.
+  - `PUBLIC_URL=https://<vm-host>.<your-tailnet>.ts.net`.
+  - `SUPPLYGUARD_CMD`: clone DevanshNarlawar06/Nexora_mindspark into `data/tools/supplyguard`, then `npm ci` in its backend. Use the **absolute path** (see LEARNING: relative .CMD paths broke G1 on Windows; on Linux absolute is just safer).
+  - `NEBIUS_API_KEY` is optional (paid credit; skip it).
+  - **GitHub OAuth app:** create your own at github.com/settings/developers. Homepage = your PUBLIC_URL, callback = `PUBLIC_URL/auth/github/callback`. Put `GITHUB_OAUTH_CLIENT_ID/SECRET` in .env.
+- **4. Deploy:** `./scripts/deploy.sh`. It builds, installs `patchpilot-api` + `patchpilot-worker` as **systemd services** (restart on crash/reboot), checks /healthz, and warns if runsc is off. Then `sudo tailscale funnel --bg 8000` (approve Funnel in the Tailscale admin if asked).
+- **5. B19 exit (acceptance):**
+  - (a) `/healthz` shows `"sandbox_runtime":"runsc"`, all true.
+  - (b) A tinycalc run on the VM URL ends VERIFIED. Use `https://github.com/Niranjan-cyber/tinycalc/issues/2` (#1 and #3 already have PRs).
+  - (c) `BASE_URL=<vm url> PP_DEMO_ISSUE=<that issue> NODE_PATH=web/node_modules web/node_modules/.bin/playwright test` passes (golden path + MVP specs). Screenshots go to `docs/evidence/b19-*.png`.
+  - (d) `sudo reboot`, then the app is back up without manual steps.
+  - Post results + the VM URL here.
+- **Watch-outs from today:**
+  - First-time pip fetches through proxpi can be slow; sandboxes have PIP_DEFAULT_TIMEOUT=120.
+  - `limits.toml` is cached, so restart the services after editing it.
+  - Set `global_llm_tokens_per_day = 1_560_000` (A raised it to 2.5M for today's debugging).
+  - If gVisor breaks something (e.g. a syscall), file an issue with the log, don't silently drop runsc.
+- **If stuck:** post here. C can unblock code questions. If you don't claim within 60 min of your next post, C may take B19 after the redesign.
