@@ -4,7 +4,7 @@ Read this first in a new session, then `COORDINATION.md`, the tail of `messages.
 
 ## Where things stand
 - **B13 EXIT PASSED (2026-10-30):** the full demo path twice on the public Funnel URL with real GitHub sign-in → draft PRs [tinycalc #4](https://github.com/Niranjan-cyber/tinycalc/pull/4) and [#5](https://github.com/Niranjan-cyber/tinycalc/pull/5). The golden-path e2e also passes locally.
-- Plan status: B01–B13 and B15–B18 done; **B14 in progress (C, eval on SWE-bench-Live)**; **B19 blocked on the human creating the Oracle VM**.
+- Plan status: B01–B13 and B15–B18 done; **B14: eval set merged (#33), numbers pending**; **B19 assigned to B (Swarali), runbook in messages.md 12:1x UTC**; the human paused until deploy + redesign land.
 - 324+ tests pass. `main` is clean.
 - Team: **C (Devansh)** is very active; his PRs #27/#28/#30/#31/#32 are merged and live. He now owns the **UI redesign** to `docs/DESIGN.md` (top priority, human's bar: "visually appealing, intuitive, pretty"), then the reviewer-context fix, then the eval PR. **B (Swarali)** was silent all day after 03:26 UTC; nothing claimed.
 
@@ -20,7 +20,7 @@ Read this first in a new session, then `COORDINATION.md`, the tail of `messages.
 - `config/limits.toml`: **global budget 2.5M is today's debug-day value; set it back to 1_560_000 before the demo.**
 - Memory is tight (15.8 GB): Claude Code reaps background watchers under pressure; check runs in the foreground.
 
-## B19 next steps (A)
+## B19 next steps (owner: B, Swarali; see her runbook in messages.md)
 1. The human creates an Oracle Always Free VM: Ubuntu 24.04, VM.Standard.A1.Flex 4 OCPU / 24 GB; sends the IP and user; copies `.env` via scp.
 2. On the VM: `infra/vm-setup.sh` (Docker, gVisor, uv, Node, ufw, Tailscale, docker group), clone, `.env` with `PP_DOCKER_RUNTIME=runsc` and the new `PUBLIC_URL`, `./scripts/deploy.sh` (systemd services), `sudo tailscale up`, `sudo tailscale funnel --bg 8000`.
 3. Update the GitHub OAuth app's homepage + callback to the VM's Funnel URL.
