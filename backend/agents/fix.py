@@ -16,7 +16,8 @@ WHY = {"edits_tests": "it changed a test file; tests are fixed, only change sour
        "dependency_change": "it changed a dependency file (requirements, pyproject, setup, lock files)",
        "ci_change": "it changed .github/", "too_many_files": f"it changed more than {MAX_FILES} files",
        "too_many_lines": f"it changed more than {MAX_LINES} lines", "empty_diff": "it changed nothing on disk (printing a diff or describing a change edits no file; write the file, then check `git diff`)",
-       "binary_change": "it changed a binary file"}
+       "binary_change": "it changed a binary file",
+       "unparseable_diff": "a changed file name could not be read from the diff (avoid spaces or non-ASCII in file names)"}
 
 
 def task_prompt(run, previous: str | None, feedback: str | None) -> str:
