@@ -44,7 +44,7 @@ def _step_node(step: StepId):
         res = NODES[step](ctx)
         while (q := ctx.scratch.pop("pause", None)) is not None:     # provider quota: pause, never guess a resume time
             since = ctx.scratch.setdefault("paused_since", __import__("time").time())
-            if not _wait_out_pause(c, rid, q, since):
+            if not _wait_out_pause(c, rid, q, since, step.value):
                 return {"end_reason": EndReason.PAUSE_TIMEOUT.value if not db.stop_requested(c, rid) else EndReason.USER_STOPPED.value,
                         "stopped_at": step.value}
             ctx.run = db.get_run(c, rid)
@@ -90,7 +90,7 @@ def _guided_pause(c, run, step: StepId) -> bool:
     return True
 
 
-def _wait_out_pause(c, rid: str, q, since: float) -> bool:
+def _wait_out_pause(c, rid: str, q, since: float, step: str = "") -> bool:
     """True = resume; False = paused too long (or user stopped). Polls every 60 s when the reset time is unknown."""
     import time
     from backend.config import limits
@@ -112,7 +112,7 @@ def _wait_out_pause(c, rid: str, q, since: float) -> bool:
     else:
         return False
     run = db.get_run(c, rid); run.status, run.pause = RunStatus.RUNNING, None; db.save_run(c, run)
-    db.emit(c, rid, "run.resumed", None, run.revision, from_step="reproduce")
+    db.emit(c, rid, "run.resumed", None, run.revision, from_step=step)
     return True
 
 

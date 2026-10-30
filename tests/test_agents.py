@@ -320,3 +320,26 @@ def test_a_timeout_moves_on_to_the_next_model(three_models):
         if model.startswith("gemini"): raise Timeout("litellm.Timeout: Connection timed out after None seconds.")
         return _ok_resp("groq")
     assert G.complete([{"role": "user", "content": "x"}], run_id="r", role="x", _completion=fake) == "groq"
+
+
+def test_pause_counts_the_cooldown_of_skipped_models(three_models):
+    # run 9 paused until Gemini's daily reset although Groq (skipped: cooling down) was back in minutes
+    from datetime import timedelta
+    G._out["groq/openai/gpt-oss-120b"] = db.now() + timedelta(minutes=5)
+    def fake(model, **k): raise _RL("429 quota per day")
+    with pytest.raises(G.QuotaPause) as e:
+        G.complete([{"role": "user", "content": "x"}], run_id="r", role="x", _completion=fake)
+    assert (e.value.resume_at - db.now()).total_seconds() <= 301
+
+
+def test_a_quota_pause_resumes_from_the_step_it_paused_in(tmp_path, monkeypatch):
+    from datetime import timedelta
+    from backend.worker import graph
+    monkeypatch.setattr(db, "DB_PATH", str(tmp_path / "app.db"))
+    c = db.connect()
+    v = db.create_run(c, IssueSpec(html_url="https://github.com/o/r/issues/1", repo="o/r", number=1, title="t"), "sha")
+    q = G.QuotaPause(db.now() - timedelta(seconds=1), "groq")        # the reset time has already passed
+    assert graph._wait_out_pause(c, v.run_id, q, __import__("time").time(), "diagnose") is True
+    ev = [e for e in db.events_after(c, v.run_id, 0) if e.type == "run.resumed"]
+    assert ev and ev[-1].payload["from_step"] == "diagnose"
+    assert db.get_run(c, v.run_id).status == RunStatus.RUNNING

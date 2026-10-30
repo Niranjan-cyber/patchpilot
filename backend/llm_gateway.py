@@ -163,7 +163,9 @@ def complete(messages: list[dict], *, run_id: str, role: str, kind: str = "agent
                 if wait is not None and wait > 60:
                     _out[model] = q.resume_at
                 pauses.append(q); break
-    known = [p.resume_at for p in pauses if p.resume_at]     # resume when the first provider is back; unknown stays None
+    # resume when the first model is back, skipped ones included (run 9 waited for Gemini's daily reset while Groq was back
+    # in minutes); unknown stays None
+    known = [p.resume_at for p in pauses if p.resume_at] + [_out[m] for m in chain(kind) if m in _out and _out[m] > now]
     raise QuotaPause(min(known) if known else None, pauses[0].provider)
 
 
