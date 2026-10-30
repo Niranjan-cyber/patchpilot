@@ -11,7 +11,15 @@ echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/gviso
   | sudo tee /etc/apt/sources.list.d/gvisor.list >/dev/null
 sudo apt-get update && sudo apt-get install -y runsc
 sudo runsc install && sudo systemctl restart docker
-docker info --format '{{json .Runtimes}}' | grep -q runsc && echo "gVisor OK"
+# sudo, because this shell isn't in the docker group until the user logs out and back in.
+# An `... && echo OK` here would pass silently when runsc is missing: set -e exempts a failing
+# command in an && list, so the install would "succeed" and only break later in the worker.
+if sudo docker info --format '{{json .Runtimes}}' | grep -q runsc; then
+  echo "gVisor OK"
+else
+  echo "ERROR: runsc is not registered with Docker. B19 needs gVisor; fix this before deploying." >&2
+  exit 1
+fi
 curl -LsSf https://astral.sh/uv/install.sh | sh
 curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash - && sudo apt-get install -y nodejs
 curl -fsSL https://tailscale.com/install.sh | sh                   # public traffic: Tailscale Funnel only, no open ports
