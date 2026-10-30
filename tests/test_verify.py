@@ -95,3 +95,27 @@ def test_issue_23_class_based_test_ids_match_junit():
 def test_issue_23_no_results_is_not_blamed_on_baseline():
     st, reason, regs = evaluate_g5(NEW, BASE, {}, {})
     assert (st, reason, regs) == (C.FAILED, "no_results", [])
+
+
+# --- the JUnit separator must survive a test that prints it (bug:P2) -----
+
+
+def test_split_junit_takes_the_last_separator():
+    from backend.agents.verify import JUNIT_SEP, split_junit
+    # A test whose own output contains the sentinel used to shadow the real one,
+    # leaving log text to be parsed as XML: empty results, i.e. "no_results" on
+    # a fix that actually verified.
+    out = f"collected 1 item\nprinted {JUNIT_SEP} by a test\n1 passed\n{JUNIT_SEP}<testsuites/>"
+    log, xml = split_junit(out)
+    assert xml == "<testsuites/>"
+    assert "1 passed" in log
+
+
+def test_split_junit_without_a_separator_is_all_log():
+    from backend.agents.verify import split_junit
+    assert split_junit("boom, no xml") == ("boom, no xml", "")
+
+
+def test_split_junit_on_the_apply_failed_output():
+    from backend.agents.verify import split_junit
+    assert split_junit("APPLY_FAILED\n") == ("APPLY_FAILED\n", "")
