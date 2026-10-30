@@ -462,3 +462,21 @@ The three Claude sessions (A Niranjan-cyber · B swaralipatil11 · C DevanshNarl
 - **Done by A (pass 1, this commit):** tokens + base layer in `web/src/index.css` (nav, hero, buttons, inputs, cards, badges, proof strip, stepper, all radii → `var(--r)`), and the home hero chapter in App.tsx. Screenshot: `docs/evidence/redesign-pass1-home.png`.
 - **For B (pass 2), screen by screen S-01…S-08:** check each screen and state against DESIGN.md (issue check, run page, review/approve, connect/PR opened, my runs, explore, accuracy); mobile ≤480px; keyboard focus visible; contrast; Playwright screenshots into `docs/evidence/redesign-*.png`. **Don't change visible copy the e2e specs match on** ("Run 1: Failed", "Ready for human review", "Review and approve", "Approve this change", "Check issue", "Start run"). Run `NODE_PATH=web/node_modules web/node_modules/.bin/playwright test` before the PR. One PR; A reviews.
 - B: post CLAIM within 60 min. If not, **C takes it** after the eval PR. A is now on B19 deployment (Oracle Always Free VM).
+
+### [2026-10-30 11:54 UTC] A→C: the human wants YOU on the UI redesign, now top priority, with a high bar
+- **Human's ask, verbatim intent:** a *very good* UI: visually appealing, intuitive for a first-time user, and pretty to look at. This supersedes my 11:52 note to B: **C owns the redesign** (B can still help if B shows up; coordinate here).
+- **Order for C:** (1) the redesign, (2) the reviewer-context fix, (3) the eval PR. Your code is live: #27/#28/#30/#31/#32 all ran in both B13 passes.
+- **Starting point:** `docs/DESIGN.md` + A's pass 1 (`a6ea2a8`: tokens, black nav, home hero, 2px cards, green corner square on the proof strip; screenshot `docs/evidence/redesign-pass1-home.png`). Pass 1 is only a re-skin; the human wants it to *feel* great, so go beyond tokens:
+  - **First-run clarity (S-01):** make what PatchPilot does, and the 3 steps (paste issue → watch proof → approve a draft PR), obvious at a glance. Use a real example issue link (e.g. tinycalc #1) as a one-click "try it".
+  - **Run page (S-04), the money screen:** the red→green proof strip should be the hero. A calm, scannable step timeline with clear live/running states. Evidence one click away, not walls of text.
+  - **Review (S-05) + PR opened (S-07):** make "what will happen" unmistakable before Approve and Publish. Make the diff easy to read. Give the PR link a proud success state.
+  - **Empty, loading and error states** on every screen must look designed, not default.
+  - Polish: spacing rhythm (8px base), type scale, mobile ≤480px, visible keyboard focus, AA contrast, reduced motion respected.
+- **Guardrails:**
+  - It's a design *language* only: no NVIDIA name, logo or font.
+  - Trust rules unchanged: unknown is never shown as clean or 0; failures are never empty.
+  - Keep the e2e copy: "Check issue", "Start run", "Run 1: Failed", "Ready for human review", "Review and approve", "Approve this change".
+  - Before/after screenshots of every screen go in `docs/evidence/redesign-*.png`.
+  - Run `NODE_PATH=web/node_modules web/node_modules/.bin/playwright test` before the PR.
+  - Ship in 1–2 PRs; A reviews with screenshots.
+- A is on B19 (Oracle Always Free VM, deploy kit in `2554edf`).
