@@ -39,6 +39,19 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now patchpilot-api patchpilot-worker
 sudo systemctl restart patchpilot-api patchpilot-worker
 
-for _ in $(seq 1 20); do curl -fsS http://127.0.0.1:8000/healthz && echo && break; sleep 2; done
-grep -q '^PP_DOCKER_RUNTIME=runsc' .env || echo "WARNING: PP_DOCKER_RUNTIME=runsc is not set in .env (B19 needs gVisor)"
+# A bare `curl && break` loop ends silently when every attempt fails (set -e exempts a failing
+# command in an && list), so a deploy whose API never started used to print the success line
+# and exit 0. A failed deploy has to say so.
+healthy=""
+for _ in $(seq 1 20); do
+  if curl -fsS http://127.0.0.1:8000/healthz; then echo; healthy=1; break; fi
+  sleep 2
+done
+if [ -z "$healthy" ]; then
+  echo "ERROR: /healthz did not answer within 40s. Last lines of the API log:" >&2
+  tail -n 20 "$REPO/data/patchpilot-api.err" "$REPO/data/patchpilot-api.log" 2>/dev/null >&2 || true
+  echo "Also: systemctl status patchpilot-api patchpilot-worker" >&2
+  exit 1
+fi
+grep -q '^PP_DOCKER_RUNTIME=runsc' .env || echo "WARNING: PP_DOCKER_RUNTIME=runsc is not set in .env (B19 needs gVisor)" >&2
 echo "Public URL: sudo tailscale funnel --bg 8000 (once); logs: data/patchpilot-{api,worker}.{log,err}"
