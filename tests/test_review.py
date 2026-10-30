@@ -52,3 +52,15 @@ def test_added_silent_except_lowers_readiness_even_when_the_llm_sees_nothing(ctx
     RV.review(c)
     r = db.get_run(db.connect(), c.run_id).review
     assert r.lowers_readiness is True and any("except TypeError:" in x["text"] for x in r.concerns)
+
+
+def test_reviewer_sees_what_the_issue_asks_for(ctx):   # tinycalc #2: the requested change was flagged as a risk
+    c, mp = ctx
+    v = db.get_run(db.connect(), c.run_id)
+    v.issue = v.issue.model_copy(update={"expected": "ZeroDivisionError", "actual": "returns 0", "summary": "divide(1, 0) returns 0"})
+    db.save_run(db.connect(), v)
+    seen = {}
+    mp.setattr(RV, "complete", lambda msgs, **k: seen.setdefault("p", msgs[0]["content"]) and '{"concerns": []}')
+    RV.review(c)
+    assert "Expected: ZeroDivisionError" in seen["p"] and "Actual: returns 0" in seen["p"] and "divide(1, 0) returns 0" in seen["p"]
+    assert "not a concern" in seen["p"]
