@@ -121,3 +121,59 @@ def test_g4_exhausted_stops_the_run_as_triage_only():
     assert CheckStatus.FAILED in STOP_EARLY["G4"]
     gates = {"G1": CheckStatus.PASSED, "G2": CheckStatus.PASSED, "G3": CheckStatus.PASSED, "G4": CheckStatus.FAILED}
     assert decide_outcome(gates, EndReason.RETRIES_EXHAUSTED, diagnosis_valid=True) == Outcome.TRIAGE_ONLY
+
+
+# --- the codebase tour is shown as links into the pinned source (bug:P1) ---
+
+SOURCE = {"src/tinycalc/ops.py": 40, "tests/test_ops.py": 12}
+
+
+def _lines(path):
+    return SOURCE.get(path)
+
+
+def _res(tour):
+    return {"hypothesis": "divide() does not guard a zero denominator",
+            "locations": [{"path": "src/tinycalc/ops.py", "line": 12}],
+            "evidence_ids": ["ev1"], "tour": tour}
+
+
+def test_a_tour_file_that_is_not_in_the_source_is_dropped():
+    from backend.gates.diff_policy import keep_tour
+    tour = [{"path": "src/tinycalc/ops.py", "why": "divide lives here"},
+            {"path": "tests/test_invented.py", "why": "expects a ZeroDivisionError"}]
+    kept, dropped = keep_tour(tour, _lines)
+    assert [t["path"] for t in kept] == ["src/tinycalc/ops.py"]
+    assert dropped == ["tests/test_invented.py"]
+
+
+@pytest.mark.parametrize("path", ["/etc/shadow", "../../etc/passwd", "src/../../x.py", "", "   "])
+def test_an_absolute_or_escaping_tour_path_is_dropped(path):
+    from backend.gates.diff_policy import keep_tour
+    kept, dropped = keep_tour([{"path": path, "why": "nope"}], _lines)
+    assert kept == [] and dropped == [path]
+
+
+def test_a_bad_tour_item_does_not_fail_the_whole_diagnosis():
+    # The hypothesis and locations are validated separately: dropping a tour
+    # item must not turn a good diagnosis into TRIAGE_ONLY.
+    from backend.gates.diff_policy import check_diagnosis, keep_tour
+    res = _res([{"path": "tests/test_invented.py", "why": "x"}])
+    assert check_diagnosis(res, {"ev1"}, _lines) is None
+    assert keep_tour(res["tour"], _lines)[0] == []
+
+
+def test_a_malformed_tour_entry_is_ignored():
+    from backend.gates.diff_policy import keep_tour
+    kept, dropped = keep_tour(["tests/test_ops.py", None, 7], _lines)
+    assert kept == [] and dropped == []
+
+
+def test_locations_are_still_validated_against_the_source():
+    from backend.gates.diff_policy import check_diagnosis
+    bad = _res([])
+    bad["locations"] = [{"path": "src/invented.py", "line": 1}]
+    assert check_diagnosis(bad, {"ev1"}, _lines) == "unknown_file"
+    deep = _res([])
+    deep["locations"] = [{"path": "../../etc/passwd", "line": 1}]
+    assert check_diagnosis(deep, {"ev1"}, _lines) == "unknown_file"

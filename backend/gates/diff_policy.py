@@ -44,6 +44,33 @@ def g4_result(diff: str, *, evidence_ids: list[str]) -> GateResult:
     return GateResult(gate="G4", status=CheckStatus.PASSED, reason="ok", evidence_ids=evidence_ids)
 
 
+def _path_in_source(path: str, line_count) -> int | None:
+    """Lines in the file, or None when it's absolute, escapes /src, or isn't in the pinned source."""
+    if not path or path.startswith("/") or ".." in PurePosixPath(path).parts:
+        return None
+    return line_count(path)
+
+
+def keep_tour(tour, line_count) -> tuple[list[dict], list[str]]:
+    """Split the model's tour into items whose file really is in the pinned source, and the paths dropped.
+
+    The UI links every tour path into the pinned commit for the user to read along, and `explain`
+    counts them as cited files, so an invented path is a wrong fact about the user's code and a 404.
+    The hypothesis and locations are validated separately, so a bad tour item is dropped instead of
+    failing the whole diagnosis: no outcome changes, and nothing false is shown.
+    """
+    kept, dropped = [], []
+    for t in tour:
+        if not isinstance(t, dict):
+            continue
+        path = str(t.get("path") or "")
+        if _path_in_source(path, line_count) is None:
+            dropped.append(path)
+        else:
+            kept.append(t)
+    return kept, dropped
+
+
 def check_diagnosis(res: dict | None, known_ids: set[str], line_count) -> str | None:
     """None = valid. line_count(path) -> number of lines, or None if the file doesn't exist in the pinned source."""
     if not isinstance(res, dict):
@@ -63,10 +90,7 @@ def check_diagnosis(res: dict | None, known_ids: set[str], line_count) -> str | 
     for loc in locs:
         if not isinstance(loc, dict):
             return "no_location"
-        path = str(loc.get("path") or "")
-        if not path or path.startswith("/") or ".." in PurePosixPath(path).parts:
-            return "unknown_file"
-        n = line_count(path)
+        n = _path_in_source(str(loc.get("path") or ""), line_count)
         if n is None:
             return "unknown_file"
         line = loc.get("line")
