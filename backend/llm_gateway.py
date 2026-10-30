@@ -137,16 +137,30 @@ def complete(messages: list[dict], *, run_id: str, role: str, kind: str = "agent
     log = lambda status, p=0, k=0: c.execute("INSERT INTO llm_calls(run_id,role,model,prompt_tokens,completion_tokens,latency_ms,status,ts) "
                                              "VALUES(?,?,?,?,?,?,?,?)", (run_id, role, model, p, k, int((time.time() - t0) * 1000),
                                                                          status, _db.now().isoformat()))
-    try:
-        r = _completion(model=model, messages=msgs, temperature=0.2, timeout=120)
-    except Exception as e:
+    r, overloaded = None, False
+    for wait in (0, 5, 15, 30):       # provider overload (503 "high demand") is transient: back off, don't fail the step
+        if wait:
+            time.sleep(wait)
+        try:
+            r = _completion(model=model, messages=msgs, timeout=120)   # no temperature: deprecated for Gemini 3+
+            break
+        except Exception as e:
+            if "ServiceUnavailable" in type(e).__name__ or "503" in str(e) or "overloaded" in str(e).lower():
+                log("unavailable"); overloaded = True; continue
+            _raise_classified(e, model, log)
+    if r is None and overloaded:      # still overloaded: pause until capacity is back; time unknown → never guessed
+        raise QuotaPause(None, model.split("/")[0])
+    u = getattr(r, "usage", None)
+    log("ok", getattr(u, "prompt_tokens", 0) or 0, getattr(u, "completion_tokens", 0) or 0)
+    return r.choices[0].message.content or ""
+
+
+def _raise_classified(e, model, log):
+    if True:
         if "RateLimit" in type(e).__name__ or "429" in str(e):
             log("rate_limited")
             hdrs = getattr(getattr(e, "response", None), "headers", None) or {}
             daily = "per day" in str(e).lower() or "PerDay" in str(e)
             raise QuotaPause(resume_at(_db.now(), hdrs.get("retry-after"), daily_quota=daily and model.startswith("gemini")),
                              model.split("/")[0]) from e
-        log("error"); raise
-    u = getattr(r, "usage", None)
-    log("ok", getattr(u, "prompt_tokens", 0) or 0, getattr(u, "completion_tokens", 0) or 0)
-    return r.choices[0].message.content or ""
+        log("error"); raise e

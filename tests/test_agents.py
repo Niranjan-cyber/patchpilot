@@ -132,3 +132,27 @@ def test_issue_23_reproduction_without_test_ids_never_passes_g3(node):
     mp.setattr(R, "_check_run", lambda rid, d, t: FAIL_OUT)
     r = R.reproduce(ctx)
     assert r.status == CheckStatus.FAILED and r.reason == "no_test_written" and len(calls) == 3
+
+
+def test_503_backs_off_then_succeeds(tmpdb, monkeypatch):
+    monkeypatch.setattr(__import__("time"), "sleep", lambda s: None)
+    class ServiceUnavailableError(Exception): pass
+    class U: prompt_tokens, completion_tokens = 1, 1
+    class M: content = "ok"
+    class Ch: message = M
+    class Resp: usage, choices = U, [Ch]
+    calls = []
+    def flaky(**k):
+        calls.append(1)
+        if len(calls) < 3: raise ServiceUnavailableError("503 high demand")
+        return Resp
+    assert G.complete([{"role": "user", "content": "x"}], run_id="r", role="x", _completion=flaky) == "ok" and len(calls) == 3
+
+
+def test_persistent_503_pauses_with_unknown_resume(tmpdb, monkeypatch):
+    monkeypatch.setattr(__import__("time"), "sleep", lambda s: None)
+    class ServiceUnavailableError(Exception): pass
+    def down(**k): raise ServiceUnavailableError("503")
+    with pytest.raises(G.QuotaPause) as e:
+        G.complete([{"role": "user", "content": "x"}], run_id="r", role="x", _completion=down)
+    assert e.value.resume_at is None
