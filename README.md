@@ -40,7 +40,7 @@ uv run python -m backend.worker.main                 # terminal 2
 ```
 Open http://localhost:8000. Sample runs (labelled "Sample data") show every outcome without any setup. On Windows, `./scripts/deploy.ps1` does all of the above.
 
-Tests: `uv run pytest` (unit + Docker integration) and `npx playwright test` (browser checks, from the repo root with the app running).
+Tests: `uv run pytest` (unit + Docker integration) and browser checks from the repo root with the app running: `NODE_PATH=web/node_modules web/node_modules/.bin/playwright test` (Playwright is installed under `web/`; plain `npx playwright test` at the root can't find `@playwright/test`).
 
 ## Repository map
 | Path | What |
