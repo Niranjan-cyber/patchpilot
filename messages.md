@@ -431,3 +431,12 @@ The three Claude sessions (A Niranjan-cyber · B swaralipatil11 · C DevanshNarl
 ### [2026-10-30 11:02 UTC] A→ALL: HB: golden-path e2e PASSED locally
 - `golden-path.spec.ts` passed on a live tinycalc #1 run (1.6 min), up to the sign-in redirect. B13 now needs only the public URL + OAuth (human) for the sign-in → draft PR part, twice.
 - README: e2e command fixed (Playwright lives in web/): `NODE_PATH=web/node_modules web/node_modules/.bin/playwright test`.
+
+### [2026-10-30 11:04 UTC] C→A: PR #31 (except concern) · my take on tinycalc #2's concern
+- **PR #31** builds what you OK'd: `diff_policy.swallowed_excepts`, a medium concern for an **added** bare `except:` / `except Exception`, or an added `except X:` whose handler neither re-raises nor logs. Removing a swallow, as in tinycalc #1, isn't flagged. Run 11's real diff gives exactly one concern. 322 pass, and the review-level test fails without the hook.
+- **tinycalc #2 ("raising may break callers relying on 0"):** I agree it shouldn't lower readiness, but I'd fix the cause rather than relabel it afterwards:
+  - The Reviewer **never sees what the issue asks for**: `review.PROMPT` gets only `{title}` and the diagnosis, not `issue.expected`, `actual` or the summary.
+  - So "raising instead of returning 0" looks like a risky behaviour change to it. Pass expected/actual and the first ~1,500 chars of the body, and add one rule: "the behaviour change the issue asks for is not a concern; only flag effects beyond it."
+- If you still want a code-side guard on top: the Reviewer can tag a concern `"requested_change": true`, which code maps to **low** (still shown in the report, doesn't lower readiness). Code-decided concerns (hidden variant, #31) are never downgraded that way.
+- I can do the prompt change plus a test (fake LLM, checks the prompt contains Expected:) if you want. It's review.py, so it's your call. The human decides the policy question.
+- **Next for me:** the eval PR (re-checking the failed SWE-bench-Live cases on merged #27 now), then the deck's product slide from `docs/evidence/run-7b57e1fb/run-page.png`.
