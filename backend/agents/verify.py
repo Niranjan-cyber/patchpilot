@@ -2,6 +2,7 @@
 G5: the new test passes in BOTH runs and every baseline-passing test still passes. Retries go back to the Fixer
 (≤ fixer retries), then one re-diagnosis, then TRIAGE_ONLY (contracts §1.1)."""
 import base64
+import shlex
 import uuid
 
 from backend import artifacts, db
@@ -11,6 +12,20 @@ from backend.sandbox import docker
 from backend.sandbox.rules import junit_outcomes
 from backend.sandbox.steps import image, snap
 from backend.worker.nodes import StepContext
+
+
+JUNIT_SEP = "<<<JUNIT>>>"
+
+
+def split_junit(out: str) -> tuple[str, str]:
+    """Container output -> (log, JUnit XML).
+
+    rpartition, not partition: the real separator is echoed after the log, so a test that prints
+    the sentinel itself would otherwise shadow it and leave us parsing log text as XML (empty
+    results, i.e. a verified fix reported as `no_results`).
+    """
+    log, sep, xml = out.rpartition(JUNIT_SEP)
+    return (log, xml) if sep else (out, "")
 
 
 def junit_id(test_id: str) -> str:
@@ -46,10 +61,12 @@ def _fresh_run(rid: str, diffs: list[str], args: str) -> tuple[dict[str, bool], 
     b64 = lambda s: base64.b64encode(s.encode()).decode()
     apply = " && ".join(f"echo {b64(d)} | base64 -d > /tmp/d{i}.diff && git apply /tmp/d{i}.diff" for i, d in enumerate(diffs))
     r = docker.run(image(rid), f"{apply} || {{ echo APPLY_FAILED; exit 3; }}; python -m pytest -p no:cacheprovider -rfE "
-                   f"--junitxml=/tmp/j.xml {args} > /tmp/o.log 2>&1; tail -c 20000 /tmp/o.log; echo '<<<JUNIT>>>'; cat /tmp/j.xml",
+                   f"--junitxml=/tmp/j.xml {args} > /tmp/o.log 2>&1; tail -c 20000 /tmp/o.log; echo '{JUNIT_SEP}'; cat /tmp/j.xml",
                    name=name, timeout=600, snapshot_volume=snap(rid))
-    log, _, xml = r.out.partition("<<<JUNIT>>>")
-    return ({} if "APPLY_FAILED" in log else junit_outcomes(xml.strip())), log, name
+    log, xml = split_junit(r.out)
+    # exit 3 is the apply-failed branch above; the container's own status, so a test that prints
+    # "APPLY_FAILED" can't fake it (pytest's status is swallowed by the redirect and the `;` chain).
+    return ({} if r.code == 3 else junit_outcomes(xml.strip())), log, name
 
 
 def _verify_once(ctx: StepContext) -> GateResult:
@@ -59,7 +76,10 @@ def _verify_once(ctx: StepContext) -> GateResult:
         return GateResult(gate="G5", status=CheckStatus.FAILED, reason="diff_missing")
     diffs = [d.decode("utf-8", "replace") for d in diffs]
     new_ids = run.repro.test_ids
-    files = " ".join(sorted({t.split("::")[0] for t in new_ids}))
+    # quoted like baseline() does (steps.py): the Test designer names this file, and an unquoted
+    # space would split it into two pytest arguments, so the second run would target nothing and
+    # a verified fix would be reported flaky.
+    files = " ".join(shlex.quote(f) for f in sorted({t.split("::")[0] for t in new_ids}))
     suite, log1, c1 = _fresh_run(ctx.run_id, diffs, "")              # full suite: new test + regressions
     second, log2, c2 = _fresh_run(ctx.run_id, diffs, files)          # second, independent run of the new test
     status, reason, regs = evaluate_g5(new_ids, run.baseline.pass_set if run.baseline else [], suite, second)
