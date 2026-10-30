@@ -95,15 +95,16 @@ _out: dict = {}
 
 
 def chain(kind: str) -> list[str]:
-    """Models to try in order: Gemini, then Groq (if keyed). Short calls may end on a local model (PP_LOCAL_MODEL); agent work
-    never does: the 7B model made up evidence and looped (runs 1, 3), so agents pause instead.
-    Free-tier quotas are per model, so each list holds several strong models (verified on the team's keys 2026-10-30)."""
-    gemini = _os.getenv("PP_AGENT_MODEL", "gemini/gemini-3.8-flash,gemini/gemini-3.5-flash").split(",")
-    groq = _os.getenv("PP_GROQ_MODELS", f"{GROQ_MODEL},groq/qwen/qwen3.8-27b").split(",") if _os.getenv("GROQ_API_KEY") else []
+    """Models to try in order (PP_AGENT_MODELS). Short calls may end on a local model (PP_LOCAL_MODEL); agent work never
+    does: the 7B model made up evidence and looped (runs 1, 3), so agents pause instead.
+    Free-tier quotas are per model, so the list holds several strong ones (verified on the team's keys 2026-10-30). Groq is
+    first: fast; gemini-3.8-flash took 48-120 s a call (run 9) and 3.5-flash's free daily cap is a dozen calls."""
+    groq = bool(_os.getenv("GROQ_API_KEY"))
+    agent = [m for m in _os.getenv("PP_AGENT_MODELS", f"{GROQ_MODEL},groq/qwen/qwen3.8-27b,gemini/gemini-3.8-flash,"
+                                   "gemini/gemini-3.5-flash").split(",") if m and (groq or not m.startswith("groq/"))]
     if kind != "short":
-        return list(dict.fromkeys(m for m in (*gemini, *groq) if m))
-    first = _os.getenv("PP_SHORT_MODEL") or (groq or gemini)[0]
-    return list(dict.fromkeys(m for m in (first, *gemini, *groq, _os.getenv("PP_LOCAL_MODEL")) if m))
+        return list(dict.fromkeys(agent))
+    return list(dict.fromkeys(m for m in (_os.getenv("PP_SHORT_MODEL") or agent[0], *agent, _os.getenv("PP_LOCAL_MODEL")) if m))
 
 
 _SECRET = _re.compile(r"(gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|AIza[0-9A-Za-z_-]{30,}|gsk_[A-Za-z0-9]{20,}|"
@@ -183,7 +184,7 @@ def _call(model, msgs, run_id, role, _completion, backoff):
         except Exception as e:
             # overload or a dropped network (DNS/connect, not TLS) is transient: the local model needs no network
             if "ServiceUnavailable" in type(e).__name__ or "503" in str(e) or "overloaded" in str(e).lower() or \
-                    ("CERTIFICATE" not in str(e) and _re.search(r"getaddrinfo|ConnectError|Connection (refused|reset|error)", str(e))):
+                    ("CERTIFICATE" not in str(e) and _re.search(r"getaddrinfo|ConnectError|Connection (refused|reset|error)|[Tt]imed? ?out", str(e))):
                 log("unavailable"); overloaded = True; continue
             _raise_classified(e, model, log)
     if r is None and overloaded:      # still overloaded: pause until capacity is back; time unknown → never guessed

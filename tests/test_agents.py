@@ -170,8 +170,8 @@ def _ok_resp(text="ok"):
 def three_models(tmpdb, monkeypatch):
     monkeypatch.setattr(G, "_out", {})
     monkeypatch.setattr(__import__("time"), "sleep", lambda s: None)
-    monkeypatch.setenv("PP_AGENT_MODEL", "gemini/gemini-3.5-flash")
-    monkeypatch.setenv("PP_GROQ_MODELS", "groq/openai/gpt-oss-120b")
+    monkeypatch.setenv("PP_AGENT_MODELS", "gemini/gemini-3.5-flash,groq/openai/gpt-oss-120b")
+    monkeypatch.setenv("PP_SHORT_MODEL", "groq/openai/gpt-oss-120b")
     monkeypatch.setenv("GROQ_API_KEY", "gsk_test")
     monkeypatch.setenv("PP_LOCAL_MODEL", "ollama_chat/qwen2.5-coder:7b")
     assert [m.split("/")[0] for m in G.chain("agent")] == ["gemini", "groq"]     # the 7B model made up evidence and looped (runs 1, 3)
@@ -285,12 +285,14 @@ def test_agent_work_pauses_rather_than_use_the_local_model(three_models):
 
 
 def test_default_chain_uses_every_strong_model_quota_before_pausing(monkeypatch):
-    for k in ("PP_AGENT_MODEL", "PP_GROQ_MODELS", "PP_SHORT_MODEL"):
+    for k in ("PP_AGENT_MODELS", "PP_SHORT_MODEL"):
         monkeypatch.delenv(k, raising=False)
     monkeypatch.setenv("GROQ_API_KEY", "gsk_test")
     monkeypatch.setenv("PP_LOCAL_MODEL", "ollama_chat/qwen2.5-coder:7b")
-    assert G.chain("agent") == ["gemini/gemini-3.8-flash", "gemini/gemini-3.5-flash", "groq/openai/gpt-oss-120b", "groq/qwen/qwen3.8-27b"]
+    assert G.chain("agent") == ["groq/openai/gpt-oss-120b", "groq/qwen/qwen3.8-27b", "gemini/gemini-3.8-flash", "gemini/gemini-3.5-flash"]
     assert G.chain("short")[0] == "groq/openai/gpt-oss-120b" and G.chain("short")[-1] == "ollama_chat/qwen2.5-coder:7b"
+    monkeypatch.delenv("GROQ_API_KEY")
+    assert G.chain("agent") == ["gemini/gemini-3.8-flash", "gemini/gemini-3.5-flash"]      # no key: Groq models dropped
 
 
 def test_loop_ends_an_attempt_stuck_repeating_itself():
@@ -310,3 +312,11 @@ def test_loop_lets_a_command_rerun_when_its_output_changed():
     replies = iter(["```bash\npytest t\n```", "```bash\npytest t\n```", f"```bash\necho {loop.DONE}\n```"])
     res, _ = loop.run("t", exec_=lambda c: (0, next(outs)), run_id="r", role="x", complete=lambda m, **k: next(replies))
     assert res == {"ok": 1}
+
+
+def test_a_timeout_moves_on_to_the_next_model(three_models):
+    class Timeout(Exception): pass
+    def fake(model, **k):
+        if model.startswith("gemini"): raise Timeout("litellm.Timeout: Connection timed out after None seconds.")
+        return _ok_resp("groq")
+    assert G.complete([{"role": "user", "content": "x"}], run_id="r", role="x", _completion=fake) == "groq"
