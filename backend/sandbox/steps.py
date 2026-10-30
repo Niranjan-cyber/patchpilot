@@ -150,7 +150,7 @@ def setup(ctx: StepContext) -> GateResult:
     docker.ensure_infra()
     name = cname(ctx.run_id, "setup")
     r = docker.run("pp-base:3.12", INSTALL, name=name, network=docker.SETUP_NET, timeout=limits()["setup_seconds"],
-                   snapshot_volume=snap(ctx.run_id), read_only=False, keep=True)
+                   snapshot_volume=snap(ctx.run_id), read_only=False, keep=True, log_path="/tmp/install.log")
     num = lambda k: int(m.group(1)) if (m := re.search(rf"{k}=(\d+)", r.out)) else -1
     status, reason = evaluate_setup(num("INSTALL_EXIT"), r.timed_out, num("COLLECT_EXIT"), num("COLLECTED"))
     ev = artifacts.put(r.out)
@@ -172,7 +172,7 @@ def setup(ctx: StepContext) -> GateResult:
 def _pytest(rid: str, args: str) -> tuple[dict[str, bool], str]:
     r = docker.run(image(rid), f"python -m pytest -q -p no:cacheprovider --junitxml=/tmp/j.xml {args} > /tmp/o.log 2>&1;"
                    " echo EXIT=$?; tail -c 20000 /tmp/o.log; echo '<<<JUNIT>>>'; cat /tmp/j.xml",
-                   name=cname(rid, "test"), timeout=300, snapshot_volume=snap(rid))
+                   name=cname(rid, "test"), timeout=300, snapshot_volume=snap(rid), log_path="/tmp/o.log")
     log, _, xml = r.out.rpartition("<<<JUNIT>>>")   # last one: a test may print the sentinel itself (as in verify.split_junit)
     return junit_outcomes(xml.strip()), log
 

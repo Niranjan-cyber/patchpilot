@@ -1,5 +1,6 @@
 """The only place that starts sandbox containers (architecture §7). Repository code runs only through here."""
 import os
+import shlex
 import subprocess
 from dataclasses import dataclass
 
@@ -42,8 +43,14 @@ def ensure_infra() -> None:
 
 
 def run(image: str, script: str, *, name: str, network: str = "none", timeout: int = 300,
-        snapshot_volume: str | None = None, read_only: bool = True, keep: bool = False) -> Result:
-    """Fresh container per call: snapshot (ro) is copied into a tmpfs /src, so every step starts clean."""
+        snapshot_volume: str | None = None, read_only: bool = True, keep: bool = False, log_path: str | None = None) -> Result:
+    """Fresh container per call: snapshot (ro) is copied into a tmpfs /src, so every step starts clean.
+
+    log_path: a file the script redirects its own output into and only tails at the end (several scripts do this
+    so a partial line never corrupts the parsed exit code). On timeout nothing has reached the container's stdout
+    yet, so the host would otherwise capture an empty log (issue #43); the container is still alive until the
+    `kill` below, so grab the file off it first.
+    """
     args = ["run", "--name", name, *HARDEN, "--network", network, "-e", "HOME=/tmp", "-w", "/src",
             "--tmpfs", "/tmp:rw,exec,size=512m", "--tmpfs", "/src:rw,exec,size=1g,uid=1000,gid=1000"]
     if read_only:
@@ -59,6 +66,10 @@ def run(image: str, script: str, *, name: str, network: str = "none", timeout: i
     prelude = "cp -a /snap/. /src/ 2>/dev/null; " + RESTORE if snapshot_volume else ""
     r = _docker(*args, image, "sh", "-c", prelude + script, timeout=timeout)
     if r.timed_out:
+        if log_path and not r.out.strip():
+            partial = _docker("exec", name, "sh", "-c", f"tail -c 30000 {shlex.quote(log_path)} 2>/dev/null")
+            if partial.out.strip():
+                r.out = partial.out + "\n[stopped: hit the time limit before this finished]"
         _docker("kill", name)
     return r
 

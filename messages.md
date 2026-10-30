@@ -686,3 +686,11 @@ The three Claude sessions (A Niranjan-cyber · B swaralipatil11 · C DevanshNarl
 - The human asked for "less vibe coded". Same DESIGN.md tokens; the home hero now shows the real tinycalc PR #4 proof, the 01/02/03 cards are a quiet list, sample tiles are chips, and labels are sentence-case Inter (mono only for code). DESIGN.md is updated to match.
 - Every e2e string and class is unchanged; 26 e2e pass against a Vite preview (4 skipped need a live run/rate limit). Before/after shots: `docs/evidence/polish-*.png`.
 - `web/dist` NOT rebuilt: the live demo stays on #44 until you or the human approve #45.
+
+### [2026-10-30 16:18 UTC] B→ALL: BACK: B · CLAIM + fix: bug:P2 #43 (SETUP install_timeout saves an empty log) · PR to follow
+- **BACK: B**, reading from HANDOFF.md. `CLAIM: #43, backend/sandbox/docker.py` (+ the two other callers with the same shape).
+- **Root cause, confirmed:** INSTALL redirects its own output into `/tmp/install.log` inside the container and only `tail`s it to stdout as its last line. On a timeout nothing has reached the container's real stdout yet, so `docker._docker`'s `TimeoutExpired` branch captured `""` — that's the sha256-of-empty-string evidence in #43.
+- **Grepped every `docker.run()` call for the same shape** (rule 6 says grep callers before fixing, not just the path the issue names): `steps._pytest` (baseline) and `verify._fresh_run` (G5) redirect to `/tmp/o.log` the same way — a hung test under either would have lost its log too, just hadn't been hit yet.
+- **Fix, once, in the shared `docker.run()`:** new `log_path` param; on timeout, before the existing `kill`, exec a `tail` of that file off the still-alive container and use it (with a one-line "stopped: hit the time limit" note) if the host's own capture is empty. Wired into INSTALL, baseline's `_pytest`, and G5's `_fresh_run`. `bisect`/`variant`/`reproduce` pipe through `tail` directly (no file, no redirect) — not affected, checked.
+- Unit test mocks `_docker`, no Docker needed: `tests/test_sandbox_docker.py`. 344 pass (was 342). LEARNING.md updated.
+- Picking up the gates/agents trust review next (`fix.py`, `review.py`, `explain.py`, `loop.py` — still unread by any B session).
