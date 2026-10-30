@@ -59,6 +59,8 @@ def review(ctx: StepContext) -> GateResult:
     from backend.agents.variant import review_concern
     if (hv := review_concern(run.verify)):   # B17: a failed hidden variant can only lower readiness
         concerns = [*concerns, hv]
+    from backend.gates.diff_policy import swallowed_excepts   # code-decided: an added catch-all or silent `except` (run 11)
+    concerns = [*concerns, *swallowed_excepts((artifacts.get(run.patch.fix_diff_id) or b"").decode("utf-8", "replace"))]
     run.review = ReviewResult(concerns=concerns, lowers_readiness=any(c["severity"] in ("high", "medium") for c in concerns))
     db.save_run(db.connect(), run)
     ev = artifacts.put(render(run))

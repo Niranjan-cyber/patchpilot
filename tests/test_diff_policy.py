@@ -1,6 +1,6 @@
 """B07: G4 diff policy (contracts §1.1) on crafted diffs + DIAGNOSE evidence-ID validation."""
 from backend.contracts.models import CheckStatus
-from backend.gates.diff_policy import check_diagnosis, g4_result
+from backend.gates.diff_policy import check_diagnosis, g4_result, swallowed_excepts
 
 
 def d(path, plus=1, minus=1, new=False, deleted=False):
@@ -79,3 +79,46 @@ def test_check_diagnosis_rejects_malformed_shapes():
     assert check_diagnosis({**base, "locations": ["src/a.py:3"]}, {"ev1"}, lambda p: 10) == "no_location"
     assert check_diagnosis({**base, "locations": "src/a.py"}, {"ev1"}, lambda p: 10) == "no_result"
     assert check_diagnosis({**base, "evidence_ids": "ev1", "locations": []}, {"ev1"}, lambda p: 10) == "no_result"
+
+
+RUN11 = """diff --git a/src/itsdangerous/serializer.py b/src/itsdangerous/serializer.py
+--- a/src/itsdangerous/serializer.py
++++ b/src/itsdangerous/serializer.py
+@@ -256,15 +256,26 @@ class Serializer(t.Generic[_TSerialized]):
+         try:
++            if is_text:
++                return use_serializer.loads(payload.decode("utf-8"), **self.serializer_kwargs)
++            return use_serializer.loads(payload, **self.serializer_kwargs)
++        except TypeError:
++            # Fallback without kwargs
+             if is_text:
+                 return use_serializer.loads(payload.decode("utf-8"))
+-
+             return use_serializer.loads(payload)
+         except Exception as e:
+             raise BadPayload("Could not load the payload", original_error=e) from e
+"""
+
+
+def test_added_except_that_retries_silently_is_a_concern():   # run 11's hack
+    c = swallowed_excepts(RUN11)
+    assert len(c) == 1 and c[0]["severity"] == "medium" and "except TypeError:" in c[0]["text"]   # context `except Exception` isn't added
+
+
+def test_removed_swallow_and_handled_excepts_are_not_concerns():
+    removed = ("diff --git a/tinycalc/ops.py b/tinycalc/ops.py\n--- a/tinycalc/ops.py\n+++ b/tinycalc/ops.py\n@@ -10,4 +10,2 @@\n"
+               " def divide(a, b):\n-    try:\n-        return a / b\n-    except ZeroDivisionError:\n-        return 0\n+    return a / b\n")
+    assert swallowed_excepts(removed) == []                       # tinycalc #1: removing a swallow is the fix
+    reraise = ("diff --git a/p/m.py b/p/m.py\n--- a/p/m.py\n+++ b/p/m.py\n@@ -1,2 +1,6 @@\n def f():\n+    try:\n+        g()\n"
+               "+    except KeyError as e:\n+        raise ValueError('bad key') from e\n")
+    assert swallowed_excepts(reraise) == []
+    logged = reraise.replace("+        raise ValueError('bad key') from e", "+        logger.warning('no key')\n+        return None")
+    assert swallowed_excepts(logged) == []
+
+
+def test_broad_catch_is_a_concern_even_when_logged_and_tests_are_ignored():
+    broad = ("diff --git a/p/m.py b/p/m.py\n--- a/p/m.py\n+++ b/p/m.py\n@@ -1,2 +1,6 @@\n def f():\n+    try:\n+        g()\n"
+             "+    except Exception:\n+        logger.exception('x')\n")
+    assert "catches every error" in swallowed_excepts(broad)[0]["text"]
+    assert "catches every error" in swallowed_excepts(broad.replace("except Exception:", "except:"))[0]["text"]
+    assert swallowed_excepts(broad.replace("p/m.py", "tests/test_m.py")) == []
