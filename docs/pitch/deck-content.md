@@ -154,7 +154,7 @@ LangGraph pipeline: `intake → preflight → setup → baseline → reproduce �
 **Scalability**
 - Stateless API + leased job queue → more workers = more parallel runs. Sandboxes are per-run and disposable.
 - Model-agnostic gateway: add providers or models by configuration; quota-aware fallback.
-- Next steps: an always-on VM with gVisor (in progress), a durable queue (e.g. Redis/Postgres) for multiple workers, JS/TS support, and CI-failure triggers.
+- Next steps: an always-on VM with gVisor (deploy kit ready; for the prototype the demo runs on a laptop behind Tailscale Funnel), a durable queue (e.g. Redis/Postgres) for multiple workers, JS/TS support, and CI-failure triggers.
 
 *Speaker note:* "Other agents compete on autonomy. We compete on verification integrity: if PatchPilot says it's fixed, you can see the proof."
 

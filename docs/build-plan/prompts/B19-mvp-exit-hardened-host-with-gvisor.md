@@ -72,3 +72,6 @@ If Oracle Arm capacity isn't available, stay on the laptop and keep the Demo ser
 4. Report what changed, the test output, the browser-check screenshots and the done-check result, then stop. Don't start the next step without being asked.
 5. If you found a bug you didn't fix, add it to `bugs` in `plan.json` with a severity (P0 correctness/safety, P1 trust/core loop, P2 polish). An open P0/P1 blocks the next feature step.
 
+## Notes
+ DEFERRED (human decision, 2026-10-30): Oracle declined the card; the laptop stays the demo host behind Tailscale Funnel. The deploy kit (infra/vm-setup.sh, scripts/deploy.sh with systemd) is ready for later.
+

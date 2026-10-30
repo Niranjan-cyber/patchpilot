@@ -548,6 +548,7 @@
 - **Fallback:** If Oracle Arm capacity isn't available, stay on the laptop and keep the Demo server banner.
 - **Deploys:** infra, backend, worker, frontend · **After:** B14, B15, B16, B17, B18 · **Est.:** 3 h
 - **Prompt:** `prompts/B19-mvp-exit-hardened-host-with-gvisor.md`
+- **Notes:**  DEFERRED (human decision, 2026-10-30): Oracle declined the card; the laptop stays the demo host behind Tailscale Funnel. The deploy kit (infra/vm-setup.sh, scripts/deploy.sh with systemd) is ready for later.
 
 ## Open questions and assumptions
 - Prebuild: the official build round is 24 h. If writing code before 11 Nov 10:00 IST is not allowed, B01-B13 (about 38 h of effort, about 13-16 h wall clock across 4 roles) still fit the round; MVP steps move to after the event. Confirm with the organizers.
