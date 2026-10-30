@@ -58,7 +58,7 @@ export default function Eval() {
             {s.rows.map((r) => (
               <tr key={r.id} className={r.verdict === "false_verified" ? "row-bad" : undefined}>
                 <td>{r.issue_url ? <a href={r.issue_url}>{r.id}</a> : r.id}</td>
-                <td>{r.kind === "swebench" ? "SWE-bench Lite" : "Planted bug"}</td>
+                <td>{r.kind === "swebench" ? "SWE-bench-Live" : "Planted bug"}</td>
                 <td>{r.outcome ? OUTCOME[r.outcome] ?? r.outcome : <span className="hint">Not run yet</span>}</td>
                 <td>{r.official ? <span className={`pill-${r.official}`}>{OFFICIAL[r.official]}</span>
                   : <span className="hint">Unknown</span>}</td>

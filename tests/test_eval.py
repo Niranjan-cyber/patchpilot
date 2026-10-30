@@ -1,5 +1,5 @@
 """B14: eval comparison on recorded results (verified claims vs the official tests)."""
-from backend.eval import summarize, verdict
+from backend.eval import case_gradable, summarize, verdict
 
 
 def case(i, outcome, official, seconds=60.0):
@@ -54,6 +54,13 @@ def test_official_result_from_pytest_ra():
     assert official_result([], [], st) is None
 
 
+def test_parse_ra_matches_swebench_ids_cut_at_the_first_space():
+    from backend.eval import parse_ra
+    st = parse_ra("PASSED t.py::test_x[a b]\nPASSED t.py::test_y[c d]\nFAILED t.py::test_y[c e] - boom\n")
+    assert st["t.py::test_x[a b]"] == "PASSED" and st["t.py::test_x[a"] == "PASSED"   # SWE-bench writes the cut id
+    assert st["t.py::test_y[c"] == "FAILED"                                            # shared prefix: failure wins
+
+
 def test_api_eval_not_run_and_results(tmp_path, monkeypatch):
     import json
     from fastapi.testclient import TestClient
@@ -72,3 +79,15 @@ def test_api_eval_not_run_and_results(tmp_path, monkeypatch):
 def test_not_run_rows_go_last():
     s = summarize({"cases": [case(1, None, None), case(2, "TRIAGE_ONLY", None), case(3, "VERIFIED_FIX", "fail")]})
     assert [r["id"] for r in s["rows"]] == ["c3", "c2", "c1"]
+
+
+def test_case_gradable_needs_fail_before_and_reference_fix_passing_after():
+    f2p, p2p = ["t.py::new"], ["t.py::old"]
+    before, good = {"t.py::new": "FAILED", "t.py::old": "PASSED"}, {"t.py::new": "PASSED", "t.py::old": "PASSED"}
+    assert case_gradable(f2p, p2p, before, good) == (True, "ok")
+    assert case_gradable(f2p, p2p, {"t.py::new": "PASSED"}, good)[1] == "fail_to_pass_not_failing_before"
+    assert case_gradable(f2p, p2p, {}, good)[1] == "fail_to_pass_not_failing_before"      # never ran: not proof it fails
+    # the reference fix itself fails here: a correct PatchPilot fix would be graded false_verified, so the case is out
+    assert case_gradable(f2p, p2p, before, {"t.py::new": "PASSED", "t.py::old": "FAILED"}) == (False, "reference_fix_fails")
+    assert case_gradable(f2p, p2p, before, {"t.py::new": "PASSED"}) == (False, "tests_missing_after")
+    assert case_gradable(f2p, p2p, None, good) == (False, "tests_not_run")

@@ -34,11 +34,29 @@ def summarize(results: dict) -> dict:
 def parse_ra(out: str) -> dict[str, str]:
     """`pytest -rA` summary lines -> {test id: PASSED|FAILED|ERROR|...} (the way SWE-bench grades)."""
     st = {}
+    bad = ("FAILED", "ERROR")
     for line in out.splitlines():
         word, _, rest = line.partition(" ")
         if word in ("PASSED", "FAILED", "ERROR", "XFAIL", "XPASS", "SKIPPED") and rest:
-            st[rest.split(" - ")[0].strip()] = word
+            full = rest.split(" - ")[0].strip()
+            # SWE-bench ids stop at the first space (`test_x[a b]` -> `test_x[a`), so key both ways;
+            # two params can share that prefix, and then a failure always wins over a pass
+            for k in {full, full.split()[0]}:
+                if st.get(k) not in bad:
+                    st[k] = word
     return st
+
+
+def case_gradable(fail_to_pass: list[str], pass_to_pass: list[str], before: dict[str, str] | None,
+                  after: dict[str, str] | None) -> tuple[bool, str]:
+    """Can this SWE-bench case give an honest eval number in our sandbox? before = test patch only, after = + reference fix.
+    A case whose reference fix doesn't pass here would grade a correct PatchPilot fix as false_verified."""
+    if before is None or after is None:
+        return False, "tests_not_run"
+    if any(before.get(t) == "PASSED" for t in fail_to_pass) or not any(before.get(t) for t in fail_to_pass):
+        return False, "fail_to_pass_not_failing_before"
+    res = official_result(fail_to_pass, pass_to_pass, after)
+    return (True, "ok") if res == "pass" else (False, "reference_fix_fails" if res == "fail" else "tests_missing_after")
 
 
 def official_result(fail_to_pass: list[str], pass_to_pass: list[str], st: dict[str, str]) -> str | None:
