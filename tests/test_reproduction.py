@@ -1,8 +1,9 @@
 """G3 reproduction gate: contracts.md 1.1, G3 row.
 
-The recorded outputs below are real `pytest` shapes for the five cases the gate
-has to tell apart: assertion failure, the issue's own error, ImportError,
-collection error, and a flaky test (fails once, passes once).
+The recorded outputs below are real `pytest` shapes for the cases the gate has
+to tell apart: assertion failure, the issue's own error, a `pytest.raises` that
+didn't raise, ImportError, collection error, and a flaky test (fails once,
+passes once).
 """
 
 import pytest
@@ -116,6 +117,20 @@ FAILED tests/test_lookup.py::test_lookup - KeyError: 'missing'
 ============================== 1 failed in 0.03s ===============================
 """
 
+DID_NOT_RAISE = """\
+=================================== FAILURES ===================================
+_________________________ test_divide_by_zero_raises __________________________
+
+    def test_divide_by_zero_raises():
+>       with pytest.raises(ZeroDivisionError):
+E       Failed: DID NOT RAISE <class 'ZeroDivisionError'>
+
+tests/test_patchpilot_issue_1.py:6: Failed
+=========================== short test summary info ============================
+FAILED tests/test_patchpilot_issue_1.py::test_divide_by_zero_raises - Failed: ...
+============================== 1 failed in 0.02s ===============================
+"""
+
 TEST_ONLY = ["tests/test_slugify.py"]
 
 
@@ -166,6 +181,35 @@ def test_bare_rewritten_assert_counts_as_an_assertion():
 def test_an_assert_prefixed_identifier_is_not_an_assertion():
     output = ASSERTION.replace("E       AssertionError: assert", "E       assert_called_once:")
     assert classify_run(output) == "other_error"
+
+
+def test_pytest_raises_that_did_not_raise_is_a_reproduction():
+    # "the bug is that it no longer raises" is a whole class of real issue;
+    # reading DID NOT RAISE as other_error would end every one of them as
+    # CANNOT_REPRODUCE. Added by A on the B06 takeover; this is its test.
+    assert classify_run(DID_NOT_RAISE) == "assertion"
+    assert classify_run(DID_NOT_RAISE, "ZeroDivisionError") == "assertion"
+    assert evaluate_g3(["tests/test_patchpilot_issue_1.py"], [DID_NOT_RAISE] * 2) == (
+        "passed",
+        "reproduced",
+    )
+
+
+def test_a_bare_pytest_fail_is_not_a_reproduction():
+    # Same "Failed:" prefix, but pytest.fail("todo") is evidence of nothing.
+    output = DID_NOT_RAISE.replace(
+        "Failed: DID NOT RAISE <class 'ZeroDivisionError'>", "Failed: not implemented yet"
+    )
+    assert classify_run(output) == "other_error"
+
+
+@pytest.mark.parametrize("word", ["skipped", "xfailed", "xpassed"])
+def test_a_test_that_never_really_ran_is_not_a_reproduction(word):
+    # An xfail-marked repro test "fails as expected" and exits 0. None of
+    # these may count as evidence, so they land on the failing side.
+    output = f"============================== 1 {word} in 0.01s ==============================\n"
+    assert classify_run(output) == "no_result"
+    assert evaluate_g3(TEST_ONLY, [output, output]) == ("failed", "no_result")
 
 
 def test_empty_output_is_no_result():
