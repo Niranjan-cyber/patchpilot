@@ -172,7 +172,7 @@ def _pytest(rid: str, args: str) -> tuple[dict[str, bool], str]:
     r = docker.run(image(rid), f"python -m pytest -q -p no:cacheprovider --junitxml=/tmp/j.xml {args} > /tmp/o.log 2>&1;"
                    " echo EXIT=$?; tail -c 20000 /tmp/o.log; echo '<<<JUNIT>>>'; cat /tmp/j.xml",
                    name=cname(rid, "test"), timeout=300, snapshot_volume=snap(rid))
-    log, _, xml = r.out.partition("<<<JUNIT>>>")
+    log, _, xml = r.out.rpartition("<<<JUNIT>>>")   # last one: a test may print the sentinel itself (as in verify.split_junit)
     return junit_outcomes(xml.strip()), log
 
 

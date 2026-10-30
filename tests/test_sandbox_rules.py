@@ -106,3 +106,11 @@ def test_release_tags_that_look_like_git_options_are_ignored():
     assert release_tag_before([rel("--file=/etc/passwd", "2026-01-02T00:00:00Z")], "2026-02-01T00:00:00Z") is None
     assert release_tag_before([rel("v1.2.0", "2026-01-01T00:00:00Z"), rel("-d", "2026-01-02T00:00:00Z")],
                               "2026-02-01T00:00:00Z") == "v1.2.0"
+
+
+def test_baseline_ignores_a_test_that_prints_the_junit_separator(monkeypatch):
+    # B's review of #42: _pytest split on the FIRST '<<<JUNIT>>>', so a test echoing it shadowed the real one
+    from backend.sandbox import docker, steps
+    out = "EXIT=0\nsome test printed <<<JUNIT>>> here\n1 passed\n<<<JUNIT>>>\n" + XML
+    monkeypatch.setattr(steps.docker, "run", lambda *a, **k: docker.Result(0, out))
+    assert steps._pytest("r", "")[0] == junit_outcomes(XML) != {}
