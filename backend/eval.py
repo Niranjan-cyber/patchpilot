@@ -41,6 +41,18 @@ def parse_ra(out: str) -> dict[str, str]:
     return st
 
 
+def case_gradable(fail_to_pass: list[str], pass_to_pass: list[str], before: dict[str, str] | None,
+                  after: dict[str, str] | None) -> tuple[bool, str]:
+    """Can this SWE-bench case give an honest eval number in our sandbox? before = test patch only, after = + reference fix.
+    A case whose reference fix doesn't pass here would grade a correct PatchPilot fix as false_verified."""
+    if before is None or after is None:
+        return False, "tests_not_run"
+    if any(before.get(t) == "PASSED" for t in fail_to_pass) or not any(before.get(t) for t in fail_to_pass):
+        return False, "fail_to_pass_not_failing_before"
+    res = official_result(fail_to_pass, pass_to_pass, after)
+    return (True, "ok") if res == "pass" else (False, "reference_fix_fails" if res == "fail" else "tests_missing_after")
+
+
 def official_result(fail_to_pass: list[str], pass_to_pass: list[str], st: dict[str, str]) -> str | None:
     """pass only if every official test passed; any failure = fail; a test we never saw = unknown."""
     ids = fail_to_pass + pass_to_pass

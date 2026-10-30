@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
-// Live GitHub reads: set EXPLORE_REPO to the team upstream repo once it exists (defaults to pallets/click).
+// Live GitHub reads: defaults to the team demo repo (override with EXPLORE_REPO).
 const BASE = process.env.BASE_URL ?? "http://localhost:8000";
-const REPO = process.env.EXPLORE_REPO ?? "https://github.com/pallets/click";
+const REPO = process.env.EXPLORE_REPO ?? "https://github.com/Niranjan-cyber/tinycalc";
 
 test("a Python repo shows 3-5 suggestions with reasons, effort labelled Estimate, and repo checks", async ({ page }) => {
   await page.goto(`${BASE}/explore`);
