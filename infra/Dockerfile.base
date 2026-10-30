@@ -3,6 +3,8 @@ ARG PY=3.12
 FROM python:${PY}-slim
 RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/* \
  && useradd -m -u 1000 pp && python -m venv /opt/venv && chown -R pp:pp /opt/venv
+# apply_patch: the patch tool gpt-oss models use regardless of the prompt (root-owned, read-only to the sandbox user)
+COPY --chmod=755 apply_patch.py /usr/local/bin/apply_patch
 ENV PATH=/opt/venv/bin:$PATH PIP_DISABLE_PIP_VERSION_CHECK=1 PYTHONDONTWRITEBYTECODE=1 HOME=/tmp
 USER pp
 WORKDIR /src

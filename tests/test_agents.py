@@ -353,3 +353,14 @@ def test_nebius_keys_are_redacted_and_ordinary_versions_are_not():
     fake = "v1." + "CmQKHHN0YXRpY2tleS1lMDB" + "x" * 40     # shape of a Nebius Token Factory key, not a real one
     assert "CmQK" not in G.redact(f"key={fake}")
     assert G.redact("python v1.2.3 and api/v1.json") == "python v1.2.3 and api/v1.json"
+
+
+def test_a_resumed_reproduce_keeps_the_attempts_it_already_used(node):
+    # run 10: a worker restart reset the counter, so the Test designer got 5 attempts instead of 3 (~80k tokens)
+    ctx, mp = node
+    for a in (1, 2):
+        db.emit(db.connect(), ctx.run_id, "attempt.retry", "reproduce", 0, role="test_designer", attempt=a, max=3, reason="other_error")
+    calls = []
+    mp.setattr(R.loop, "run", lambda *a, **k: (calls.append(1), ({"test_ids": ["tests/test_patchpilot_issue_1.py::t"]}, []))[1])
+    mp.setattr(R, "_check_run", lambda rid, d, t: "E   ModuleNotFoundError: No module named 'nope'\n1 error in 0.1s\n")
+    assert R.reproduce(ctx).status == CheckStatus.FAILED and len(calls) == 1

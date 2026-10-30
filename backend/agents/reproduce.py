@@ -50,7 +50,10 @@ def _check_run(rid: str, diff: str, tests: list[str]) -> str:
 def reproduce(ctx: StepContext) -> GateResult:
     rid, retries = ctx.run_id, limits()["retries"]["test_designer"]
     previous, last = None, None
-    for attempt in range(1, retries + 2):
+    # a resumed step keeps the attempts it already used (a worker restart once gave it 5 instead of 3); always at least one
+    used = db.connect().execute("SELECT COUNT(*) FROM events WHERE run_id=? AND type='attempt.retry' AND step='reproduce' "
+                                "AND revision=?", (rid, ctx.run.revision)).fetchone()[0]
+    for attempt in range(min(used, retries) + 1, retries + 2):
         name = f"pp-{rid[:8]}-td-{attempt}-{uuid.uuid4().hex[:4]}"
         if docker.start(image(rid), name, snap(rid)).code:
             raise RuntimeError("could not start the agent sandbox")
