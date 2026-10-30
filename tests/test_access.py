@@ -75,3 +75,10 @@ def test_artifacts_are_owner_checked(tmp_path, monkeypatch):
     assert a.get(f"/api/artifacts/{ev}?download=true").headers["content-disposition"].startswith("attachment")
     for client, eid in ((b, ev), (a, loose), (a, "sha256:" + "0" * 64), (a, "sha256:not-hex"), (a, "..%2F..%2Fetc%2Fpasswd")):
         assert client.get(f"/api/artifacts/{eid}").status_code == 404     # not yours / unreferenced / missing / bad id
+
+def test_new_run_records_g0_and_its_gate_event():   # run 11 report said "Issue eligibility: not run"
+    a = browser()
+    rid = a.post("/api/runs", json={"issue_url": URL}).json()["run_id"]
+    assert a.get(f"/api/runs/{rid}").json()["gates"]["G0"] == "passed"
+    ev = [e for e in a.get(f"/api/runs/{rid}/events").json()["events"] if e["type"] == "gate.result"]
+    assert [(e["step"], e["payload"]["gate"], e["payload"]["status"]) for e in ev] == [("intake", "G0", "passed")]
