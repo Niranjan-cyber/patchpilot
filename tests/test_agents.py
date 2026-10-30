@@ -246,3 +246,13 @@ def test_a_provider_out_until_a_known_reset_is_skipped(three_models):
     for _ in range(2):
         G.complete([{"role": "user", "content": "x"}], run_id="r", role="x", _completion=fake)
     assert seen == ["gemini", "groq", "groq"]
+
+
+@pytest.mark.parametrize("msg,secs", [("Please try again in 11.2125s. Need more tokens?", 12), ("Please try again in 1m3.5s.", 64),
+                                      ("Please try again in 450ms.", 1)])
+def test_groq_wait_in_the_message_is_used_when_headers_are_lost(tmpdb, msg, secs):
+    # LiteLLM drops Groq's response headers; the provider's own "try again in" is the only stated time.
+    def boom(**k): raise _RL("429 GroqException - Rate limit reached ... tokens per minute (TPM). " + msg)
+    with pytest.raises(G.QuotaPause) as e:
+        G._call("groq/x", [], "r", "x", boom, backoff=False)
+    assert round((e.value.resume_at - db.now()).total_seconds()) in (secs - 1, secs)

@@ -193,6 +193,11 @@ def _raise_classified(e, model, log):
             log("rate_limited")
             hdrs = getattr(getattr(e, "response", None), "headers", None) or {}
             daily = "per day" in str(e).lower() or "PerDay" in str(e)
-            raise QuotaPause(resume_at(_db.now(), hdrs.get("retry-after"), daily_quota=daily and model.startswith("gemini")),
+            retry = hdrs.get("retry-after")
+            m = _re.search(r"try again in (?:(\d+)m)?([\d.]+)(ms|s)\b", str(e))   # LiteLLM drops Groq's headers; its message states the wait
+            if retry is None and m:
+                secs = int(m[1] or 0) * 60 + float(m[2]) / (1000 if m[3] == "ms" else 1)
+                retry = str(int(secs) + 1)
+            raise QuotaPause(resume_at(_db.now(), retry, daily_quota=daily and model.startswith("gemini")),
                              model.split("/")[0]) from e
         log("error"); raise e
