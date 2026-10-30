@@ -42,16 +42,18 @@ function Start() {
   useEffect(() => { api<string[]>("/api/fixtures").then(setFixtures).catch(() => setFixtures([])); }, []);
   return (
     <section className="start">
-      <h1>Turn a GitHub issue into a tested fix.</h1>
-      <p className="lede">We reproduce the bug in a sandbox, test a fix, and show you the proof. You decide whether to open a pull request.</p>
-      <form onSubmit={(e) => { e.preventDefault(); nav(`/check?url=${encodeURIComponent(url)}`); }} className="paste">
-        <label htmlFor="issue">GitHub issue link</label>
-        <div className="paste-row">
-          <input id="issue" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://github.com/owner/repo/issues/123" required />
-          <button type="submit">Check issue</button>
-        </div>
-        <p className="hint">Works today on public Python projects with tests. Other projects get a report, not a fix.</p>
-      </form>
+      <div className="hero">
+        <h1>Turn a GitHub issue into a tested fix.</h1>
+        <p className="lede">We reproduce the bug in a sandbox, test a fix, and show you the proof. You decide whether to open a pull request.</p>
+        <form onSubmit={(e) => { e.preventDefault(); nav(`/check?url=${encodeURIComponent(url)}`); }} className="paste">
+          <label htmlFor="issue">GitHub issue link</label>
+          <div className="paste-row">
+            <input id="issue" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://github.com/owner/repo/issues/123" required />
+            <button type="submit">Check issue</button>
+          </div>
+          <p className="hint">Works today on public Python projects with tests. Other projects get a report, not a fix.</p>
+        </form>
+      </div>
       {!!mine.items?.length && (
         <div className="samples"><h2>Your recent runs</h2><RunList items={mine.items.slice(0, 5)} /></div>
       )}
