@@ -24,7 +24,7 @@ Issue #{i.number}: {i.title}
 Expected: {i.expected or "(not stated)"}
 Actual: {i.actual or "(not stated)"}
 Description:
-{(i.summary or "")[:3000]}
+{(i.summary or "")[:4000]}
 
 Rules:
 - Only add or edit files under tests/ (create tests/test_patchpilot_issue_{i.number}.py). Never modify source files.

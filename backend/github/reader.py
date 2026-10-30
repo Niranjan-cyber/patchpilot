@@ -146,7 +146,8 @@ def check_issue(url: str) -> IssueCheck:
     policy = RepoPolicy(ai_policy=ai_policy([t for _, t in docs]),
                         source_evidence_ids=[p for p, _ in docs])   # shortcut: file paths, not artifact IDs, until B09's store is used here
     spec = IssueSpec(html_url=f"https://github.com/{repo}/issues/{num}", repo=repo, number=num, title=issue.get("title") or "",
-                     summary=(issue.get("body") or "").strip()[:600] or None, expected=exp, actual=act,
+                     # the agents read this: 600 chars cut the repro code off (#389); the UI never renders it
+                     summary=(issue.get("body") or "").strip()[:4000] or None, expected=exp, actual=act,
                      labels=[l["name"] for l in issue.get("labels", [])], checks=checks)
     _ = community   # CONTRIBUTING may live elsewhere; the profile only says whether it exists
     return IssueCheck(issue=spec, base_sha=(head or {}).get("sha"), default_branch=branch, language=meta.get("language"),

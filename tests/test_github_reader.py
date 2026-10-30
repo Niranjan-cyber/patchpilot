@@ -47,3 +47,13 @@ def test_ai_policy():
     assert ai_policy(["AI-generated contributions are not allowed."]) == "forbidden"
     assert ai_policy(["Use of AI assistants is allowed but must be disclosed in the PR."]) == "allowed"
     assert ai_policy(["Please run the tests before opening a PR."]) == "unknown"
+
+
+def test_agents_get_the_whole_issue_body_not_600_chars(monkeypatch):
+    # itsdangerous #389: the repro code sat past char 600, so the Test designer saw `unsigned = s.load` and guessed
+    import backend.github.reader as R
+    body = "Intro. " * 100 + "\n```\nunsigned = s.loads(signed)\nprint(unsigned)\n```"
+    canned = {"/repos/o/r/issues/1": {"state": "open", "title": "t", "body": body, "assignees": [], "labels": []},
+              "/repos/o/r": {"language": "Python", "default_branch": "main"}}
+    monkeypatch.setattr(R, "_get", lambda h, path, required=True: canned.get(path))
+    assert "unsigned = s.loads(signed)" in R.check_issue("https://github.com/o/r/issues/1").issue.summary
