@@ -170,10 +170,12 @@ def _ok_resp(text="ok"):
 def three_models(tmpdb, monkeypatch):
     monkeypatch.setattr(G, "_out", {})
     monkeypatch.setattr(__import__("time"), "sleep", lambda s: None)
-    monkeypatch.delenv("PP_AGENT_MODEL", raising=False)
+    monkeypatch.setenv("PP_AGENT_MODEL", "gemini/gemini-3.5-flash")
+    monkeypatch.setenv("PP_GROQ_MODELS", "groq/openai/gpt-oss-120b")
     monkeypatch.setenv("GROQ_API_KEY", "gsk_test")
     monkeypatch.setenv("PP_LOCAL_MODEL", "ollama_chat/qwen2.5-coder:7b")
-    assert [m.split("/")[0] for m in G.chain("agent")] == ["gemini", "groq", "ollama_chat"]
+    assert [m.split("/")[0] for m in G.chain("agent")] == ["gemini", "groq"]     # the 7B model made up evidence and looped (runs 1, 3)
+    assert [m.split("/")[0] for m in G.chain("short")] == ["groq", "gemini", "ollama_chat"]
 
 
 def test_quota_on_gemini_falls_back_to_groq(three_models):
@@ -196,8 +198,8 @@ def test_overload_and_quota_fall_through_to_local(three_models):
         if model.startswith("gemini"): raise ServiceUnavailableError("503")
         if model.startswith("groq"): raise RateLimitError("413 Request too large for model")
         return _ok_resp("local")
-    assert G.complete([{"role": "user", "content": "x"}], run_id="r", role="x", _completion=fake) == "local"
-    assert [m.split("/")[0] for m in seen] == ["gemini", "groq", "ollama_chat"]   # no backoff retries before a fallback exists
+    assert G.complete([{"role": "user", "content": "x"}], run_id="r", role="x", kind="short", _completion=fake) == "local"
+    assert [m.split("/")[0] for m in seen] == ["groq", "gemini", "ollama_chat"]   # no backoff retries before a fallback exists
 
 
 def test_all_providers_out_pauses_at_the_earliest_known_resume(three_models):
@@ -263,7 +265,7 @@ def test_a_network_drop_falls_back_to_the_local_model(three_models):
     def fake(model, **k):
         if not model.startswith("ollama"): raise InternalServerError("GroqException - [Errno 11001] getaddrinfo failed")
         return _ok_resp("local")
-    assert G.complete([{"role": "user", "content": "x"}], run_id="r", role="x", _completion=fake) == "local"
+    assert G.complete([{"role": "user", "content": "x"}], run_id="r", role="x", kind="short", _completion=fake) == "local"
 
 
 def test_a_certificate_mismatch_is_never_treated_as_transient(three_models):
@@ -271,3 +273,21 @@ def test_a_certificate_mismatch_is_never_treated_as_transient(three_models):
     def fake(model, **k): raise InternalServerError("[SSL: CERTIFICATE_VERIFY_FAILED] Hostname mismatch")
     with pytest.raises(InternalServerError):
         G.complete([{"role": "user", "content": "x"}], run_id="r", role="x", _completion=fake)
+
+
+def test_agent_work_pauses_rather_than_use_the_local_model(three_models):
+    seen = []
+    def fake(model, **k):
+        seen.append(model.split("/")[0]); raise _RL("429")
+    with pytest.raises(G.QuotaPause):
+        G.complete([{"role": "user", "content": "x"}], run_id="r", role="x", _completion=fake)
+    assert "ollama_chat" not in seen
+
+
+def test_default_chain_uses_every_strong_model_quota_before_pausing(monkeypatch):
+    for k in ("PP_AGENT_MODEL", "PP_GROQ_MODELS", "PP_SHORT_MODEL"):
+        monkeypatch.delenv(k, raising=False)
+    monkeypatch.setenv("GROQ_API_KEY", "gsk_test")
+    monkeypatch.setenv("PP_LOCAL_MODEL", "ollama_chat/qwen2.5-coder:7b")
+    assert G.chain("agent") == ["gemini/gemini-3.8-flash", "gemini/gemini-3.5-flash", "groq/openai/gpt-oss-120b", "groq/qwen/qwen3.8-27b"]
+    assert G.chain("short")[0] == "groq/openai/gpt-oss-120b" and G.chain("short")[-1] == "ollama_chat/qwen2.5-coder:7b"

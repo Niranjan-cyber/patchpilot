@@ -95,11 +95,15 @@ _out: dict = {}
 
 
 def chain(kind: str) -> list[str]:
-    """Models to try in order: Gemini, then Groq (if keyed), then a local model (PP_LOCAL_MODEL, e.g. ollama_chat/qwen2.5-coder:7b)."""
-    gemini = _os.getenv("PP_AGENT_MODEL", "gemini/gemini-3.5-flash")
-    groq = GROQ_MODEL if _os.getenv("GROQ_API_KEY") else None
-    first = (_os.getenv("PP_SHORT_MODEL") or groq or gemini) if kind == "short" else gemini
-    return list(dict.fromkeys(m for m in (first, gemini, groq, _os.getenv("PP_LOCAL_MODEL")) if m))
+    """Models to try in order: Gemini, then Groq (if keyed). Short calls may end on a local model (PP_LOCAL_MODEL); agent work
+    never does: the 7B model made up evidence and looped (runs 1, 3), so agents pause instead.
+    Free-tier quotas are per model, so each list holds several strong models (verified on the team's keys 2026-10-30)."""
+    gemini = _os.getenv("PP_AGENT_MODEL", "gemini/gemini-3.8-flash,gemini/gemini-3.5-flash").split(",")
+    groq = _os.getenv("PP_GROQ_MODELS", f"{GROQ_MODEL},groq/qwen/qwen3.8-27b").split(",") if _os.getenv("GROQ_API_KEY") else []
+    if kind != "short":
+        return list(dict.fromkeys(m for m in (*gemini, *groq) if m))
+    first = _os.getenv("PP_SHORT_MODEL") or (groq or gemini)[0]
+    return list(dict.fromkeys(m for m in (first, *gemini, *groq, _os.getenv("PP_LOCAL_MODEL")) if m))
 
 
 _SECRET = _re.compile(r"(gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|AIza[0-9A-Za-z_-]{30,}|gsk_[A-Za-z0-9]{20,}|"
