@@ -1,6 +1,7 @@
 """Dev only: seed two finished runs for the B17 browser check (one fresh session). Prints TOKEN RUN_HIDDEN_FAIL RUN_CAP.
 RUN_HIDDEN_FAIL: visible test passes, hidden variant fails -> Needs attention; bisect found (real pallets/click shas).
 RUN_CAP: verified, hidden variant passed; bisect over the step cap -> Not run, no commit shown."""
+import os
 import hashlib
 import json
 import secrets
@@ -8,6 +9,9 @@ import secrets
 from backend import artifacts, db
 from backend.contracts.models import (CheckStatus, Diagnosis, EndReason, IssueSpec, Location, Outcome, Patch, ReproTest,
                                       ReviewResult, RunStatus, StepId, StepState, Verification)
+
+# dev seeds add fake runs AND queued jobs; the live worker would run them (2026-10-30: real setups on pallets/click)
+assert os.getenv("PP_DB"), "set PP_DB to a separate test DB, never the live data/app.db (README: Tests)"
 
 BAD, GOOD = "2247b35ea1c47c727d7a06e51fa280e12a863ff6", "9f0bcdf0d868edfc71435cd0aac2dcc08cf94828"
 c = db.connect()

@@ -1,10 +1,14 @@
 """Dev only: seed a local run waiting for approval, owned by a fresh session. Prints TOKEN RUN_ID for browser checks."""
+import os
 import hashlib
 import secrets
 
 from backend import artifacts, db
 from backend.contracts.models import (CheckStatus, Diagnosis, IssueSpec, Location, Outcome, Patch, PublishBlocker, ReproTest,
                                       RunStatus, SGReport, TestRun, Verification)
+
+# dev seeds add fake runs AND queued jobs; the live worker would run them (2026-10-30: real setups on pallets/click)
+assert os.getenv("PP_DB"), "set PP_DB to a separate test DB, never the live data/app.db (README: Tests)"
 
 FIX = ("diff --git a/tinycalc/ops.py b/tinycalc/ops.py\n--- a/tinycalc/ops.py\n+++ b/tinycalc/ops.py\n@@ -11,7 +11,4 @@ def subtract(a, b):\n"
        " def divide(a, b):\n-    try:\n-        return a / b\n-    except ZeroDivisionError:\n-        return 0\n+    return a / b\n")

@@ -172,6 +172,15 @@ uv run pytest                                                          # unit + 
 NODE_PATH=web/node_modules web/node_modules/.bin/playwright test       # browser checks (app running)
 ```
 
+The seeded browser checks (`scripts/seed_*.py`) create fake runs **and queued jobs**, so they refuse to run without a separate
+database. Run them against a second API with no worker:
+
+```bash
+PP_DB=data/e2e.db uv run uvicorn backend.api.main:app --port 8001     # test-only API, no worker
+export PP_DB=data/e2e.db
+PP_SEED="$(uv run python -m scripts.seed_diagnose_run | tail -1)" PP_SEED17="$(uv run python -m scripts.seed_variant_runs | tail -1)" PP_SEED16="$(uv run python -m scripts.seed_progress_runs | tail -1)" BASE_URL=http://localhost:8001 NODE_PATH=web/node_modules web/node_modules/.bin/playwright test
+```
+
 ## Repository map
 
 | Path | What |

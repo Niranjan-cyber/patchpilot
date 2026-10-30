@@ -1,12 +1,16 @@
 """Dev only: seed two local runs for the B07 browser check (owned by one fresh session). Prints TOKEN RUN_OK RUN_TRIAGE RUN_PAUSED.
 RUN_OK is fixing with a diagnosis + one G4-rejected Fixer attempt; RUN_TRIAGE ended TRIAGE_ONLY with diagnosis unavailable;
 RUN_PAUSED waits at a guided pause after reproduction (B15)."""
+import os
 import hashlib
 import secrets
 
 from backend import artifacts, db
 from backend.contracts.models import (CheckStatus, Diagnosis, EndReason, IssueSpec, Location, Outcome, PauseInfo, ReproTest, RunStatus,
                                       StepId, StepState, TourItem)
+
+# dev seeds add fake runs AND queued jobs; the live worker would run them (2026-10-30: real setups on pallets/click)
+assert os.getenv("PP_DB"), "set PP_DB to a separate test DB, never the live data/app.db (README: Tests)"
 
 SHA = "2247b35ea1c47c727d7a06e51fa280e12a863ff6"   # pallets/click main when seeded, so the file:line links open real code
 c = db.connect()

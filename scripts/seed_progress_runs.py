@@ -1,10 +1,14 @@
 """Dev only: seed runs for the B16 browser check, owned by one fresh session. Prints TOKEN.
 PRs point at REAL pallets/click PRs (#3884 merged, #3900 open when seeded) so S-08 shows live GitHub status."""
+import os
 import hashlib
 import secrets
 
 from backend import db
 from backend.contracts.models import IssueSpec, Outcome, PullRequestRef, RunStatus
+
+# dev seeds add fake runs AND queued jobs; the live worker would run them (2026-10-30: real setups on pallets/click)
+assert os.getenv("PP_DB"), "set PP_DB to a separate test DB, never the live data/app.db (README: Tests)"
 
 c = db.connect()
 tok = secrets.token_urlsafe(32); h = hashlib.sha256(tok.encode()).hexdigest(); t = db.now().isoformat()
