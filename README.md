@@ -67,8 +67,7 @@ flowchart TB
         J -->|yes| K[Draft PR]
         J -->|no| L[Keep the report]
     end
-    C --> D
-    H --> I
+    check --> prove --> decide
 ```
 
 Every arrow is a gate (G0–G6) evaluated by code. A step that can't finish stops the run with a reason. Failures are never shown as empty.
