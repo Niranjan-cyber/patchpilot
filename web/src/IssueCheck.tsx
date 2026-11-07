@@ -35,12 +35,13 @@ export default function IssueCheck() {
   };
   useEffect(load, [url]);
 
-  const start = async () => {
-    setStarting("Starting…");
+  // assessmentOnly: "Save the assessment report" tells the server never to queue a job, even if a re-check now says READY
+  const start = async (assessmentOnly = false) => {
+    setStarting(assessmentOnly ? "Saving…" : "Starting…");
     try {
       const run = await api<RunView>("/api/runs", {
         method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ issue_url: url, continue_despite: accepted ? chk?.warnings ?? [] : [] }),
+        body: JSON.stringify({ issue_url: url, continue_despite: accepted ? chk?.warnings ?? [] : [], assessment_only: assessmentOnly }),
       });
       nav(`/runs/${run.run_id}`);
     } catch (e) { setStarting(null); setErr(e as ApiError); }
@@ -101,13 +102,13 @@ export default function IssueCheck() {
       )}
       {assessOnly && (
         <div className="row">
-          <button onClick={start} disabled={!!starting}>{starting ?? "Save the assessment report"}</button>
+          <button onClick={() => start(true)} disabled={!!starting}>{starting ?? "Save the assessment report"}</button>
           <Link to="/" className="button secondary">Find another issue</Link>
         </div>
       )}
       {!blocked && !assessOnly && (
         <div className="row">
-          <button onClick={start} disabled={!!starting || (warned && !accepted)}>{starting ?? "Start run"}</button>
+          <button onClick={() => start()} disabled={!!starting || (warned && !accepted)}>{starting ?? "Start run"}</button>
           <Link to="/" className="button secondary">Find another issue</Link>
         </div>
       )}

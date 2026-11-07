@@ -108,7 +108,8 @@ def assessment_only():
     issue = ISSUE.model_copy(update=dict(title="Add a power() function", expected=None, actual=None, labels=["enhancement"],
                                          summary="It would be nice to have power(x, y) next to add and divide."))
     a = assess(title=issue.title, body=issue.summary, labels=issue.labels, names=["pyproject.toml", "tests"], state="open",
-               checks=issue.checks, unsupported=None, warnings=[], linked=[])
+               checks=issue.checks, unsupported=None, warnings=[], linked=[], extracted={"issue_type": "enhancement"},
+               base_sha="a1b2c3d")   # model + label agree: a non-bug (A's review of #50, bugs 2+3)
     blockers = end_blockers(E.COMPLETED, O.ASSESSMENT_ONLY)
     events = [Event(run_id=name, seq=1, ts=T0, type="gate.result", step="intake", payload=dict(
                   gate="G0", status="blocked", reason=a.decision_reasons[0], evidence_ids=[])),

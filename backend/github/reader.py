@@ -78,10 +78,12 @@ def ai_policy(texts: list[str]) -> str:
     return "unknown"
 
 
-def g0_status(checks: dict[str, CheckStatus]) -> tuple[CheckStatus, str]:
-    """G0 for the run's gates (contracts §1.1): a failed check the user accepted = failed, a failed lookup = inconclusive."""
+def g0_status(checks: dict[str, CheckStatus], accepted: list[str] = ()) -> tuple[CheckStatus, str]:
+    """G0 for the run's gates (contracts §1.1): a failed check the user accepted = failed, a failed lookup = inconclusive.
+    accepted = warning codes the user sent in continue_despite; v0.4's assessment warnings count as accepted failures."""
     failed = [code for key, code in (("open", "closed"), ("unassigned", "assigned"), ("no_linked_pr", "linked_pr"))
               if checks.get(key) == CheckStatus.FAILED]
+    failed += [w for w in ("unclear_type", "needs_info", "other_os", "base_unknown") if w in accepted]
     if failed:
         return CheckStatus.FAILED, failed[0]
     if any(s == CheckStatus.INCONCLUSIVE for s in checks.values()):
@@ -115,7 +117,8 @@ def _get(h: httpx.Client, path: str, *, required: bool = True):
     return r.json()
 
 
-def check_issue(url: str) -> IssueCheck:
+def check_issue(url: str, *, extract_model: bool = True) -> IssueCheck:
+    """extract_model=False: callers that only need repo facts (approval's stale check, publisher) skip the assessor call."""
     repo, num = parse_url(url)
     warnings: list[str] = []
     with _client() as h:
@@ -164,7 +167,7 @@ def check_issue(url: str) -> IssueCheck:
     _ = community   # CONTRIBUTING may live elsewhere; the profile only says whether it exists
     from backend.github.assess import assess, extract, new_warnings   # late: assess imports explore, which imports this module
     body = issue.get("body") or ""
-    x = None if unsupported else extract(url=spec.html_url, updated_at=issue.get("updated_at"), title=spec.title, body=body,
+    x = None if unsupported or not extract_model else extract(url=spec.html_url, updated_at=issue.get("updated_at"), title=spec.title, body=body,
                                          labels=spec.labels)   # nothing will run for an unsupported repo: don't spend tokens
     a = assess(title=spec.title, body=body, labels=spec.labels, names=names, state=issue.get("state") or "open",
                checks=checks, unsupported=unsupported, warnings=warnings, linked=linked, extracted=x,

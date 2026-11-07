@@ -29,7 +29,7 @@
   "assessment": {
     "schema_version": 1,
     "issue_type": "enhancement",
-    "issue_type_source": "label",
+    "issue_type_source": "model",
     "issue_status": "open",
     "problem_summary": null,
     "acceptance_conditions": [],
@@ -37,7 +37,7 @@
     "reproduction_information": null,
     "existing_resolution": [],
     "build_system": "pip",
-    "test_framework": "unknown",
+    "test_framework": "pytest",
     "environment_requirements": [],
     "compatibility_status": "supported",
     "handling_decision": "ASSESSMENT_ONLY",

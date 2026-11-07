@@ -78,17 +78,18 @@ def keyword_type(title: str, body: str, labels: list[str]) -> tuple[str | None, 
 
 def classify(title: str, body: str, labels: list[str], model_type: str | None = None) -> tuple[str, str]:
     """(issue_type, source). The model's extraction is the classifier (DECISION 2026-11-07); labels/text cross-check it.
-    No model answer: keywords only in the safe direction (a clear non-bug stays a non-bug), never to make a bug READY."""
+    A non-bug type (which hard-blocks at G0) needs the model AND labels/text to agree: neither the model alone nor
+    keywords alone may set a gate (AGENTS.md; A's review of #50, bugs 2+3). One-sided -> "unknown" -> HUMAN_DECISION."""
     kw, src = keyword_type(title, body, labels)
-    if model_type and model_type != "unknown":
-        if kw == "unknown" or (kw and (kw in FIXABLE) != (model_type in FIXABLE)):
-            return "unknown", "model"  # model and labels/text disagree on bug vs not-bug: the human decides
-        if model_type in FIXABLE and UNSURE.search(f"{title}\n{body}"):
+    if not model_type or model_type == "unknown":
+        return "unknown", "model" if model_type == "unknown" else "none"
+    if kw == "unknown" or (kw and (kw in FIXABLE) != (model_type in FIXABLE)):
+        return "unknown", "model"      # model and labels/text disagree on bug vs not-bug: the human decides
+    if model_type in FIXABLE:
+        if UNSURE.search(f"{title}\n{body}"):
             return "unknown", "model"  # the reporter asks whether it's a bug at all
         return model_type, "model"
-    if kw and kw != "unknown" and kw not in FIXABLE:
-        return kw, src
-    return "unknown", "model" if model_type == "unknown" else "none"
+    return (model_type, "model") if kw else ("unknown", "model")   # non-bug: both must say so
 
 
 def missing_information(body: str) -> list[str]:
@@ -254,12 +255,16 @@ _CACHE = "CREATE TABLE IF NOT EXISTS assess_cache(key TEXT PRIMARY KEY, json TEX
 def parse_extraction(text: str) -> dict | None:
     """The model's JSON, validated. Anything malformed -> None (= model unavailable -> HUMAN_DECISION at best)."""
     import json
-    m = re.search(r"\{.*\}", text or "", re.S)
-    try:
-        d = json.loads(m.group(0)) if m else None
-    except ValueError:
-        return None
-    if not isinstance(d, dict) or d.get("issue_type") not in TYPES:
+    text, d, dec = text or "", None, json.JSONDecoder()
+    for i in (k for k, ch in enumerate(text) if ch == "{"):   # first decodable object with a valid type; a stray "{" in
+        try:                                                  # the model's thinking used to break a greedy \{.*\} grab
+            cand, _ = dec.raw_decode(text, i)
+        except ValueError:
+            continue
+        if isinstance(cand, dict) and cand.get("issue_type") in TYPES:
+            d = cand
+            break
+    if d is None:
         return None
     s = lambda k: (d.get(k) or None) if isinstance(d.get(k), (str, type(None))) else None
     acc = d.get("acceptance_conditions") if isinstance(d.get("acceptance_conditions"), list) else []

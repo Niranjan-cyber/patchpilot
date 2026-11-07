@@ -89,9 +89,10 @@ def test_model_unavailable_never_makes_a_bug_ready():
     assert new_warnings(a) == ["unclear_type"]
 
 
-def test_model_unavailable_keeps_a_clear_non_bug_assessment_only():
+def test_model_unavailable_with_a_clear_non_bug_label_is_human_decision_not_a_hard_block():
+    # A's review, bug 3: keywords alone may not set G0 blocked; the user decides (overridable, with the report caveat)
     a = run(title="Docs: fix the install example", body="typo", labels=("documentation",), model=NO_MODEL)
-    assert a.handling_decision == "ASSESSMENT_ONLY"   # the safe direction: nothing runs
+    assert a.handling_decision == "HUMAN_DECISION" and {"model_unavailable", "unclear_type"} <= set(a.decision_reasons)
 
 
 def test_model_and_labels_disagree_is_human_decision():
@@ -210,3 +211,41 @@ def test_report_carries_the_unclear_caveat_on_every_outcome_after_consent():
     from backend.github.assess import UNCLEAR_CAVEAT, report_lines
     assert report_lines(run(model="unknown"))[0] == UNCLEAR_CAVEAT
     assert UNCLEAR_CAVEAT not in report_lines(run())          # a clear READY bug: no caveat
+
+
+# ---- A's review of #50: bugs 2+3, ASSESSMENT_ONLY only when model AND labels/text agree it's a non-bug ----
+def test_bug2_model_alone_never_hard_blocks():
+    a = run(title="Something about CI", body="The workflow is red on main.", labels=(), model="build_ci")
+    assert a.handling_decision == "HUMAN_DECISION" and "unclear_type" in a.decision_reasons   # overridable, not G0 blocked
+
+
+def test_bug3_keywords_alone_never_hard_block_when_the_model_is_unavailable():
+    for title, labels in (("The docs say parse() should accept bytes", ()), ("How do I avoid this crash", ()), ("x fails", ("tests",))):
+        a = run(title=title, body="parse(b'x') raises TypeError", labels=labels, model=NO_MODEL)
+        assert a.handling_decision == "HUMAN_DECISION", title
+
+
+def test_model_and_keywords_agreeing_on_a_non_bug_is_assessment_only():
+    a = run(title="Docs: fix the install example", body="typo", labels=("documentation",), model="docs")
+    assert a.handling_decision == "ASSESSMENT_ONLY" and a.issue_type == "docs"
+
+
+# ---- A's "plausible" items on #50 ----
+def test_parse_extraction_survives_braces_around_the_json():
+    from backend.github.assess import parse_extraction
+    out = parse_extraction('Thinking about {sets}... answer: {"issue_type": "bug", "problem_summary": "x"} (done {ok})')
+    assert out and out["issue_type"] == "bug" and out["problem_summary"] == "x"
+    assert parse_extraction('{"issue_type": "nope"} {broken') is None
+
+
+def test_repo_fact_checks_skip_the_assessor_call(monkeypatch):
+    import backend.github.reader as R
+    canned = {"/repos/o/r/issues/1": {"state": "open", "title": "t", "body": "b", "assignees": [], "labels": []},
+              "/repos/o/r": {"language": "Python", "default_branch": "main"}}
+    monkeypatch.setattr(R, "_get", lambda h, path, required=True: canned.get(path))
+    called = []
+    monkeypatch.setattr("backend.github.assess.extract", lambda **k: called.append(k))
+    R.check_issue("https://github.com/o/r/issues/1", extract_model=False)   # approval stale check, publisher
+    assert called == []
+    R.check_issue("https://github.com/o/r/issues/1")
+    assert len(called) == 1

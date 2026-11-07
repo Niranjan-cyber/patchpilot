@@ -87,7 +87,7 @@ index 065736f..dcc363c 100644
  run_active_seconds = 1500
  setup_seconds = 480
 diff --git a/docs/contracts.md b/docs/contracts.md
-index 5a93c0a..1a96859 100644
+index 5a93c0a..54de799 100644
 --- a/docs/contracts.md
 +++ b/docs/contracts.md
 @@ -1,4 +1,4 @@
@@ -153,7 +153,7 @@ index 5a93c0a..1a96859 100644
      policy: RepoPolicy                # ai_policy: allowed|forbidden|unknown, prs_restricted, source file ids
      env: EnvProfile | None
      baseline: TestRun | None          # pass_set, fail_set, flaky_set, evidence_ids
-@@ -146,6 +152,55 @@ class RunState(BaseModel):
+@@ -146,6 +152,57 @@ class RunState(BaseModel):
  
  Large content (logs, diffs, test output) is stored in the artifact store, keyed by **`sha256:<hex>`** of the bytes. Those keys are the evidence IDs. State holds only IDs.
  
@@ -165,7 +165,9 @@ index 5a93c0a..1a96859 100644
 +  - Counted: inside `global_llm_tokens_per_day`, plus its own cap `assess_llm_tokens_per_day` (§6). It never uses an execution slot or the per-run budget.
 +  - Skipped for UNSUPPORTED repos, since nothing would run.
 +- **Cross-check:** labels and text (keywords). If they disagree with the model on bug vs not-bug, or the reporter asks whether it's a bug at all ("is this expected?", "not sure if intentional"; from #41), the type is `unknown`.
-+- **Model unavailable** (budget, quota, timeout, invalid JSON) → `model_unavailable`. Keywords are then used **only in the safe direction**: a clear non-bug is still ASSESSMENT_ONLY, and anything else is at best HUMAN_DECISION, never READY.
++- **A non-bug hard block needs agreement:** G0 blocked (ASSESSMENT_ONLY) only when the model **and** labels/text both say non-bug. Neither one alone may set a gate (AGENTS.md hard rule; A's review of #50). One-sided → `unknown` → HUMAN_DECISION (overridable).
++- **Model unavailable** (budget, quota, timeout, invalid JSON) → `model_unavailable` → HUMAN_DECISION at best: never READY, and never a keyword-only hard block.
++- **For the human (changes the 19:01 DECISION's wording):** "non-bugs never reach the Fixer" now holds when the model and labels/text agree it's a non-bug. A **one-sided** non-bug can reach it, but only after the user ticks the consent box, and the report caveat goes on every outcome.
 +- **Decision:** `decide_handling()` in code, first match wins. Unknown, invalid or ambiguous required fields are never `READY`: issue type, Python compatibility, linked-PR lookup, test runner, base commit.
 +
 +```python
@@ -190,7 +192,7 @@ index 5a93c0a..1a96859 100644
 +| handling_decision | When (first match; `decision_reasons` code) | G0 | Run / job | Outcome · EndReason | Warning code (`continue_despite`) |
 +|---|---|---|---|---|---|
 +| `UNSUPPORTED` | not Python (`unsupported:not_python`) or no tests (`unsupported:no_tests`) | blocked | FINISHED run, **no job** | `ASSESSMENT_ONLY` · `completed` | none (not overridable) |
-+| `ASSESSMENT_ONLY` | type is not bug/regression and not unknown (`not_a_bug:<type>`) | blocked | FINISHED run, **no job** | `ASSESSMENT_ONLY` · `completed` | none (not overridable) |
++| `ASSESSMENT_ONLY` | the model **and** labels/text agree it's not a bug (`not_a_bug:<type>`); or the user clicked "Save the assessment report" (`assessment_only: true`, G0 reason `saved_assessment_only`) | blocked | FINISHED run, **no job** | `ASSESSMENT_ONLY` · `completed` | none (not overridable) |
 +| `HUMAN_DECISION` | `unclear_type`, `model_unavailable` | failed if accepted | runs only after consent | by §1.2 as usual | `unclear_type` |
 +| | `compatibility_unknown`, `linked_pr_unknown`, `test_framework_unknown` | inconclusive / failed | runs only after consent | by §1.2 | `lookup_failed` (existing) |
 +| | `base_sha_unknown` | failed if accepted | runs only after consent | by §1.2 | `base_unknown` |
@@ -209,18 +211,18 @@ index 5a93c0a..1a96859 100644
  ## 3. Event stream (polling first, SSE optional)
  
  **Primary:** `GET /api/runs/{run_id}/events?after=<seq>` → `{"events": [<envelope>…], "next_after": <seq>}`, polled every 2 s while the run isn't terminal (every 10 s while paused). This works through any tunnel; Cloudflare Quick Tunnels don't support SSE. **Optional:** the same path with `Accept: text/event-stream`, using the format below. Every event is appended to the `events` table *before* it's returned, so both are views of the log.
-@@ -180,8 +235,8 @@ data: {"v":1,"run_id":"…","seq":42,"ts":"2026-11-11T10:42:07Z","type":"step.fi
+@@ -180,8 +237,8 @@ data: {"v":1,"run_id":"…","seq":42,"ts":"2026-11-11T10:42:07Z","type":"step.fi
  
  | Method | Path | Notes |
  |---|---|---|
 -| POST | `/api/issues/check` | `{url}` → `IssueCheck` (summary, eligibility, policy, publish preview). No run is created |
 -| POST | `/api/runs` | `{issue_url, continue_despite: [warning codes]}` → `RunView`; enforces limits; creates the session cookie if missing |
 +| POST | `/api/issues/check` | `{url}` → `IssueCheck` (summary, eligibility, policy, publish preview, `assessment`). No run is created |
-+| POST | `/api/runs` | `{issue_url, continue_despite: [warning codes]}` → `RunView`; enforces limits; creates the session cookie if missing. v0.4: an UNSUPPORTED / ASSESSMENT_ONLY issue returns 201 with a FINISHED `ASSESSMENT_ONLY` run (no job, no limit used) instead of 422 `UNSUPPORTED_REPO` |
++| POST | `/api/runs` | `{issue_url, continue_despite: [warning codes], assessment_only: bool = false}` → `RunView`; enforces limits; creates the session cookie if missing. v0.4: an UNSUPPORTED / ASSESSMENT_ONLY issue returns 201 with a FINISHED `ASSESSMENT_ONLY` run (no job, no limit used) instead of 422 `UNSUPPORTED_REPO` |
  | GET | `/api/runs/{id}` | `RunView`; 404 for both "doesn't exist" and "not yours" |
  | GET | `/api/runs/{id}/events?after=<seq>` | polling JSON; SSE if `Accept: text/event-stream` (§3) |
  | GET | `/api/runs/{id}/pr-status` | GitHub PR state, cached 10 min; `null` state = unknown |
-@@ -239,6 +294,7 @@ global_llm_tokens_per_day = 0 # REQUIRED: must be set from a measured run before
+@@ -239,6 +296,7 @@ global_llm_tokens_per_day = 0 # REQUIRED: must be set from a measured run before
  budget_measured_tokens_per_run = 0   # record the M3 feasibility measurement here
  budget_measured_on = ""             # date + model of that measurement
  run_llm_tokens = 300_000

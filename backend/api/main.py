@@ -105,6 +105,7 @@ def repos_explore(body: CheckBody):
 class NewRun(BaseModel):
     issue_url: str
     continue_despite: list[str] = []
+    assessment_only: bool = False   # "Save the assessment report": never queues a job, whatever a re-check says (#50 review, bug 1)
 
 
 @app.post("/api/runs", response_model=RunView, status_code=201)
@@ -115,7 +116,7 @@ def create_run(body: NewRun, request: Request, response: Response):
     aid = acct["id"] if acct else None
     chk = _check(body.issue_url)   # G0 (contracts §1.1)
     a = chk.assessment
-    if a and a.handling_decision in ("UNSUPPORTED", "ASSESSMENT_ONLY"):   # v0.4: a finished report, nothing runs, no limits used
+    if body.assessment_only or (a and a.handling_decision in ("UNSUPPORTED", "ASSESSMENT_ONLY")):   # v0.4: a report, no job
         return _assessment_only(c, chk, sid, aid)
     today, active = db.owner_counts(c, sid, aid)
     if active >= lim["active_runs_per_owner"]:
@@ -131,30 +132,27 @@ def create_run(body: NewRun, request: Request, response: Response):
     missing = [w for w in chk.warnings if w not in body.continue_despite]
     if missing:
         raise ApiErr(409, "ELIGIBILITY_WARNING", "This issue has warnings you need to accept first: " + ", ".join(missing))
-    v = db.create_run(c, chk.issue, base_sha=chk.base_sha or "pending", owner_session_hash=sid, owner_account_id=aid,
-                      g0=g0_status(chk.issue.checks))   # recorded, so the run page and report never say "not run" for G0
-    if chk.policy.ai_policy == "forbidden" or a:
-        v.assessment = a
-        if chk.policy.ai_policy == "forbidden":
-            v.policy = chk.policy
-            v.publish_blockers.append(PublishBlocker.REPO_FORBIDS_AI)
-        db.save_run(db.connect(), v)
-    return v
+    forbidden = chk.policy.ai_policy == "forbidden"
+    accepted = [w for w in chk.warnings if w in body.continue_despite]
+    # everything in ONE transaction with the job (bug 5); G0 records accepted v0.4 warnings as failed (bug 4)
+    return db.create_run(c, chk.issue, base_sha=chk.base_sha or "pending", owner_session_hash=sid, owner_account_id=aid,
+                         g0=g0_status(chk.issue.checks, accepted), assessment=a,
+                         **({"policy": chk.policy, "publish_blockers": [PublishBlocker.REPO_FORBIDS_AI]} if forbidden else {}))
 
 
 def _assessment_only(c, chk: IssueCheck, sid, aid) -> RunView:
     """UNSUPPORTED / ASSESSMENT_ONLY (contracts v0.4): a FINISHED run with the assessment, G0 blocked, and no job."""
     from backend.contracts.models import CheckStatus, EndReason, Outcome, RunStatus, end_blockers, readiness
     a = chk.assessment
-    g0 = (CheckStatus.BLOCKED, a.decision_reasons[0] if a.decision_reasons else a.handling_decision.lower())
-    v = db.create_run(c, chk.issue, base_sha=chk.base_sha or "pending", owner_session_hash=sid, owner_account_id=aid, g0=g0, job=False)
-    v.assessment, v.policy = a, chk.policy
-    v.status, v.outcome, v.end_reason = RunStatus.FINISHED, Outcome.ASSESSMENT_ONLY, EndReason.COMPLETED
-    v.readiness = readiness(Outcome.ASSESSMENT_ONLY)
-    v.publish_blockers = end_blockers(EndReason.COMPLETED, Outcome.ASSESSMENT_ONLY)
-    if chk.policy.ai_policy == "forbidden":
-        v.publish_blockers.append(PublishBlocker.REPO_FORBIDS_AI)
-    db.save_run(c, v)
+    hard = a and a.handling_decision in ("UNSUPPORTED", "ASSESSMENT_ONLY")
+    # the user chose "Save the assessment report" (no job), or the assessment itself blocks execution
+    reason = (a.decision_reasons[0] if a.decision_reasons else a.handling_decision.lower()) if hard else "saved_assessment_only"
+    blockers = end_blockers(EndReason.COMPLETED, Outcome.ASSESSMENT_ONLY) + \
+        ([PublishBlocker.REPO_FORBIDS_AI] if chk.policy.ai_policy == "forbidden" else [])
+    v = db.create_run(c, chk.issue, base_sha=chk.base_sha or "pending", owner_session_hash=sid, owner_account_id=aid,
+                      g0=(CheckStatus.BLOCKED, reason), job=False, assessment=a, policy=chk.policy,
+                      status=RunStatus.FINISHED, outcome=Outcome.ASSESSMENT_ONLY, end_reason=EndReason.COMPLETED,
+                      readiness=readiness(Outcome.ASSESSMENT_ONLY), publish_blockers=blockers)
     db.emit(c, v.run_id, "analysis.finished", None, v.revision, outcome=v.outcome.value, end_reason=v.end_reason.value,
             readiness=v.readiness, publish_blockers=[b.value for b in v.publish_blockers])
     return v

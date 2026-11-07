@@ -105,3 +105,28 @@ def test_report_explains_an_assessment_only_run(monkeypatch):
     md = render(db.get_run(db.connect(), v["run_id"]))
     assert "## Assessment" in md and "**ASSESSMENT_ONLY**" in md and "doesn't change any code" in md
     assert "Suggested next step" in md and "Outcome: **ASSESSMENT_ONLY**" in md
+
+
+# ---- A's review of #50 (2026-11-07 20:18), one regression test per confirmed bug ----
+def test_bug1_save_assessment_never_queues_a_job_even_if_the_issue_now_reads_as_ready(monkeypatch):
+    # S-01 showed ASSESSMENT_ONLY; by the time "Save the assessment report" is clicked the model says bug (READY)
+    v = post(monkeypatch, check(), assessment_only=True).json()
+    assert v["status"] == "finished" and v["outcome"] == "ASSESSMENT_ONLY" and jobs(v["run_id"]) == 0
+
+
+def test_bug4_accepted_new_warning_records_g0_failed_not_passed(monkeypatch):
+    chk = check(title="divide", body="See title.", labels=(), model="unknown")
+    v = post(monkeypatch, chk, continue_despite=["unclear_type"]).json()
+    assert v["gates"]["G0"] == "failed"
+    ev = db.connect().execute("SELECT payload FROM events WHERE run_id=? AND type='gate.result'", (v["run_id"],)).fetchone()[0]
+    assert '"unclear_type"' in ev
+
+
+def test_bug5_assessment_and_policy_are_written_in_the_create_transaction(monkeypatch):
+    # no second save_run after the job is committed: it could overwrite a worker that already leased the run
+    saves = []
+    monkeypatch.setattr(db, "save_run", lambda c, v: saves.append(v.run_id))
+    v = post(monkeypatch, check(policy="forbidden")).json()
+    assert saves == [] and v["assessment"]["handling_decision"] == "READY" and "repo_forbids_ai" in v["publish_blockers"]
+    stored = db.get_run(db.connect(), v["run_id"])
+    assert stored.assessment is not None and stored.policy.ai_policy == "forbidden"
