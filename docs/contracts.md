@@ -156,7 +156,7 @@ Large content (logs, diffs, test output) is stored in the artifact store, keyed 
 
 `handling_decision` is a **field**, not a run status. **The model extracts, code decides** (DECISION 2026-11-07):
 - **Extraction (the classifier):** one bounded model call per issue version, `assess.extract()` through `llm_gateway`, role `assessor`. It returns `issue_type` + `problem_summary`, `acceptance_conditions` and `reproduction_information` as validated JSON.
-  - Bounds: ≤ 6,000 chars of the issue, ≤ 1,200 output tokens, a 20 s wall-clock wait, cached per issue `updated_at`.
+  - Bounds: ≤ 4,000 chars of the issue, ≤ 1,800 output tokens (reasoning models use part of it), a 20 s wall-clock wait, cached per issue `updated_at`.
   - Counted: inside `global_llm_tokens_per_day`, plus its own cap `assess_llm_tokens_per_day` (§6). It never uses an execution slot or the per-run budget.
   - Skipped for UNSUPPORTED repos, since nothing would run.
 - **Cross-check:** labels and text (keywords). If they disagree with the model on bug vs not-bug, or the reporter asks whether it's a bug at all ("is this expected?", "not sure if intentional"; from #41), the type is `unknown`.

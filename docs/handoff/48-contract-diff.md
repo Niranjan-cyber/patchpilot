@@ -1,6 +1,6 @@
 # #48 contracts v0.4: exact diff for review (A, B, C, the human)
 
-Branch `c48-intake` vs `main`. Only these two files define the contract; the mapping table is in `docs/contracts.md` §2.1.
+Branch `c48-intake` vs `main`. Only these files define the contract; the mapping table is in `docs/contracts.md` §2.1.
 
 ```diff
 diff --git a/backend/contracts/models.py b/backend/contracts/models.py
@@ -87,7 +87,7 @@ index 065736f..dcc363c 100644
  run_active_seconds = 1500
  setup_seconds = 480
 diff --git a/docs/contracts.md b/docs/contracts.md
-index 5a93c0a..3d3d072 100644
+index 5a93c0a..1a96859 100644
 --- a/docs/contracts.md
 +++ b/docs/contracts.md
 @@ -1,4 +1,4 @@
@@ -161,7 +161,7 @@ index 5a93c0a..3d3d072 100644
 +
 +`handling_decision` is a **field**, not a run status. **The model extracts, code decides** (DECISION 2026-11-07):
 +- **Extraction (the classifier):** one bounded model call per issue version, `assess.extract()` through `llm_gateway`, role `assessor`. It returns `issue_type` + `problem_summary`, `acceptance_conditions` and `reproduction_information` as validated JSON.
-+  - Bounds: ≤ 6,000 chars of the issue, ≤ 1,200 output tokens, a 20 s wall-clock wait, cached per issue `updated_at`.
++  - Bounds: ≤ 4,000 chars of the issue, ≤ 1,800 output tokens (reasoning models use part of it), a 20 s wall-clock wait, cached per issue `updated_at`.
 +  - Counted: inside `global_llm_tokens_per_day`, plus its own cap `assess_llm_tokens_per_day` (§6). It never uses an execution slot or the per-run budget.
 +  - Skipped for UNSUPPORTED repos, since nothing would run.
 +- **Cross-check:** labels and text (keywords). If they disagree with the model on bug vs not-bug, or the reporter asks whether it's a bug at all ("is this expected?", "not sure if intentional"; from #41), the type is `unknown`.

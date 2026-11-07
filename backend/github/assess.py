@@ -246,7 +246,8 @@ Reply with ONE JSON object and nothing else:
 Rules: a bug or regression reports existing behaviour that is wrong; a request for new behaviour is a feature or enhancement.
 Use "unknown" when the issue doesn't make it clear. Never invent details the issue doesn't contain; use null instead.""" % (list(TYPES),)
 EXTRACT_SECONDS = 20          # the S-01 check waits at most this long; a slower model counts as unavailable
-EXTRACT_MAX_OUTPUT = 1200     # with the issue cut to 6,000 chars, one call stays under ~3k tokens
+EXTRACT_MAX_OUTPUT = 1800     # reasoning models (gpt-oss) spend part of this thinking; with the issue cut to 4,000 chars
+EXTRACT_MAX_CHARS = 4000      # (~1k tokens) + the prompt, one call stays around 3k tokens
 _CACHE = "CREATE TABLE IF NOT EXISTS assess_cache(key TEXT PRIMARY KEY, json TEXT, ts TEXT)"
 
 
@@ -292,7 +293,7 @@ def extract(*, url: str, updated_at: str | None, title: str, body: str, labels: 
     if _completion is None:
         import litellm
         _completion = lambda **k: litellm.completion(**k, max_tokens=EXTRACT_MAX_OUTPUT)
-    issue = f"Title: {title}\nLabels: {', '.join(labels) or 'none'}\n\n{(body or '')[:6000]}"
+    issue = f"Title: {title}\nLabels: {', '.join(labels) or 'none'}\n\n{(body or '')[:EXTRACT_MAX_CHARS]}"
     msgs = [{"role": "system", "content": EXTRACT_PROMPT}, {"role": "user", "content": issue}]
     pool = ThreadPoolExecutor(max_workers=1)
     try:
