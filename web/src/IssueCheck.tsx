@@ -15,6 +15,7 @@ const WARN: Record<string, string> = {
   lookup_failed: "Some checks couldn't be completed. Results marked Inconclusive are unknown, not passed.",
   needs_info: "The issue is missing details a test needs (see above). PatchPilot may not be able to reproduce it.",
   unclear_type: "We couldn't tell whether this is a bug. Fixes are only attempted for bugs and regressions.",
+  base_unknown: "We couldn't read the repository's latest commit, so we don't know exactly which code a run would use.",
   other_os: "This seems to happen only on Windows or macOS. Our sandbox runs Linux, so we may not be able to reproduce it.",
 };
 

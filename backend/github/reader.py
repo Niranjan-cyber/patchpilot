@@ -162,9 +162,13 @@ def check_issue(url: str) -> IssueCheck:
                      summary=(issue.get("body") or "").strip()[:4000] or None, expected=exp, actual=act,
                      labels=[l["name"] for l in issue.get("labels", [])], checks=checks)
     _ = community   # CONTRIBUTING may live elsewhere; the profile only says whether it exists
-    from backend.github.assess import assess, new_warnings   # late: assess imports explore, which imports this module
-    a = assess(title=spec.title, body=issue.get("body") or "", labels=spec.labels, names=names, state=issue.get("state") or "open",
-               checks=checks, unsupported=unsupported, warnings=warnings, linked=linked)
-    warnings += new_warnings(a)
+    from backend.github.assess import assess, extract, new_warnings   # late: assess imports explore, which imports this module
+    body = issue.get("body") or ""
+    x = None if unsupported else extract(url=spec.html_url, updated_at=issue.get("updated_at"), title=spec.title, body=body,
+                                         labels=spec.labels)   # nothing will run for an unsupported repo: don't spend tokens
+    a = assess(title=spec.title, body=body, labels=spec.labels, names=names, state=issue.get("state") or "open",
+               checks=checks, unsupported=unsupported, warnings=warnings, linked=linked, extracted=x,
+               base_sha=(head or {}).get("sha"), forbids_ai=policy.ai_policy == "forbidden")
+    warnings += [w for w in new_warnings(a) if w not in warnings]
     return IssueCheck(issue=spec, base_sha=(head or {}).get("sha"), default_branch=branch, language=meta.get("language"),
                       policy=policy, warnings=warnings, unsupported=unsupported, assessment=a, fetched_at=datetime.now(timezone.utc))

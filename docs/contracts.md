@@ -57,10 +57,12 @@ Each gate is computed by code from recorded artifacts. Its `gate.result` event c
 | **G0 Eligibility** | IssueSpec, repo record, timeline (cross-referenced PRs), file listing, labels | issue open · repo public · Python project · tests found · unassigned · no linked open PR · `issue_type` is bug or regression · enough information | any of: closed, assigned, linked open PR, `unclear_type`, `needs_info`, `other_os` → run only if the user sent the code in `continue_despite` (recorded; G0 = failed) | a lookup failed → run only with `continue_despite` | non-Python, no tests, or not a bug → G0 = **blocked**: a FINISHED run with **no job**, outcome `ASSESSMENT_ONLY` (v0.4; was API error `UNSUPPORTED_REPO`) | PREFLIGHT. Private repo or a PR link → API error, no run. `RunView.assessment.handling_decision` is decided by code (§2), never a model. AI policy "forbidden" isn't a gate failure; it adds the `REPO_FORBIDS_AI` blocker |
 | **G1 Pre-flight** | dependency files at `base_sha`, SupplyGuard report | no confirmed malicious or typosquatted package (CVEs listed as findings) | — | SupplyGuard error, lookup failure or unsupported format → continue, add `DEPS_INCONCLUSIVE` | confirmed malicious / typosquat → outcome `BLOCKED`, terminal, **no override** | SETUP |
 | **G2 Setup** | install log, `pytest --collect-only` output | install exit 0 within `setup_seconds` **and** collection exit 0 with ≥ 1 test | still failing after one AI-assisted retry (install commands only) → `ENV_FAILED` | — (infra failures resume, §7) | — | BASELINE (records pass/fail/flaky sets; not a gate; a partial baseline caps readiness) |
-| **G3 Reproduction** | test diff, 2 runs on the original code | diff touches test files only · the new test fails in **both** runs with an assertion error or the issue's error, not an import, syntax or collection error | otherwise → Test designer retry (≤ 2), then `CANNOT_REPRODUCE` | 1 of 2 runs fails (flaky) → counts as a failed attempt | — | DIAGNOSE: every cited evidence ID must exist; invalid → one Investigator retry; still invalid → analysis ends (`retries_exhausted`) as `TRIAGE_ONLY` with "diagnosis unavailable" |
+| **G3 Reproduction** | test diff, 2 runs on the original code | diff touches test files only · the new test fails in **both** runs with an assertion error, the issue's error, or an **import error the issue itself names** (see below); never a syntax error, and never a collection error inside the generated test file | otherwise → Test designer retry (≤ 2), then `CANNOT_REPRODUCE` | 1 of 2 runs fails (flaky) → counts as a failed attempt | — | DIAGNOSE: every cited evidence ID must exist; invalid → one Investigator retry; still invalid → analysis ends (`retries_exhausted`) as `TRIAGE_ONLY` with "diagnosis unavailable" |
 | **G4 Diff policy** | fix diff | non-test source files only · ≤ 5 files and ≤ 200 changed lines · no dependency-file changes · no `.github/` · no test deleted, skipped or edited | → back to the Fixer with the reason (counts as a Fixer attempt) | — | — | VERIFY |
 | **G5 Verification** | fresh-container runs on original + test diff + fix diff | the new test passes in **both** runs **and** every test in the baseline pass set passes | → Fixer retry with logs (≤ 3), then one re-diagnosis, then `TRIAGE_ONLY` | the new test passes 1 of 2, or a baseline test flips → counts as a failed attempt | — | REVIEW (the Reviewer can only lower readiness) |
 | **G6 Report integrity** | report, `gates`, evidence manifest | every status in the report equals the recorded status · every claim cites an existing evidence ID | the Explainer regenerates (≤ 2); then the report is rendered from the deterministic template without AI narrative. **Never changes the outcome** | — | — | outcome + status (§1.2) |
+
+**"an import error the issue itself names" (G3).** The error **type** (`ImportError` / `ModuleNotFoundError`) **and** the missing name must both appear in the IssueSpec as extracted by code from `issue.actual` / the summary. It is **never** matched against the Test designer's own `expected_failure`: a model must not be able to whitelist its own broken import. A `SyntaxError`, and a collection error whose traceback points inside the generated test file rather than at the import of the library under test, stay hard disqualifiers. *(Carried over word for word from #41 so closing #41 loses nothing; B owns the implementation in `backend/gates/reproduction.py`.)*
 
 ## 1.2 Outcome rule (deterministic, by code, per revision)
 
@@ -152,7 +154,14 @@ Large content (logs, diffs, test output) is stored in the artifact store, keyed 
 
 ### 2.1 IssueAssessment (v0.4, #48)
 
-`handling_decision` is a **field**, not a run status. It is decided by code in `backend/github/assess.py` from labels, text signals, repo files and G0's checks. A model may later fill descriptive fields (`problem_summary`, `acceptance_conditions`) but never decides. Unknown required fields are never `READY`.
+`handling_decision` is a **field**, not a run status. **The model extracts, code decides** (DECISION 2026-11-07):
+- **Extraction (the classifier):** one bounded model call per issue version, `assess.extract()` through `llm_gateway`, role `assessor`. It returns `issue_type` + `problem_summary`, `acceptance_conditions` and `reproduction_information` as validated JSON.
+  - Bounds: ≤ 6,000 chars of the issue, ≤ 1,200 output tokens, a 20 s wall-clock wait, cached per issue `updated_at`.
+  - Counted: inside `global_llm_tokens_per_day`, plus its own cap `assess_llm_tokens_per_day` (§6). It never uses an execution slot or the per-run budget.
+  - Skipped for UNSUPPORTED repos, since nothing would run.
+- **Cross-check:** labels and text (keywords). If they disagree with the model on bug vs not-bug, or the reporter asks whether it's a bug at all ("is this expected?", "not sure if intentional"; from #41), the type is `unknown`.
+- **Model unavailable** (budget, quota, timeout, invalid JSON) → `model_unavailable`. Keywords are then used **only in the safe direction**: a clear non-bug is still ASSESSMENT_ONLY, and anything else is at best HUMAN_DECISION, never READY.
+- **Decision:** `decide_handling()` in code, first match wins. Unknown, invalid or ambiguous required fields are never `READY`: issue type, Python compatibility, linked-PR lookup, test runner, base commit.
 
 ```python
 class IssueAssessment(BaseModel):
@@ -173,14 +182,22 @@ class IssueAssessment(BaseModel):
     draft_comment: str | None             # NEEDS_INFORMATION only; PatchPilot never posts it
 ```
 
-| handling_decision | When (first match) | What happens |
-|---|---|---|
-| `UNSUPPORTED` | not Python, or no tests | G0 blocked → `ASSESSMENT_ONLY` run, no job |
-| `ASSESSMENT_ONLY` | issue type is not bug/regression (and not unknown) | G0 blocked → `ASSESSMENT_ONLY` run, no job |
-| `HUMAN_DECISION` | type unknown or labels/text disagree (`unclear_type`); Python check inconclusive; Windows/macOS-only (`other_os`) | overridable warning |
-| `NEEDS_INFORMATION` | bug with no expected, no actual and no repro | overridable warning `needs_info` + draft comment |
-| `ALREADY_ADDRESSED` | linked open PR, or closed | existing overridable warnings `linked_pr` / `closed` |
-| `READY` | none of the above | run |
+| handling_decision | When (first match; `decision_reasons` code) | G0 | Run / job | Outcome · EndReason | Warning code (`continue_despite`) |
+|---|---|---|---|---|---|
+| `UNSUPPORTED` | not Python (`unsupported:not_python`) or no tests (`unsupported:no_tests`) | blocked | FINISHED run, **no job** | `ASSESSMENT_ONLY` · `completed` | none (not overridable) |
+| `ASSESSMENT_ONLY` | type is not bug/regression and not unknown (`not_a_bug:<type>`) | blocked | FINISHED run, **no job** | `ASSESSMENT_ONLY` · `completed` | none (not overridable) |
+| `HUMAN_DECISION` | `unclear_type`, `model_unavailable` | failed if accepted | runs only after consent | by §1.2 as usual | `unclear_type` |
+| | `compatibility_unknown`, `linked_pr_unknown`, `test_framework_unknown` | inconclusive / failed | runs only after consent | by §1.2 | `lookup_failed` (existing) |
+| | `base_sha_unknown` | failed if accepted | runs only after consent | by §1.2 | `base_unknown` |
+| | `other_os` (Windows/macOS-only; our sandbox is Linux) | failed if accepted | runs only after consent | by §1.2 | `other_os` |
+| `NEEDS_INFORMATION` | bug with no expected, no actual and no repro (`needs_info`) | failed if accepted | runs only after consent | by §1.2 | `needs_info` + a draft comment (never posted) |
+| `ALREADY_ADDRESSED` | linked open PR (`linked_pr`) or closed (`closed`); lookups can be wrong | failed if accepted | runs only after consent | by §1.2 | `linked_pr` / `closed` (existing, unchanged) |
+| `READY` | none of the above | passed | runs | by §1.2 | — |
+
+- `repo_forbids_ai` is listed in `decision_reasons` to explain the block. It doesn't change the decision; `REPO_FORBIDS_AI` stays a permanent publish blocker.
+- **Report caveat (from #41's `unclear_bug`):** a run that went ahead after `unclear_type`, `model_unavailable` or `needs_info` carries this fixed line on **every** outcome. It is rendered by code, never by the Explainer:
+  > Verified here means the fix passes the test PatchPilot wrote from the issue. The issue doesn't say what the right behaviour is, so check it matches what the maintainers want.
+- **G0 `blocked` vs `failed`:** `blocked` = nothing may run (row 0 of §1.2). `failed` = the user accepted a warning and the run went ahead, so it is never ASSESSMENT_ONLY.
 
 Not repeated here because they already exist: issue URL/repo/number/expected/actual (`IssueSpec`), language (`IssueCheck`), contribution policy (`RunView.policy`), base commit (`RunView.base_sha`).
 
@@ -277,6 +294,7 @@ global_llm_tokens_per_day = 0 # REQUIRED: must be set from a measured run before
 budget_measured_tokens_per_run = 0   # record the M3 feasibility measurement here
 budget_measured_on = ""             # date + model of that measurement
 run_llm_tokens = 300_000
+assess_llm_tokens_per_day = 120_000   # v0.4 (#48): intake extraction only (role "assessor"), ~3k tokens per new issue version → ~40/day; also counted in global_llm_tokens_per_day; 0 = extraction off. Not an execution quota: assessments use no run slot
 run_active_seconds = 1500
 setup_seconds = 480
 max_pause_seconds = 7200

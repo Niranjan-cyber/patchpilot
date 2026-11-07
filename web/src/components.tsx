@@ -129,9 +129,9 @@ const DECISION: Record<string, { title: string; text: string; next?: string }> =
     next: "Ask for the missing details on the issue (draft below), or start anyway." },
   UNSUPPORTED: { title: "Can't run this project", text: "PatchPilot can read issues from any public repository, but it can only run Python projects with pip and pytest today.",
     next: "Pick an issue from a Python project with tests, or work on this one by hand." },
-  ALREADY_ADDRESSED: { title: "May already be handled", text: "An open pull request already mentions this issue, or the issue is closed." },
-  HUMAN_DECISION: { title: "Your call", text: "We couldn't tell for sure whether this is a bug, so you decide whether to treat it as one.",
-    next: "Start anyway if you've read it and it is a bug." },
+  ALREADY_ADDRESSED: { title: "May already be handled", text: "An open pull request may already address this, or the issue is closed. Lookups can be wrong, so check it; you can still start." },
+  HUMAN_DECISION: { title: "Your call", text: "Something we need is unknown or unclear (the warnings below say what), so you decide whether to go ahead.",
+    next: "Start anyway if you've read it and it is a bug PatchPilot can run." },
   ASSESSMENT_ONLY: { title: "Assessment only", text: "This isn't a bug report, so PatchPilot assesses it but doesn't change any code. Fixes run only for bugs and regressions.",
     next: "Work on it by hand, or pick a bug report instead." },
 };
@@ -149,11 +149,15 @@ export function AssessmentCard({ a }: { a?: RunView["assessment"] }) {
     <div className={`card assessment assessment-${a.handling_decision.toLowerCase()}`}>
       <h2>{d.title}</h2>
       <p>{d.text}</p>
+      {a.problem_summary && <p className="hint">AI summary of the issue (may be wrong; it never decides): {a.problem_summary}</p>}
       <ul className="assessment-facts">
         <li>Issue type: <strong>{a.issue_type.replaceAll("_", " ")}</strong>{a.issue_type_source === "none" ? " (no clear signal)" : ""}</li>
         <li>Can PatchPilot run it: <strong>{a.compatibility_status === "supported" ? "yes" : a.compatibility_status === "unsupported" ? "no" : "unknown"}</strong></li>
         {!!a.existing_resolution?.length && <li>Open pull requests mentioning it: {a.existing_resolution.map((n) => `#${n}`).join(", ")}</li>}
       </ul>
+      {!!a.acceptance_conditions?.length && (
+        <><h3>What a fix must do, per the issue (AI-extracted)</h3><ul>{a.acceptance_conditions.map((c) => <li key={c}>{c}</li>)}</ul></>
+      )}
       {!!a.missing_information?.length && (
         <><h3>Missing from the issue</h3><ul>{a.missing_information.map((m) => <li key={m}>{MISSING[m] ?? m}</li>)}</ul></>
       )}

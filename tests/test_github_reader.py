@@ -57,6 +57,7 @@ def test_agents_get_the_whole_issue_body_not_600_chars(monkeypatch):
     canned = {"/repos/o/r/issues/1": {"state": "open", "title": "t", "body": body, "assignees": [], "labels": []},
               "/repos/o/r": {"language": "Python", "default_branch": "main"}}
     monkeypatch.setattr(R, "_get", lambda h, path, required=True: canned.get(path))
+    monkeypatch.setattr("backend.github.assess.extract", lambda **k: None)   # no real model call in tests
     assert "unsigned = s.loads(signed)" in R.check_issue("https://github.com/o/r/issues/1").issue.summary
 
 

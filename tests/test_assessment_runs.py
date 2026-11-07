@@ -13,10 +13,12 @@ OK = {"open": S.PASSED, "public": S.PASSED, "python": S.PASSED, "tests_found": S
 BUG = "```python\ndivide(1, 0)\n```\nExpected: ZeroDivisionError\nActual: 0"
 
 
-def check(title="divide(1, 0) returns 0", body=BUG, labels=("bug",), checks=OK, unsupported=None, warnings=(), policy="unknown"):
+def check(title="divide(1, 0) returns 0", body=BUG, labels=("bug",), checks=OK, unsupported=None, warnings=(), policy="unknown",
+          model="bug"):
     w = list(warnings)
     a = assess(title=title, body=body, labels=list(labels), names=["pyproject.toml", "tests"], state="open", checks=checks,
-               unsupported=unsupported, warnings=w, linked=[])
+               unsupported=unsupported, warnings=w, linked=[], extracted={"issue_type": model} if model else None,
+               base_sha="abc", forbids_ai=policy == "forbidden")
     w += new_warnings(a)
     return IssueCheck(issue=IssueSpec(html_url=URL, repo="o/r", number=1, title=title, checks=checks), base_sha="abc",
                       default_branch="main", language="Python", policy=RepoPolicy(ai_policy=policy), warnings=w,
@@ -38,7 +40,7 @@ def jobs(rid):
 
 
 def test_feature_request_becomes_a_finished_assessment_with_no_job(monkeypatch):
-    r = post(monkeypatch, check(title="Add a power() function", body="It would be nice to have power().", labels=("enhancement",)))
+    r = post(monkeypatch, check(title="Add a power() function", body="It would be nice to have power().", labels=("enhancement",), model="enhancement"))
     assert r.status_code == 201
     v = r.json()
     assert v["status"] == "finished" and v["outcome"] == "ASSESSMENT_ONLY" and v["end_reason"] == "completed"
@@ -56,7 +58,7 @@ def test_non_python_repo_is_an_unsupported_assessment_not_a_422(monkeypatch):
 
 def test_assessments_do_not_use_up_run_limits(monkeypatch):
     lim = main.limits()
-    feature = check(title="Add power()", body="Would be nice.", labels=("enhancement",))
+    feature = check(title="Add power()", body="Would be nice.", labels=("enhancement",), model="enhancement")
     monkeypatch.setattr(main, "check_issue", lambda url: feature)
     c = TestClient(main.app, base_url="https://testserver")
     for _ in range(lim["session_runs_per_day"] + 1):
@@ -78,14 +80,14 @@ def test_needs_information_is_an_overridable_warning(monkeypatch):
 
 
 def test_unclear_type_is_an_overridable_warning(monkeypatch):
-    chk = check(title="divide", body="See title.", labels=())
+    chk = check(title="divide", body="See title.", labels=(), model="unknown")
     assert chk.assessment.handling_decision == "HUMAN_DECISION" and "unclear_type" in chk.warnings
     assert post(monkeypatch, chk).status_code == 409
     assert post(monkeypatch, chk, continue_despite=["unclear_type"]).json()["status"] == "queued"
 
 
 def test_repo_forbids_ai_stays_a_hard_blocker_on_assessments_too(monkeypatch):
-    v = post(monkeypatch, check(title="Docs: fix typo", body="typo in readme", labels=("documentation",), policy="forbidden")).json()
+    v = post(monkeypatch, check(title="Docs: fix typo", body="typo in readme", labels=("documentation",), policy="forbidden", model="docs")).json()
     assert v["outcome"] == "ASSESSMENT_ONLY" and "repo_forbids_ai" in v["publish_blockers"]
 
 
@@ -99,7 +101,7 @@ def test_row0_only_for_g0_blocked_not_an_accepted_warning():
 
 def test_report_explains_an_assessment_only_run(monkeypatch):
     from backend.report import render
-    v = post(monkeypatch, check(title="Add a power() function", body="Would be nice.", labels=("enhancement",))).json()
+    v = post(monkeypatch, check(title="Add a power() function", body="Would be nice.", labels=("enhancement",), model="enhancement")).json()
     md = render(db.get_run(db.connect(), v["run_id"]))
     assert "## Assessment" in md and "**ASSESSMENT_ONLY**" in md and "doesn't change any code" in md
     assert "Suggested next step" in md and "Outcome: **ASSESSMENT_ONLY**" in md
