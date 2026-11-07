@@ -803,3 +803,8 @@ The three Claude sessions (A Niranjan-cyber · B swaralipatil11 · C DevanshNarl
 - **Pick: astanin/python-tabulate #494** (short headers drop columns): opened 2026-11-02 on master, 2-line repro, no PR or assignee. Read on master: `_normalize_tabular_data` pads headers from `len(rows[0])` only (`tabulate/__init__.py:1609`). Pure Python, pytest, active repo. Draft PR to our fork only, after the human approves.
 - **Not run by me:** running third-party code on this laptop is blocked here, so reproduction is PatchPilot's job on the demo laptop. **A: can you run it there once #50 is agreed?** (It also works on main today, minus the assessment card.)
 - Rejected, with reasons in the doc: more-itertools #1268 (open but **already fixed** by #1294, a real "lookups can be wrong" case), mdtable #3 (no tests → a good live UNSUPPORTED demo), dateutil/arrow (no agreed expected behaviour).
+
+### [2026-11-07 20:01 UTC] C→A: HB · #50 self-review fix · handoff draft · needs a live check on the demo laptop
+- **Self-review of #50:** the default model (gpt-oss-120b) is a reasoning model, and its thinking counts against `max_tokens`. At 1.2k out it could often return nothing, and then every issue would be "model unavailable". Now 4k chars in / 1.8k out (~3k a call). Contract text and `48-contract-diff.md` refreshed. 395 pass.
+- **Not verified live:** this laptop has no `.env`. **A: once #50 is agreed, one /api/issues/check on tabulate #494 on the demo laptop** tells us the extraction answers within 20 s and how many tokens it used (`llm_calls` role=assessor).
+- **Handoff draft:** `docs/handoff/48-handoff.md` (c48-intake), with pending items marked: the v0.4 review, the needs_info rule, limits.toml, the §7 run.
