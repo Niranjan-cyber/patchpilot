@@ -126,7 +126,7 @@ def create_run(body: NewRun, request: Request, response: Response):
     if aid is None and today >= lim["session_runs_per_day"]:
         raise ApiErr(429, "LIMIT_SESSION_DAILY", f"You've used today's {lim['session_runs_per_day']} free runs. "
                      "Sign in with GitHub for more, or come back tomorrow (resets 00:00 UTC).")
-    if chk.unsupported:   # only when no assessment was made (shouldn't happen; kept fail-closed)
+    if chk.unsupported and a is None:   # fail-closed: an unsupported repo without an assessment never runs (review 2, item 5)
         raise ApiErr(422, "UNSUPPORTED_REPO", {"not_python": "PatchPilot can only run Python projects today.",
                      "no_tests": "We couldn't find tests in this repository, so we can't verify a fix."}[chk.unsupported])
     missing = [w for w in chk.warnings if w not in body.continue_despite]
@@ -147,14 +147,16 @@ def _assessment_only(c, chk: IssueCheck, sid, aid) -> RunView:
     hard = a and a.handling_decision in ("UNSUPPORTED", "ASSESSMENT_ONLY")
     # the user chose "Save the assessment report" (no job), or the assessment itself blocks execution
     reason = (a.decision_reasons[0] if a.decision_reasons else a.handling_decision.lower()) if hard else "saved_assessment_only"
+    if a and not hard:   # saved by the user: say so, instead of a stored "READY" next to an ASSESSMENT_ONLY outcome (review 2, item 2)
+        a = a.model_copy(update={"handling_decision": "ASSESSMENT_ONLY", "decision_reasons": [*a.decision_reasons, "saved_by_user"]})
     blockers = end_blockers(EndReason.COMPLETED, Outcome.ASSESSMENT_ONLY) + \
         ([PublishBlocker.REPO_FORBIDS_AI] if chk.policy.ai_policy == "forbidden" else [])
     v = db.create_run(c, chk.issue, base_sha=chk.base_sha or "pending", owner_session_hash=sid, owner_account_id=aid,
                       g0=(CheckStatus.BLOCKED, reason), job=False, assessment=a, policy=chk.policy,
                       status=RunStatus.FINISHED, outcome=Outcome.ASSESSMENT_ONLY, end_reason=EndReason.COMPLETED,
-                      readiness=readiness(Outcome.ASSESSMENT_ONLY), publish_blockers=blockers)
-    db.emit(c, v.run_id, "analysis.finished", None, v.revision, outcome=v.outcome.value, end_reason=v.end_reason.value,
-            readiness=v.readiness, publish_blockers=[b.value for b in v.publish_blockers])
+                      readiness=readiness(Outcome.ASSESSMENT_ONLY), publish_blockers=blockers,
+                      finished=dict(outcome=Outcome.ASSESSMENT_ONLY.value, end_reason=EndReason.COMPLETED.value,
+                                    readiness=readiness(Outcome.ASSESSMENT_ONLY), publish_blockers=[b.value for b in blockers]))
     return v
 
 

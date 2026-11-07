@@ -141,10 +141,17 @@ const MISSING: Record<string, string> = {
 };
 
 export function AssessmentCard({ a }: { a?: RunView["assessment"] }) {
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<"" | "ok" | "failed">("");
   if (!a) return null;
-  const d = DECISION[a.handling_decision];
-  const copy = () => navigator.clipboard?.writeText(a.draft_comment ?? "").then(() => setCopied(true), () => setCopied(false));
+  const saved = a.decision_reasons?.includes("saved_by_user");   // the user chose "Save the assessment report"
+  const d = saved ? { title: "Assessment saved", text: "You saved this assessment without starting a fix attempt, so nothing ran." }
+    : DECISION[a.handling_decision];
+  // no clipboard API on plain http (or it's blocked): say so instead of throwing
+  const copy = () => {
+    const p = navigator.clipboard?.writeText(a.draft_comment ?? "");
+    if (!p) { setCopied("failed"); return; }
+    p.then(() => setCopied("ok"), () => setCopied("failed"));
+  };
   return (
     <div className={`card assessment assessment-${a.handling_decision.toLowerCase()}`}>
       <h2>{d.title}</h2>
@@ -167,7 +174,8 @@ export function AssessmentCard({ a }: { a?: RunView["assessment"] }) {
           <h3>Draft comment for the issue</h3>
           <p className="hint">PatchPilot never posts it. Copy it and post it yourself if it helps.</p>
           <pre>{a.draft_comment}</pre>
-          <button type="button" className="secondary" onClick={copy}>{copied ? "Copied" : "Copy comment"}</button>
+          <button type="button" className="secondary" onClick={copy}>{copied === "ok" ? "Copied" : "Copy comment"}</button>
+          {copied === "failed" && <p className="notice warn" role="status">Couldn't copy here. Select the text above and copy it yourself.</p>}
         </div>
       )}
     </div>

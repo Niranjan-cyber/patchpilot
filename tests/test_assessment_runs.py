@@ -130,3 +130,16 @@ def test_bug5_assessment_and_policy_are_written_in_the_create_transaction(monkey
     assert saves == [] and v["assessment"]["handling_decision"] == "READY" and "repo_forbids_ai" in v["publish_blockers"]
     stored = db.get_run(db.connect(), v["run_id"])
     assert stored.assessment is not None and stored.policy.ai_policy == "forbidden"
+
+
+# ---- A's second review of #50 ----
+def test_saved_assessment_says_saved_not_ready(monkeypatch):
+    from backend.report import render
+    v = post(monkeypatch, check(), assessment_only=True).json()
+    assert v["assessment"]["handling_decision"] == "ASSESSMENT_ONLY" and "saved_by_user" in v["assessment"]["decision_reasons"]
+    assert "You saved this assessment" in render(db.get_run(db.connect(), v["run_id"]))
+
+
+def test_unsupported_without_an_assessment_fails_closed(monkeypatch):
+    chk = check(checks={**OK, "python": S.FAILED}, unsupported="not_python").model_copy(update={"assessment": None})
+    assert post(monkeypatch, chk).status_code == 422

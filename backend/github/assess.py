@@ -175,16 +175,24 @@ UNCLEAR_CAVEAT = ("> Verified here means the fix passes the test PatchPilot wrot
                   "behaviour is, so check it matches what the maintainers want.")
 
 
+SAVED_TEXT = "You saved this assessment without starting a fix attempt, so nothing ran."
+
+
+def decision_text(a: IssueAssessment) -> str:
+    return SAVED_TEXT if "saved_by_user" in a.decision_reasons else DECISION_TEXT[a.handling_decision]
+
+
 def report_lines(a: IssueAssessment) -> list[str]:
     """Report section for any run with an assessment. Written from code, never by a model."""
     caveat = a.handling_decision in ("HUMAN_DECISION", "NEEDS_INFORMATION") and bool({"unclear_type", "needs_info", "model_unavailable"} & set(a.decision_reasons))
-    return [*([UNCLEAR_CAVEAT, ""] if caveat else []), "## Assessment", f"- Decision: **{a.handling_decision}**: {DECISION_TEXT[a.handling_decision]}",
+    return [*([UNCLEAR_CAVEAT, ""] if caveat else []), "## Assessment", f"- Decision: **{a.handling_decision}**: {decision_text(a)}",
             f"- Issue type: {a.issue_type.replace('_', ' ')} (from {a.issue_type_source})",
             f"- Execution support: {a.compatibility_status} (build: {a.build_system}, tests: {a.test_framework})",
             *([f"- Missing information: {', '.join(MISSING_ASK[m] for m in a.missing_information)}"] if a.missing_information else []),
             *([f"- Open pull requests mentioning it: {', '.join(f'#{n}' for n in a.existing_resolution)}"] if a.existing_resolution else []),
             *([f"- Why: {', '.join(a.decision_reasons)}"] if a.decision_reasons else []),
-            *([f"- Suggested next step: {NEXT_STEP[a.handling_decision]}"] if a.handling_decision in NEXT_STEP else []), ""]
+            *([f"- Suggested next step: {NEXT_STEP[a.handling_decision]}"]
+              if a.handling_decision in NEXT_STEP and "saved_by_user" not in a.decision_reasons else []), ""]
 
 
 MISSING_ASK = {
