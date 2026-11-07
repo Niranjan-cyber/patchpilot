@@ -24,6 +24,7 @@
     }
   },
   "base_sha": "a1b2c3da1b2c3da1b2c3da1b2c3da1b2c3da1b2c",
+  "assessment": null,
   "policy": {
     "ai_policy": "unknown",
     "prs_restricted": null,

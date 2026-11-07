@@ -102,3 +102,10 @@ def test_prefixed_labels_and_title_tags():
 def test_missing_information_reads_templates_and_tracebacks():
     assert missing_information("Traceback (most recent call last):\n  ...\nKeyError: 'a'") == ["no_expected"]
     assert missing_information(GOOD_BUG) == []
+
+
+def test_windows_only_bug_is_a_human_decision_with_a_warning():
+    from backend.github.assess import new_warnings
+    a = run(title="`click.edit` on Windows throws WinError 14001", body="Traceback ...\nOSError: [WinError 14001]")
+    assert a.handling_decision == "HUMAN_DECISION" and "other_os" in a.decision_reasons
+    assert new_warnings(a) == ["other_os"]

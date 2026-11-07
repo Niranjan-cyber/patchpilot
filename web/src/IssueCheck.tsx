@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { api, ApiError } from "./api";
 import type { IssueCheck as Check, RunView } from "./contracts";
-import { Loading, Status } from "./components";
+import { AssessmentCard, Loading, Status } from "./components";
 
 const CHECKS: Record<string, string> = {
   open: "The issue is open", public: "The repository is public", python: "It's a Python project",
@@ -13,6 +13,9 @@ const WARN: Record<string, string> = {
   assigned: "Someone is assigned to this issue and may already be working on it.",
   linked_pr: "An open pull request already mentions this issue. Check it before starting.",
   lookup_failed: "Some checks couldn't be completed. Results marked Inconclusive are unknown, not passed.",
+  needs_info: "The issue is missing details a test needs (see above). PatchPilot may not be able to reproduce it.",
+  unclear_type: "We couldn't tell whether this is a bug. Fixes are only attempted for bugs and regressions.",
+  other_os: "This seems to happen only on Windows or macOS. Our sandbox runs Linux, so we may not be able to reproduce it.",
 };
 
 export default function IssueCheck() {
@@ -52,7 +55,10 @@ export default function IssueCheck() {
   if (!chk) return <Loading label="Reading the issue and checking the repository…" />;
 
   const i = chk.issue;
-  const blocked = !!chk.unsupported;
+  const a = chk.assessment;
+  // UNSUPPORTED / ASSESSMENT_ONLY: nothing runs; "Save the assessment" creates a finished report run (contracts v0.4)
+  const assessOnly = !!a && (a.handling_decision === "UNSUPPORTED" || a.handling_decision === "ASSESSMENT_ONLY");
+  const blocked = !!chk.unsupported && !a;
   const warned = (chk.warnings ?? []).length > 0;
   return (
     <section className="check">
@@ -75,6 +81,8 @@ export default function IssueCheck() {
         {chk.base_sha && <p className="hint">We'll work on commit <code>{chk.base_sha.slice(0, 7)}</code> of {chk.default_branch}.</p>}
       </div>
 
+      <AssessmentCard a={a} />
+
       {chk.policy?.ai_policy === "forbidden" && (
         <p className="notice warn">This repository's contribution rules don't accept AI-assisted pull requests. You can still run PatchPilot and keep the report, but publishing will be turned off. (Our reading of {chk.policy.source_evidence_ids?.join(", ")}.)</p>
       )}
@@ -84,13 +92,19 @@ export default function IssueCheck() {
           <Link to="/">Try another issue</Link>
         </div>
       )}
-      {!blocked && warned && (
+      {!blocked && !assessOnly && warned && (
         <div className="notice warn">
           <ul>{chk.warnings!.map((w) => <li key={w}>{WARN[w] ?? w}</li>)}</ul>
           <label className="accept"><input type="checkbox" checked={accepted} onChange={(e) => setAccepted(e.target.checked)} /> I understand, start anyway</label>
         </div>
       )}
-      {!blocked && (
+      {assessOnly && (
+        <div className="row">
+          <button onClick={start} disabled={!!starting}>{starting ?? "Save the assessment report"}</button>
+          <Link to="/" className="button secondary">Find another issue</Link>
+        </div>
+      )}
+      {!blocked && !assessOnly && (
         <div className="row">
           <button onClick={start} disabled={!!starting || (warned && !accepted)}>{starting ?? "Start run"}</button>
           <Link to="/" className="button secondary">Find another issue</Link>

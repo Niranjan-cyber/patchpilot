@@ -1,0 +1,84 @@
+{
+  "run_id": "assessment_only",
+  "revision": 0,
+  "status": "finished",
+  "outcome": "ASSESSMENT_ONLY",
+  "end_reason": "completed",
+  "readiness": "Assessment only: no fix attempted",
+  "issue": {
+    "html_url": "https://github.com/patchpilot-demo/tinycalc/issues/1",
+    "repo": "patchpilot-demo/tinycalc",
+    "number": 1,
+    "title": "Add a power() function",
+    "summary": "It would be nice to have power(x, y) next to add and divide.",
+    "expected": null,
+    "actual": null,
+    "labels": [
+      "enhancement"
+    ],
+    "checks": {
+      "open": "passed",
+      "public": "passed",
+      "python": "passed",
+      "tests_found": "passed",
+      "unassigned": "passed",
+      "no_linked_pr": "passed"
+    }
+  },
+  "base_sha": "a1b2c3da1b2c3da1b2c3da1b2c3da1b2c3da1b2c",
+  "assessment": {
+    "schema_version": 1,
+    "issue_type": "enhancement",
+    "issue_type_source": "label",
+    "issue_status": "open",
+    "problem_summary": null,
+    "acceptance_conditions": [],
+    "missing_information": [],
+    "reproduction_information": null,
+    "existing_resolution": [],
+    "build_system": "pip",
+    "test_framework": "unknown",
+    "environment_requirements": [],
+    "compatibility_status": "supported",
+    "handling_decision": "ASSESSMENT_ONLY",
+    "decision_reasons": [
+      "not_a_bug:enhancement"
+    ],
+    "draft_comment": null
+  },
+  "policy": {
+    "ai_policy": "unknown",
+    "prs_restricted": null,
+    "source_evidence_ids": []
+  },
+  "env": null,
+  "baseline": null,
+  "repro": null,
+  "diagnosis": null,
+  "patch": null,
+  "verify": null,
+  "supplyguard": null,
+  "review": null,
+  "gates": {
+    "G0": "blocked"
+  },
+  "steps": {},
+  "attempts": {},
+  "budget": {
+    "tokens_used": 0,
+    "tokens_limit": 300000,
+    "active_seconds": 0,
+    "active_seconds_limit": 1500,
+    "paused_since": null
+  },
+  "pause": null,
+  "publish_blockers": [
+    "outcome_not_verified"
+  ],
+  "revisions": [],
+  "approval": null,
+  "pr": null,
+  "details_expired_at": null,
+  "created_at": "2026-11-11T10:00:00Z",
+  "updated_at": "2026-11-11T10:00:00Z"
+}

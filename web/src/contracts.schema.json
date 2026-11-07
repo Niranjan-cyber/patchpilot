@@ -365,6 +365,190 @@
    "title": "Event",
    "type": "object"
   },
+  "IssueAssessment": {
+   "description": "#48 intake assessment (contracts v0.4 \u00a72). handling_decision is decided by code (backend/github/assess.py), never a model;\nit is a field, not a run status. Fields already in the contract (issue URL/number, expected/actual, language, policy,\nbase_sha) live on IssueSpec / IssueCheck / RunView and are not repeated here.",
+   "properties": {
+    "schema_version": {
+     "const": 1,
+     "default": 1,
+     "title": "Schema Version",
+     "type": "integer"
+    },
+    "issue_type": {
+     "enum": [
+      "bug",
+      "regression",
+      "feature",
+      "enhancement",
+      "docs",
+      "refactor",
+      "maintenance",
+      "build_ci",
+      "test_failure",
+      "question",
+      "other",
+      "unknown"
+     ],
+     "title": "Issue Type",
+     "type": "string"
+    },
+    "issue_type_source": {
+     "enum": [
+      "label",
+      "text",
+      "model",
+      "none"
+     ],
+     "title": "Issue Type Source",
+     "type": "string"
+    },
+    "issue_status": {
+     "enum": [
+      "open",
+      "closed"
+     ],
+     "title": "Issue Status",
+     "type": "string"
+    },
+    "problem_summary": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Problem Summary"
+    },
+    "acceptance_conditions": {
+     "default": [],
+     "items": {
+      "type": "string"
+     },
+     "title": "Acceptance Conditions",
+     "type": "array"
+    },
+    "missing_information": {
+     "default": [],
+     "items": {
+      "type": "string"
+     },
+     "title": "Missing Information",
+     "type": "array"
+    },
+    "reproduction_information": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Reproduction Information"
+    },
+    "existing_resolution": {
+     "anyOf": [
+      {
+       "items": {
+        "type": "integer"
+       },
+       "type": "array"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Existing Resolution"
+    },
+    "build_system": {
+     "default": "unknown",
+     "enum": [
+      "pip",
+      "setuptools",
+      "poetry",
+      "uv",
+      "hatch",
+      "pdm",
+      "unknown"
+     ],
+     "title": "Build System",
+     "type": "string"
+    },
+    "test_framework": {
+     "default": "unknown",
+     "enum": [
+      "pytest",
+      "unittest",
+      "unknown"
+     ],
+     "title": "Test Framework",
+     "type": "string"
+    },
+    "environment_requirements": {
+     "default": [],
+     "items": {
+      "type": "string"
+     },
+     "title": "Environment Requirements",
+     "type": "array"
+    },
+    "compatibility_status": {
+     "enum": [
+      "supported",
+      "unsupported",
+      "unknown"
+     ],
+     "title": "Compatibility Status",
+     "type": "string"
+    },
+    "handling_decision": {
+     "enum": [
+      "READY",
+      "NEEDS_INFORMATION",
+      "UNSUPPORTED",
+      "ALREADY_ADDRESSED",
+      "HUMAN_DECISION",
+      "ASSESSMENT_ONLY"
+     ],
+     "title": "Handling Decision",
+     "type": "string"
+    },
+    "decision_reasons": {
+     "default": [],
+     "items": {
+      "type": "string"
+     },
+     "title": "Decision Reasons",
+     "type": "array"
+    },
+    "draft_comment": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Draft Comment"
+    }
+   },
+   "required": [
+    "issue_type",
+    "issue_type_source",
+    "issue_status",
+    "compatibility_status",
+    "handling_decision"
+   ],
+   "title": "IssueAssessment",
+   "type": "object"
+  },
   "IssueCheck": {
    "properties": {
     "issue": {
@@ -425,6 +609,17 @@
      ],
      "default": null,
      "title": "Unsupported"
+    },
+    "assessment": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/IssueAssessment"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
     },
     "fetched_at": {
      "format": "date-time",
@@ -557,7 +752,8 @@
     "ENV_FAILED",
     "BLOCKED",
     "STOPPED",
-    "SYSTEM_ERROR"
+    "SYSTEM_ERROR",
+    "ASSESSMENT_ONLY"
    ],
    "title": "Outcome",
    "type": "string"
@@ -1005,6 +1201,17 @@
     "base_sha": {
      "title": "Base Sha",
      "type": "string"
+    },
+    "assessment": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/IssueAssessment"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
     },
     "policy": {
      "$ref": "#/$defs/RepoPolicy",

@@ -12,8 +12,8 @@ Author: C. Status: **proposal, not applied.** `docs/contracts.md` and `backend/c
 
 | handling_decision | When (first match, code only) | Run? | Outcome / EndReason | Overridable? |
 |---|---|---|---|---|
-| `UNSUPPORTED` | G0 `python` = failed, or `tests_found` = failed (today's 422 `UNSUPPORTED_REPO`) | finished run, **no job** | `ASSESSMENT_ONLY` / `completed`, G0 = `failed` (`unsupported:not_python` \| `unsupported:no_tests`) | no |
-| `ASSESSMENT_ONLY` | `issue_type` ∈ feature, enhancement, docs, refactor, maintenance, build_ci, test_failure, question, other | finished run, **no job** | `ASSESSMENT_ONLY` / `completed`, G0 = `failed` (`not_a_bug:<type>`) | no |
+| `UNSUPPORTED` | G0 `python` = failed, or `tests_found` = failed (today's 422 `UNSUPPORTED_REPO`) | finished run, **no job** | `ASSESSMENT_ONLY` / `completed`, G0 = `blocked` (`unsupported:not_python` | `unsupported:no_tests`)\| `unsupported:no_tests`) | no |
+| `ASSESSMENT_ONLY` | `issue_type` ∈ feature, enhancement, docs, refactor, maintenance, build_ci, test_failure, question, other | finished run, **no job** | `ASSESSMENT_ONLY` / `completed`, G0 = `blocked` (`not_a_bug:<type>`) | no |
 | `HUMAN_DECISION` | `issue_type` = unknown, or label and text disagree (e.g. `bug` label + "feature request" text) | only with `unclear_type` in `continue_despite` | normal §1.2 | **yes**, warning `unclear_type` (replaces #41's `unclear_bug`) |
 | `NEEDS_INFORMATION` | bug/regression, but **no** expected behaviour **and** no error/traceback/repro snippet in the issue | only with `needs_info` in `continue_despite` | normal §1.2 | **yes**, warning `needs_info`; S-01 shows what's missing + a draft comment (never auto-posted) |
 | `ALREADY_ADDRESSED` | linked open PR (today's `linked_pr`) | only with `linked_pr` accepted | normal §1.2 | **yes**, unchanged |
@@ -37,7 +37,7 @@ The brief needs a persisted, shareable assessment report (My runs, report.md) an
      VERIFIED_FIX = "VERIFIED_FIX"; FIX_NEEDS_ATTENTION = "FIX_NEEDS_ATTENTION"
      TRIAGE_ONLY = "TRIAGE_ONLY"; CANNOT_REPRODUCE = "CANNOT_REPRODUCE"
      ENV_FAILED = "ENV_FAILED"; BLOCKED = "BLOCKED"; STOPPED = "STOPPED"; SYSTEM_ERROR = "SYSTEM_ERROR"
-+    ASSESSMENT_ONLY = "ASSESSMENT_ONLY"   # G0 failed: assessed, nothing executed (§1.1)
++    ASSESSMENT_ONLY = "ASSESSMENT_ONLY"   # G0 blocked: assessed, nothing executed (§1.1)
 ```
 
 §1.1 G0 row
@@ -48,7 +48,7 @@ The brief needs a persisted, shareable assessment report (My runs, report.md) an
 
 §1.2 outcome rule: new row 0, before row 1
 ```diff
-+| 0 | G0 = failed | `ASSESSMENT_ONLY` |
++| 0 | G0 = blocked | `ASSESSMENT_ONLY` |
 ```
 Readiness: `ASSESSMENT_ONLY → "Assessment only: no fix attempted"`. `status_after_analysis` → FINISHED (it's not publishable; `OUTCOME_NOT_VERIFIED` added as for every non-fix outcome).
 
@@ -109,3 +109,8 @@ Not duplicated on purpose (already in the contract): `issue_url`/`repository`/`i
 1. **A, B, C:** agree / object to the new `ASSESSMENT_ONLY` outcome (vs. the zero-change alternative).
 2. **A, B:** model extraction at check time: yes (capped) or code-only for now?
 3. **A:** close #41 in favour of this, or land #41 first and I rebase?
+
+## 6. Changes after the first draft (C, while building it on c48-intake)
+- **Row 0 uses G0 = `blocked`, not `failed`.** G0 is already `failed` when the user *accepted* a closed/assigned/linked_pr warning and the run went ahead; matching `failed` would have turned those runs into ASSESSMENT_ONLY. Regression test: `tests/test_assessment_runs.py::test_row0_only_for_g0_blocked_not_an_accepted_warning`.
+- **New overridable warning `other_os`** (→ HUMAN_DECISION): a bug that only happens on Windows/macOS (reuses Explore's `OTHER_OS` regex). Found on a real issue, pallets/click #3840 (`WinError 14001`), which the first draft called READY; our sandbox is Linux.
+- Full implementation is on branch `c48-intake` as a **draft PR**, so the diff can be reviewed as code. It is not to be merged before the DECISION is agreed.

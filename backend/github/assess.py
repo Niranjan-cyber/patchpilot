@@ -6,13 +6,13 @@ Returns contracts v0.4 `IssueAssessment` (docs/handoff/48-contract-proposal.md).
 import re
 
 from backend.contracts.models import CheckStatus, IssueAssessment
-from backend.github.explore import ERROR, STEPS
+from backend.github.explore import ERROR, OTHER_OS, STEPS
 from backend.github.reader import expected_actual
 
 FIXABLE = {"bug", "regression"}
 EXECUTES = {"READY", "NEEDS_INFORMATION", "HUMAN_DECISION", "ALREADY_ADDRESSED"}   # the rest end at G0, nothing runs
 # overridable G0 warnings these decisions add (accepted through continue_despite, like assigned/linked_pr)
-WARNS = {"unclear_type": "unclear_type", "compatibility_unknown": None, "needs_info": "needs_info"}
+WARNS = {"unclear_type": "unclear_type", "compatibility_unknown": None, "needs_info": "needs_info", "other_os": "other_os"}
 # label (lowercased, "type:"/"kind:" style prefixes stripped) -> issue_type
 LABELS = {
     "bug": "bug", "bug report": "bug", "defect": "bug", "crash": "bug", "confirmed bug": "bug",
@@ -98,7 +98,7 @@ def environment(names: list[str]) -> tuple[str, str]:
 
 
 def decide_handling(*, unsupported: str | None, python: CheckStatus, issue_type: str, missing: list[str],
-                    warnings: list[str]) -> tuple[str, list[str]]:
+                    warnings: list[str], other_os: bool = False) -> tuple[str, list[str]]:
     """(handling_decision, every reason that fired). First match wins for the label; reasons list them all.
     Unknown is never READY (#48 §3.3)."""
     reasons: list[str] = []
@@ -110,11 +110,13 @@ def decide_handling(*, unsupported: str | None, python: CheckStatus, issue_type:
         reasons.append("unclear_type")
     if python == CheckStatus.INCONCLUSIVE:
         reasons.append("compatibility_unknown")
+    if other_os and issue_type in FIXABLE:   # our sandbox is Linux; a regex, so the human decides (not a hard UNSUPPORTED)
+        reasons.append("other_os")
     if issue_type in FIXABLE and {"no_expected", "no_actual"} <= set(missing) and "no_repro" in missing:
         reasons.append("needs_info")
     reasons += [w for w in ("linked_pr", "closed") if w in warnings]
     order = [("unsupported:", "UNSUPPORTED"), ("not_a_bug:", "ASSESSMENT_ONLY"), ("unclear_type", "HUMAN_DECISION"),
-             ("compatibility_unknown", "HUMAN_DECISION"), ("needs_info", "NEEDS_INFORMATION"),
+             ("compatibility_unknown", "HUMAN_DECISION"), ("other_os", "HUMAN_DECISION"), ("needs_info", "NEEDS_INFORMATION"),
              ("linked_pr", "ALREADY_ADDRESSED"), ("closed", "ALREADY_ADDRESSED")]
     for prefix, decision in order:
         if any(r.startswith(prefix) for r in reasons):
@@ -172,7 +174,7 @@ def assess(*, title: str, body: str, labels: list[str], names: list[str], state:
     build, tests = environment(names)
     python = checks.get("python", CheckStatus.INCONCLUSIVE)
     decision, reasons = decide_handling(unsupported=unsupported, python=python, issue_type=issue_type,
-                                        missing=missing, warnings=warnings)
+                                        missing=missing, warnings=warnings, other_os=bool(OTHER_OS.search(f"{title}\n{body}")))
     return IssueAssessment(
         issue_type=issue_type, issue_type_source=source, issue_status="closed" if state == "closed" else "open",
         missing_information=missing, existing_resolution=linked, build_system=build, test_framework=tests,
