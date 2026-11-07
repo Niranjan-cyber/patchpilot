@@ -26,7 +26,16 @@ def _docker(*args: str, timeout: int = 120, input_: str | None = None) -> Result
                            timeout=timeout, input=input_)
         return Result(p.returncode, p.stdout + p.stderr)
     except subprocess.TimeoutExpired as e:
-        return Result(124, (e.stdout or "") if isinstance(e.stdout, str) else "", timed_out=True)
+        # TimeoutExpired carries bytes even with text=True: decode, or the partial output is silently dropped (#43)
+        dec = lambda b: b.decode("utf-8", "replace") if isinstance(b, bytes) else (b or "")
+        return Result(124, dec(e.stdout) + dec(e.stderr), timed_out=True)
+
+
+def _mark_timeout(r: Result, timeout: int) -> None:
+    """A timed-out log always says so and is never empty: an empty artifact must not pass as evidence (#43, #48)."""
+    out = r.out.rstrip()
+    r.out = (out + f"\n[stopped: hit the time limit ({timeout} s) before this finished]" if out
+             else f"[stopped: hit the time limit ({timeout} s); the command printed nothing before it was stopped]")
 
 
 def ensure_infra() -> None:
@@ -67,10 +76,9 @@ def run(image: str, script: str, *, name: str, network: str = "none", timeout: i
     r = _docker(*args, image, "sh", "-c", prelude + script, timeout=timeout)
     if r.timed_out:
         if log_path and not r.out.strip():
-            partial = _docker("exec", name, "sh", "-c", f"tail -c 30000 {shlex.quote(log_path)} 2>/dev/null")
-            if partial.out.strip():
-                r.out = partial.out + "\n[stopped: hit the time limit before this finished]"
+            r.out = _docker("exec", name, "sh", "-c", f"tail -c 30000 {shlex.quote(log_path)} 2>/dev/null").out
         _docker("kill", name)
+        _mark_timeout(r, timeout)
     return r
 
 
@@ -114,6 +122,7 @@ def exec_(name: str, script: str, timeout: int = 120) -> Result:
     r = _docker("exec", "-w", "/src", name, "sh", "-c", script, timeout=timeout)
     if r.timed_out:
         _docker("exec", name, "sh", "-c", "pkill -u 1000 -f -- '-c' || true")
+        _mark_timeout(r, timeout)
     return r
 
 
