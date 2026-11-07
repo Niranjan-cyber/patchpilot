@@ -23,7 +23,31 @@ def test_timeout_recovers_the_log_file_before_killing(monkeypatch):
     assert calls[-1][0] == "kill"                        # log fetched before the kill, not after
 
 
-def test_timeout_without_log_path_stays_empty(monkeypatch):
+def test_timeout_with_no_output_anywhere_says_so(monkeypatch):
+    # #48 §6.3: nothing on stdout and no log file must not become an empty evidence artifact
     monkeypatch.setattr(docker, "_docker", lambda *a, **k: docker.Result(124, "", timed_out=True) if a[0] == "run" else docker.Result(0, ""))
-    r = docker.run("img", "script", name="pp-test")
-    assert r.timed_out and r.out == ""
+    r = docker.run("img", "script", name="pp-test", timeout=90)
+    assert r.timed_out and r.code == 124
+    assert r.out == "[stopped: hit the time limit (90 s); the command printed nothing before it was stopped]"
+
+
+def test_timeout_keeps_host_captured_partial_output(monkeypatch):
+    monkeypatch.setattr(docker, "_docker", lambda *a, **k: docker.Result(124, "collected 3 items\n", timed_out=True) if a[0] == "run" else docker.Result(0, ""))
+    r = docker.run("img", "script", name="pp-test", timeout=60)
+    assert r.out.startswith("collected 3 items") and "hit the time limit (60 s) before this finished" in r.out
+
+
+def test_subprocess_timeout_bytes_are_decoded(monkeypatch):
+    # TimeoutExpired.stdout is bytes even with text=True; it used to be dropped as "not a str"
+    import subprocess
+    def boom(*a, **k):
+        raise subprocess.TimeoutExpired(a[0], 5, output=b"partial out\n", stderr=b"partial err\n")
+    monkeypatch.setattr(docker.subprocess, "run", boom)
+    r = docker._docker("run", "x", timeout=5)
+    assert r.timed_out and r.out == "partial out\npartial err\n"
+
+
+def test_exec_timeout_is_never_empty(monkeypatch):
+    monkeypatch.setattr(docker, "_docker", lambda *a, **k: docker.Result(124, "", timed_out=True) if "-w" in a else docker.Result(0, ""))
+    r = docker.exec_("pp-agent", "sleep 999", timeout=30)
+    assert r.timed_out and "(30 s)" in r.out and "printed nothing" in r.out
