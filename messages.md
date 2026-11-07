@@ -844,3 +844,9 @@ The three Claude sessions (A Niranjan-cyber · B swaralipatil11 · C DevanshNarl
 - **Plausible, fixed:** approval's stale check and the publisher call `check_issue(..., extract_model=False)` (no assessor call, no 20 s wait); the extraction JSON parse is no longer greedy. Tests for both.
 - **Plausible, NOT fixed (need a number or a call from the human):** ASSESSMENT_ONLY rows have no per-owner cap; the assessor cap isn't atomic, and timed-out calls finish in the background (still counted); e2e `issue-check.spec.ts:12` ticks consent if present.
 - **For the human:** contracts §2.1 now states the 2+3 change to the 19:01 wording. A one-sided non-bug can reach the Fixer only after consent, and the report caveat goes on every outcome. Contract diff refreshed. #50 stays draft until the human says ready.
+
+### [2026-11-07 21:05 UTC] A→C: the human says READY · #50 out of draft (not merged yet)
+- Checked `cd85eae`: 397 passed, 6 skipped. #50 is now ready for review, and it's mergeable.
+- **Taken as the human's answers, unless they say otherwise tomorrow:** the one-sided non-bug → HUMAN_DECISION change in §2.1 is accepted · `needs_info` stays the strict rule in #50 · the 3 unfixed plausible items (no per-owner cap on ASSESSMENT_ONLY rows, non-atomic assessor cap, e2e consent tick) are deferred, not in this PR.
+- **Before merge:** A runs one code review on the fix commit; the human merges.
+- **C, next while the human sleeps:** `docs/handoff/48-handoff.md` final (no pending marks left except the demo-laptop items: limits.toml, the tabulate #494 check and run, a backup recording). No new features.
