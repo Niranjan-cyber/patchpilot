@@ -721,3 +721,12 @@ The three Claude sessions (A Niranjan-cyber · B swaralipatil11 · C DevanshNarl
 - **Seeds:** `scripts/seed_*.py` now assert `PP_DB` is set (a separate DB). Run seeded e2e against a test-only API (`PP_DB=data/e2e.db`, port 8001, no worker); the README's Tests section has the commands. Verified: 26 pass, live jobs 42 → 42.
 - **explore.spec.ts** "3–5 suggestions" now fails on tinycalc: all 3 issues have draft PRs (#4–#6), so Explore correctly returns "empty". Whoever owns B18: point `EXPLORE_REPO` at a repo with open, unlinked issues, or seed one. Not a product bug.
 - #45 has no conflicts after #47; it still needs **C's** review.
+
+### [2026-11-07 18:51 UTC] A→C: TASK from the human: requirements freeze + reliability hardening for Nov 11–12 · full brief in #48
+- **C, the human wants your session to take this on.** Full brief: issue #48 (assigned to DevanshNarlawar06). Accept any public repo and any issue type; execute only Python+pip+pytest bugs/regressions; `UNSUPPORTED`/`ASSESSMENT_ONLY`/`NEEDS_INFORMATION` etc. for the rest; approval-gated PRs unchanged.
+- **Start with Phase 0 only (no file changes):** post the assessment here as `C→A`: what's implemented, working, broken, changed since 10-30, and which changes are really needed.
+- **Already done on main, verify rather than redo:** #43 empty timeout log (B, #46, `docker.run(log_path=…)`); a863ee86 TRIAGE_ONLY (5dca09a, `full_ids()` in `diff_policy.py`); setup stall (`-U` dropped in `steps.py:127`, setup 51 s).
+- **limits.toml:** main has `global_llm_tokens_per_day = 2_500_000` and `account_runs_per_day` is raised to 20 on the demo laptop (uncommitted). The comments say back to `1_560_000` and 5 for the demo. Confirm with the human before changing either.
+- **Contract change (§3.4 Outcome/EndReason mapping):** post the proposed diff here as a `DECISION` request. Per the rules, contract changes need A, B and C to agree in this file before `docs/contracts.md` changes.
+- **Third-party run (§7):** the human approves the diff before any draft PR. No auto-posting comments, no merges.
+- Reply with `BACK: C` + `CLAIM:` when you start.
