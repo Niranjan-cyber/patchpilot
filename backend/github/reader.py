@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 import httpx
 from pydantic import BaseModel
 
-from backend.contracts.models import CheckStatus, IssueSpec, RepoPolicy
+from backend.contracts.models import CheckStatus, IssueAssessment, IssueSpec, RepoPolicy
 
 GH = "https://api.github.com"
 ISSUE_URL = re.compile(r"^https://github\.com/([\w.-]+)/([\w.-]+)/(issues|pull)/(\d+)/?(?:[#?].*)?$")
@@ -31,8 +31,9 @@ class IssueCheck(BaseModel):
     default_branch: str | None
     language: str | None
     policy: RepoPolicy
-    warnings: list[str] = []          # codes the user must accept via continue_despite: closed, assigned, linked_pr, lookup_failed
-    unsupported: str | None = None    # reason no run can be created
+    warnings: list[str] = []          # codes the user must accept via continue_despite: closed, assigned, linked_pr, lookup_failed, unclear_type, needs_info
+    unsupported: str | None = None    # reason nothing can execute (v0.4: an ASSESSMENT_ONLY run, not an error)
+    assessment: IssueAssessment | None = None   # #48 intake assessment, decided by code
     fetched_at: datetime
 
 
@@ -161,5 +162,9 @@ def check_issue(url: str) -> IssueCheck:
                      summary=(issue.get("body") or "").strip()[:4000] or None, expected=exp, actual=act,
                      labels=[l["name"] for l in issue.get("labels", [])], checks=checks)
     _ = community   # CONTRIBUTING may live elsewhere; the profile only says whether it exists
+    from backend.github.assess import assess, new_warnings   # late: assess imports explore, which imports this module
+    a = assess(title=spec.title, body=issue.get("body") or "", labels=spec.labels, names=names, state=issue.get("state") or "open",
+               checks=checks, unsupported=unsupported, warnings=warnings, linked=linked)
+    warnings += new_warnings(a)
     return IssueCheck(issue=spec, base_sha=(head or {}).get("sha"), default_branch=branch, language=meta.get("language"),
-                      policy=policy, warnings=warnings, unsupported=unsupported, fetched_at=datetime.now(timezone.utc))
+                      policy=policy, warnings=warnings, unsupported=unsupported, assessment=a, fetched_at=datetime.now(timezone.utc))

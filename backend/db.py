@@ -68,7 +68,7 @@ def emit(c, run_id: str, type_: str, step: str | None = None, revision: int = 0,
 
 
 def create_run(c, issue: IssueSpec, base_sha: str, owner_session_hash: str | None = None,
-               owner_account_id: int | None = None, g0: tuple[CheckStatus, str] | None = None) -> RunView:
+               owner_account_id: int | None = None, g0: tuple[CheckStatus, str] | None = None, job: bool = True) -> RunView:
     """Run + job + run.queued in ONE transaction: the worker can't see the job before the run is committed.
     g0 = (status, reason) from the API's eligibility check, recorded in the same transaction so the worker can't overwrite it."""
     t = now()
@@ -77,8 +77,9 @@ def create_run(c, issue: IssueSpec, base_sha: str, owner_session_hash: str | Non
     with tx(c):
         c.execute("INSERT INTO runs VALUES(?,?,?,?,0,?,?,?)", (v.run_id, owner_session_hash, owner_account_id,
                   v.status.value, v.model_dump_json(), t.isoformat(), t.isoformat()))
-        c.execute("INSERT INTO jobs(run_id,kind,state,available_at) VALUES(?,?,?,?)", (v.run_id, "analyze", "queued", t.isoformat()))
-        _append(c, v.run_id, "run.queued", position=c.execute("SELECT COUNT(*) FROM jobs WHERE state='queued'").fetchone()[0])
+        if job:   # job=False: an ASSESSMENT_ONLY run (v0.4); nothing for the worker to lease
+            c.execute("INSERT INTO jobs(run_id,kind,state,available_at) VALUES(?,?,?,?)", (v.run_id, "analyze", "queued", t.isoformat()))
+            _append(c, v.run_id, "run.queued", position=c.execute("SELECT COUNT(*) FROM jobs WHERE state='queued'").fetchone()[0])
         if g0:
             _append(c, v.run_id, "gate.result", "intake", 0, gate="G0", status=g0[0].value, reason=g0[1], evidence_ids=[])
     return v
@@ -133,7 +134,8 @@ def owner_counts(c, session_hash: str | None, account_id: int | None) -> tuple[i
     """(runs started today UTC, runs still active) for this owner."""
     day = now().date().isoformat()
     w, args = ("owner_account_id=?", (account_id,)) if account_id is not None else ("owner_session_hash=?", (session_hash,))
-    today = c.execute(f"SELECT COUNT(*) FROM runs WHERE {w} AND substr(created_at,1,10)=?", (*args, day)).fetchone()[0]
+    today = c.execute(f"SELECT COUNT(*) FROM runs WHERE {w} AND substr(created_at,1,10)=? "   # assessments run nothing: not counted
+                      "AND COALESCE(json_extract(state_json,'$.outcome'),'') != 'ASSESSMENT_ONLY'", (*args, day)).fetchone()[0]
     active = c.execute(f"SELECT COUNT(*) FROM runs WHERE {w} AND status IN ({','.join('?' * len(ACTIVE))})",
                        (*args, *ACTIVE)).fetchone()[0]
     return today, active

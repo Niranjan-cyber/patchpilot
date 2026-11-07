@@ -16,6 +16,9 @@ def render(v: RunView, narrative: str | None = None) -> str:
          f"Ended because: {v.end_reason.value if v.end_reason else 'n/a'}  ", f"Run: {v.run_id}, revision {v.revision}", "",
          "> Ready for human review never means safe to merge automatically. Passing tests don't prove the code is bug-free.", "",
          "## Checks", "| Check | Result |", "|---|---|", *[f"| {name} | {g(k) if k != 'G6' else 'passed (template report)'} |" for k, name in GATES], ""]
+    if v.assessment:
+        from backend.github.assess import report_lines
+        L += report_lines(v.assessment)
     if v.issue.checks:
         L += ["## Issue eligibility", *[f"- {k.replace('_', ' ')}: {WORD.get(s, s)}" for k, s in v.issue.checks.items()], ""]
     if v.supplyguard:

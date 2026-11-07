@@ -15,73 +15,73 @@ def run(title="divide(x, 0) returns 0", body=GOOD_BUG, labels=("bug",), names=("
 
 def test_python_bug_with_enough_information_is_ready():
     a = run()
-    assert a["handling_decision"] == "READY" and a["issue_type"] == "bug" and a["decision_reasons"] == []
-    assert a["compatibility_status"] == "supported" and a["schema_version"] == 1
+    assert a.handling_decision == "READY" and a.issue_type == "bug" and a.decision_reasons == []
+    assert a.compatibility_status == "supported" and a.schema_version == 1
 
 
 def test_non_python_repo_is_unsupported():
     a = run(names=("package.json",), checks={**OK, "python": S.FAILED}, unsupported="not_python")
-    assert a["handling_decision"] == "UNSUPPORTED" and a["compatibility_status"] == "unsupported"
-    assert "unsupported:not_python" in a["decision_reasons"]
+    assert a.handling_decision == "UNSUPPORTED" and a.compatibility_status == "unsupported"
+    assert "unsupported:not_python" in a.decision_reasons
 
 
 def test_no_tests_is_unsupported():
-    assert run(unsupported="no_tests")["handling_decision"] == "UNSUPPORTED"
+    assert run(unsupported="no_tests").handling_decision == "UNSUPPORTED"
 
 
 def test_feature_request_is_assessment_only():
     a = run(title="Add support for complex numbers", body="It would be nice to support complex inputs.", labels=("enhancement",))
-    assert a["handling_decision"] == "ASSESSMENT_ONLY" and "not_a_bug:enhancement" in a["decision_reasons"]
+    assert a.handling_decision == "ASSESSMENT_ONLY" and "not_a_bug:enhancement" in a.decision_reasons
 
 
 def test_documentation_issue_is_assessment_only():
     a = run(title="Typo in the README install section", body="The README says pip install tinycalcc.", labels=())
-    assert a["issue_type"] == "docs" and a["handling_decision"] == "ASSESSMENT_ONLY"
+    assert a.issue_type == "docs" and a.handling_decision == "ASSESSMENT_ONLY"
 
 
 def test_refactoring_issue_is_assessment_only():
     a = run(title="Refactor the parser module", body="parser.py has grown too big; split it.", labels=("refactor",))
-    assert a["handling_decision"] == "ASSESSMENT_ONLY"
+    assert a.handling_decision == "ASSESSMENT_ONLY"
 
 
 def test_bug_with_no_reproduction_information_needs_information():
     a = run(title="Something is off with divide", body="divide is weird sometimes.", labels=("bug",))
-    assert a["handling_decision"] == "NEEDS_INFORMATION"
-    assert set(a["missing_information"]) == {"no_expected", "no_actual", "no_repro"}
-    assert "What should happen instead?" in a["draft_comment"]   # offered, never posted
+    assert a.handling_decision == "NEEDS_INFORMATION"
+    assert set(a.missing_information) == {"no_expected", "no_actual", "no_repro"}
+    assert "What should happen instead?" in a.draft_comment   # offered, never posted
 
 
 def test_bug_missing_only_some_information_is_still_ready():
     a = run(body="divide(1, 0) should raise but it doesn't.")   # states expected, no repro snippet
-    assert a["handling_decision"] == "READY" and "needs_info" not in a["decision_reasons"]
+    assert a.handling_decision == "READY" and "needs_info" not in a.decision_reasons
 
 
 def test_unknown_type_is_human_decision_never_ready():
     a = run(title="divide", body="See title.", labels=())
-    assert a["issue_type"] == "unknown" and a["handling_decision"] == "HUMAN_DECISION"
+    assert a.issue_type == "unknown" and a.handling_decision == "HUMAN_DECISION"
 
 
 def test_conflicting_labels_are_human_decision():
-    assert run(labels=("bug", "enhancement"))["handling_decision"] == "HUMAN_DECISION"
+    assert run(labels=("bug", "enhancement")).handling_decision == "HUMAN_DECISION"
 
 
 def test_bug_label_on_a_feature_request_title_is_human_decision():
     a = run(title="Feature request: add a power() function", body="Please add power(x, y).", labels=("bug",))
-    assert a["handling_decision"] == "HUMAN_DECISION"
+    assert a.handling_decision == "HUMAN_DECISION"
 
 
 def test_unknown_python_compatibility_is_human_decision():
-    assert run(checks={**OK, "python": S.INCONCLUSIVE})["handling_decision"] == "HUMAN_DECISION"
+    assert run(checks={**OK, "python": S.INCONCLUSIVE}).handling_decision == "HUMAN_DECISION"
 
 
 def test_linked_pr_is_already_addressed_and_keeps_the_warning():
     a = run(checks={**OK, "no_linked_pr": S.FAILED}, warnings=("linked_pr",), linked=(12,))
-    assert a["handling_decision"] == "ALREADY_ADDRESSED" and a["existing_resolution"] == [12]
+    assert a.handling_decision == "ALREADY_ADDRESSED" and a.existing_resolution == [12]
 
 
 def test_closed_issue_keeps_existing_warning_handling():
     a = run(state="closed", checks={**OK, "open": S.FAILED}, warnings=("closed",))
-    assert a["handling_decision"] == "ALREADY_ADDRESSED" and a["issue_status"] == "closed"
+    assert a.handling_decision == "ALREADY_ADDRESSED" and a.issue_status == "closed"
 
 
 def test_unsupported_outranks_everything_and_lists_every_reason():

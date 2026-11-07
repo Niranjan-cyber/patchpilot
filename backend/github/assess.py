@@ -1,17 +1,18 @@
 """#48 intake assessment: what kind of issue this is and whether PatchPilot may act on it. Code decides, never a model.
 
 Pure functions over what `reader.check_issue` already fetched (labels, title, body, root file names, G0 checks).
-The result is the `IssueAssessment` shape proposed in docs/handoff/48-contract-proposal.md; it is a plain dict until
-that contract change is agreed (shortcut: move to a pydantic model in backend/contracts once v0.4 lands).
+Returns contracts v0.4 `IssueAssessment` (docs/handoff/48-contract-proposal.md).
 """
 import re
 
-from backend.contracts.models import CheckStatus
+from backend.contracts.models import CheckStatus, IssueAssessment
 from backend.github.explore import ERROR, STEPS
 from backend.github.reader import expected_actual
 
-SCHEMA_VERSION = 1
 FIXABLE = {"bug", "regression"}
+EXECUTES = {"READY", "NEEDS_INFORMATION", "HUMAN_DECISION", "ALREADY_ADDRESSED"}   # the rest end at G0, nothing runs
+# overridable G0 warnings these decisions add (accepted through continue_despite, like assigned/linked_pr)
+WARNS = {"unclear_type": "unclear_type", "compatibility_unknown": None, "needs_info": "needs_info"}
 # label (lowercased, "type:"/"kind:" style prefixes stripped) -> issue_type
 LABELS = {
     "bug": "bug", "bug report": "bug", "defect": "bug", "crash": "bug", "confirmed bug": "bug",
@@ -121,6 +122,33 @@ def decide_handling(*, unsupported: str | None, python: CheckStatus, issue_type:
     return "READY", reasons
 
 
+DECISION_TEXT = {
+    "READY": "A bug or regression with enough detail, in a supported Python project: PatchPilot can try a verified fix.",
+    "NEEDS_INFORMATION": "Looks like a bug, but the issue doesn't say what should happen or show how to trigger it.",
+    "UNSUPPORTED": "PatchPilot can read this issue but can't run this project: it runs only Python projects with pip and pytest today.",
+    "ALREADY_ADDRESSED": "An open pull request already mentions this issue, or the issue is closed.",
+    "HUMAN_DECISION": "We couldn't tell for sure whether this is a bug, so you decide whether to treat it as one.",
+    "ASSESSMENT_ONLY": "This isn't a bug report, so PatchPilot assesses it but doesn't change any code. Fixes run only for bugs and regressions.",
+}
+NEXT_STEP = {
+    "UNSUPPORTED": "Pick an issue from a Python project with tests, or work on this one by hand.",
+    "ASSESSMENT_ONLY": "Work on it by hand, or pick a bug report instead.",
+    "NEEDS_INFORMATION": "Ask for the missing details on the issue (draft below), or start anyway.",
+    "HUMAN_DECISION": "Start anyway if you've read it and it is a bug.",
+}
+
+
+def report_lines(a: IssueAssessment) -> list[str]:
+    """Report section for any run with an assessment. Written from code, never by a model."""
+    return ["## Assessment", f"- Decision: **{a.handling_decision}**: {DECISION_TEXT[a.handling_decision]}",
+            f"- Issue type: {a.issue_type.replace('_', ' ')} (from {a.issue_type_source})",
+            f"- Execution support: {a.compatibility_status} (build: {a.build_system}, tests: {a.test_framework})",
+            *([f"- Missing information: {', '.join(MISSING_ASK[m] for m in a.missing_information)}"] if a.missing_information else []),
+            *([f"- Open pull requests mentioning it: {', '.join(f'#{n}' for n in a.existing_resolution)}"] if a.existing_resolution else []),
+            *([f"- Why: {', '.join(a.decision_reasons)}"] if a.decision_reasons else []),
+            *([f"- Suggested next step: {NEXT_STEP[a.handling_decision]}"] if a.handling_decision in NEXT_STEP else []), ""]
+
+
 MISSING_ASK = {
     "no_expected": "What should happen instead? (the expected result or behaviour)",
     "no_actual": "What happens now? (the actual output, error message or traceback)",
@@ -138,20 +166,23 @@ def draft_comment(missing: list[str]) -> str | None:
 
 
 def assess(*, title: str, body: str, labels: list[str], names: list[str], state: str, checks: dict[str, CheckStatus],
-           unsupported: str | None, warnings: list[str], linked: list[int] | None) -> dict:
+           unsupported: str | None, warnings: list[str], linked: list[int] | None) -> IssueAssessment:
     issue_type, source = classify(title, body, labels)
     missing = missing_information(body) if issue_type in FIXABLE else []
     build, tests = environment(names)
     python = checks.get("python", CheckStatus.INCONCLUSIVE)
     decision, reasons = decide_handling(unsupported=unsupported, python=python, issue_type=issue_type,
                                         missing=missing, warnings=warnings)
-    return {
-        "schema_version": SCHEMA_VERSION, "issue_type": issue_type, "issue_type_source": source,
-        "issue_status": "closed" if state == "closed" else "open",
-        "problem_summary": None, "acceptance_conditions": [], "missing_information": missing,
-        "reproduction_information": None, "existing_resolution": linked,
-        "build_system": build, "test_framework": tests, "environment_requirements": [],
-        "compatibility_status": ("unsupported" if unsupported else "unknown" if python == CheckStatus.INCONCLUSIVE else "supported"),
-        "handling_decision": decision, "decision_reasons": reasons,
-        "draft_comment": draft_comment(missing) if decision == "NEEDS_INFORMATION" else None,
-    }
+    return IssueAssessment(
+        issue_type=issue_type, issue_type_source=source, issue_status="closed" if state == "closed" else "open",
+        missing_information=missing, existing_resolution=linked, build_system=build, test_framework=tests,
+        compatibility_status=("unsupported" if unsupported else "unknown" if python == CheckStatus.INCONCLUSIVE else "supported"),
+        handling_decision=decision, decision_reasons=reasons,
+        draft_comment=draft_comment(missing) if decision == "NEEDS_INFORMATION" else None)
+
+
+def new_warnings(a: IssueAssessment) -> list[str]:
+    """Warning codes this assessment adds to G0's existing ones (only for issues that may still run)."""
+    if a.handling_decision not in EXECUTES:
+        return []
+    return [w for r in a.decision_reasons if (w := WARNS.get(r))]
