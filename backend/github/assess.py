@@ -127,7 +127,7 @@ def decide_handling(*, unsupported: str | None, python: CheckStatus, issue_type:
 DECISION_TEXT = {
     "READY": "A bug or regression with enough detail, in a supported Python project: PatchPilot can try a verified fix.",
     "NEEDS_INFORMATION": "Looks like a bug, but the issue doesn't say what should happen or show how to trigger it.",
-    "UNSUPPORTED": "PatchPilot can read this issue but can't run this project: it runs only Python projects with pip and pytest today.",
+    "UNSUPPORTED": "PatchPilot can read issues from any public repository, but it can only run Python projects with pip and pytest today.",
     "ALREADY_ADDRESSED": "An open pull request already mentions this issue, or the issue is closed.",
     "HUMAN_DECISION": "We couldn't tell for sure whether this is a bug, so you decide whether to treat it as one.",
     "ASSESSMENT_ONLY": "This isn't a bug report, so PatchPilot assesses it but doesn't change any code. Fixes run only for bugs and regressions.",

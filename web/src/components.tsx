@@ -127,7 +127,7 @@ const DECISION: Record<string, { title: string; text: string; next?: string }> =
   READY: { title: "Ready for a fix attempt", text: "A bug or regression with enough detail, in a supported Python project." },
   NEEDS_INFORMATION: { title: "Needs more information", text: "It looks like a bug, but the issue doesn't say what should happen or show how to trigger it.",
     next: "Ask for the missing details on the issue (draft below), or start anyway." },
-  UNSUPPORTED: { title: "Can't run this project", text: "PatchPilot reads issues from any public repository, but runs only Python projects with pip and pytest today.",
+  UNSUPPORTED: { title: "Can't run this project", text: "PatchPilot can read issues from any public repository, but it can only run Python projects with pip and pytest today.",
     next: "Pick an issue from a Python project with tests, or work on this one by hand." },
   ALREADY_ADDRESSED: { title: "May already be handled", text: "An open pull request already mentions this issue, or the issue is closed." },
   HUMAN_DECISION: { title: "Your call", text: "We couldn't tell for sure whether this is a bug, so you decide whether to treat it as one.",
