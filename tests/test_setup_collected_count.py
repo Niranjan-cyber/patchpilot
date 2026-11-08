@@ -25,8 +25,13 @@ NONE = "\nno tests collected in 0.01s\n"
 QQ = "msoffcrypto/__init__.py: 1\nmsoffcrypto/format/ppt97.py: 2\ntests/test_cli.py: 1\ntests/test_xls_padding.py: 5\n"
 
 
+DESELECTED = "test_x.py::test_b\ntest_x.py::test_c\n\n2/3 tests collected (1 deselected) in 0.07s\n"   # real pytest 8 output
+ALL_DESELECTED = "\n0/3 tests collected (3 deselected) in 0.01s\n"   # nothing runnable: must be 0, not 3
+
+
 @pytest.mark.skipif(not shutil.which("bash"), reason="needs bash")
-@pytest.mark.parametrize("log, want", [(TREE, 3), (QUIET, 2), (ONE, 1), (NO_SUMMARY, 2), (NONE, 0), (QQ, 9)])
+@pytest.mark.parametrize("log, want", [(TREE, 3), (QUIET, 2), (ONE, 1), (NO_SUMMARY, 2), (NONE, 0), (QQ, 9),
+                                       (DESELECTED, 2), (ALL_DESELECTED, 0)])
 def test_collected_count_reads_pytest_summary(tmp_path, log, want):
     line = re.search(r'^(?:(?:n=|\[ -n).*\n)*echo "COLLECTED=.*$', INSTALL, re.M).group(0).split("; tail")[0]
     f = tmp_path / "collect.log"

@@ -150,7 +150,7 @@ git ls-files -z --others --ignored --exclude-standard 2>/dev/null | grep -zv -e 
 [ "$(stat -c %s /opt/venv/.pp-gen.tar 2>/dev/null || echo 0)" -gt 104857600 ] && rm -f /opt/venv/.pp-gen.tar
 python -m pytest --collect-only -q -p no:cacheprovider > /tmp/collect.log 2>&1; echo "COLLECT_EXIT=$?"
 # a repo's addopts changes our -q: "-v" gives a tree + "N tests collected", "-q" gives -qq ("file.py: N" lines only)
-n=$(grep -oE '[0-9]+ tests? collected' /tmp/collect.log | tail -1 | cut -d' ' -f1)
+n=$(grep -oE '[0-9]+(/[0-9]+)? tests? collected' /tmp/collect.log | tail -1 | cut -d' ' -f1 | cut -d/ -f1)   # "2/3 tests collected (1 deselected)": the selected count
 [ -n "$n" ] || n=$(awk '/::/{c++} /^[^ ].*: [0-9]+$/{s+=$NF} END{print (c ? c : s+0)}' /tmp/collect.log)
 echo "COLLECTED=$n"; tail -c 5000 /tmp/collect.log
 """
