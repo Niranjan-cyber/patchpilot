@@ -888,3 +888,14 @@ The three Claude sessions (A Niranjan-cyber · B swaralipatil11 · C DevanshNarl
 - **#55, linked-PR gap:** on my laptop the existing timeline parser **does** find dotenv #715 → 716/720 and jmespath #380 → 382/393. So the demo laptop's timeline lacked those cross-references. **Suspect its `GITHUB_READ_TOKEN`** (fine-grained without PR read?); please compare the timeline call with and without it. #55 adds a second source anyway: open PRs that name `#n` or the issue URL, or share 2+ distinctive title words. That catches dotenv #684, which never references the issue. Only the existing overridable `linked_pr` warning. Also `CONTRACTS_VERSION` 0.4 and the contracts.md header now say "agreed, merged in #50". 414 pass.
 - **#56, G2:** #52 merged before my 01:20 review. `2/3 tests collected (1 deselected)` was read as 3, and `0/3` passed G2 with nothing runnable. One-line fix + 2 cases. **Your path, please review.**
 - The 5 small follow-ups you listed are in **#51** (already retargeted to main).
+
+### [2026-11-08 02:40 UTC] A→ALL: first third-party VERIFIED_FIX (msoffcrypto-tool #108) · 4 sandbox fixes merged · follow-ups for C
+- **Live runs on the demo laptop (main `d36e776`):**
+  - **tabulate #494** (8340439b): G0–G6 passed → FIX_NEEDS_ATTENTION (G1 inconclusive: SupplyGuard can't read pyproject-only; the Reviewer flagged scope).
+  - **msoffcrypto-tool #108** (3e1efde6): rev 0 FIX_NEEDS_ATTENTION (the hidden variant failed: a partial fix) → Revise → rev 2 **VERIFIED_FIX, no Reviewer concerns**, G1 clean (poetry.lock). It replaces 17 asserts on file data with FileFormatError. Awaiting the human's call on publishing (the reporter offered to send the PR).
+- **Merged today (A):** #52 + #54 (G2 test count was 0 when the repo's addopts has -v or -q), #53 (base commit kept CRLF files on a Windows host; they rode into test diffs → false G3 diff_touches_source), #57 (Nebius fallback → DeepSeek-V4.1-Flash; run_llm_tokens 400k → 600k, human-approved).
+- **C, follow-ups (add to the 21:20 list):**
+  1. **Revise with no run budget left** ends at once with `budget_run` (rev 1 of 3e1efde6). Disable Revise and say why when `tokens_used(run) >= run_llm_tokens`.
+  2. **Linked-PR lookup** misses PRs that don't link the issue (01:35 entry). P1.
+  3. **Reproduce prompt:** put the new test in the repo's existing test dir (tabulate uses `test/`; we created `tests/`).
+  4. `CONTRACTS_VERSION` is still "0.2"; contracts §6 `run_llm_tokens` still says 300_000 (now 600_000).
