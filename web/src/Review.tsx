@@ -4,7 +4,7 @@ import { api, ApiError } from "./api";
 import { Loading } from "./components";
 
 type Ctx = { revision: number; diff: string; diff_hash: string; evidence_hash: string; files: string[];
-  publish_blockers: string[]; approved: boolean; pr_title: string; pr_summary: string };
+  publish_blockers: string[]; approved: boolean; pr_title: string; pr_summary: string; revise_blocked?: string | null };
 
 const BOXES = [
   ["read_diff", "I read every change below"],
@@ -103,7 +103,8 @@ export default function Review() {
         <label>Want something different? Describe it and we'll re-run the fix and verification.
           <textarea rows={2} value={feedback} onChange={(e) => setFeedback(e.target.value)} placeholder="e.g. keep the function's public name the same" /></label>
         <p className="hint">Revising cancels any earlier approval, because the change will be different.</p>
-        <button className="secondary-btn" disabled={feedback.trim().length < 3 || !!busy}
+        {ctx.revise_blocked && <p className="notice warn">{ctx.revise_blocked}</p>}
+        <button className="secondary-btn" disabled={feedback.trim().length < 3 || !!busy || !!ctx.revise_blocked}
           onClick={() => post(`/api/runs/${id}/revise`, { feedback }, "Starting the revision…").then((r) => r && nav(`/runs/${id}`))}>Revise the fix</button>
       </div>
     </section>

@@ -91,6 +91,19 @@ def test_revise_voids_and_queues(ready):
     assert db.connect().execute("SELECT COUNT(*) FROM jobs WHERE kind='revise' AND state='queued'").fetchone()[0] == 1
 
 
+def test_revise_refused_when_run_budget_spent(ready, monkeypatch):
+    """rev 1 of 3e1efde6 ended at once with budget_run: say so up front instead of queueing a revision that can't run."""
+    from backend import llm_gateway
+    b, rid, _ = ready
+    assert b.get(f"/api/runs/{rid}/approval").json()["revise_blocked"] is None
+    monkeypatch.setattr(llm_gateway, "tokens_used", lambda run_id=None, day=None: 10**9)
+    assert "AI budget" in b.get(f"/api/runs/{rid}/approval").json()["revise_blocked"]
+    r = b.post(f"/api/runs/{rid}/revise", json={"feedback": "keep the public name"})
+    assert r.status_code == 409 and r.json()["code"] == "BUDGET_SPENT"
+    assert db.get_run(db.connect(), rid).status == RunStatus.AWAITING_APPROVAL
+    assert db.connect().execute("SELECT COUNT(*) FROM jobs WHERE kind='revise'").fetchone()[0] == 0
+
+
 def test_other_browser_cannot_approve(ready):
     b, rid, _ = ready
     ctx = b.get(f"/api/runs/{rid}/approval").json()
