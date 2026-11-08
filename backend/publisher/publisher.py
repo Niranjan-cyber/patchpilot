@@ -38,19 +38,20 @@ def pr_body(v: RunView) -> str:
             f"{sum(1 for f in sg.findings if f.get('type') == 'vulnerability')} known vulnerabilities listed."
             if sg and sg.status.value == "passed" else "Dependency check: see the PatchPilot report.")
     concerns = [c.get("text", "") for c in (v.review.concerns if v.review else [])]
+    # short on purpose (mcstatus #1238 was closed as "too much vibe-coding"): summary + disclosure up front, evidence folded
     lines = [
         f"Fixes #{v.issue.number}", "",
-        "## Summary", a.pr_summary.strip() or "(no summary)", "",
-        "## Evidence",
+        a.pr_summary.strip() or "(no summary)", "",
+        f"_{AI_NOTE}_", "",
+        "<details><summary>How this was checked</summary>", "",
         f"- New regression test {tests} **fails 2/2 on the original code** (`{v.base_sha[:7]}`) and **passes 2/2 after the fix in a fresh sandbox**.",
         (f"- {len(base.pass_set)} existing tests passed before and still pass."
          + (f" {len(base.fail_set)} were already failing before this change (unrelated)." if base.fail_set else "")) if base else "- Existing tests: not recorded.",
-        f"- {deps}", "",
-        "## Limitations",
+        f"- {deps}",
         "- Passing tests don't prove the change is bug-free; please review the logic.",
-        *([f"- Reviewer note: {c}" for c in concerns] or []), "",
-        "## AI assistance", AI_NOTE, "",
-        f"<sub>Base commit {v.base_sha}. PatchPilot run {v.run_id[:8]}, revision {v.revision}.</sub>",
+        *[f"- Reviewer note: {c}" for c in concerns],
+        f"- Base commit `{v.base_sha}`; PatchPilot run {v.run_id[:8]}, revision {v.revision}.", "",
+        "</details>",
     ]
     return "\n".join(lines)
 
