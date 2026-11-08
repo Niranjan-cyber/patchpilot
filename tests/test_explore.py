@@ -130,3 +130,10 @@ def test_explore_caches_complete_reads_only(monkeypatch):
     monkeypatch.setattr(E, "_explore", lambda repo: (calls.append(repo), {"state": "partial", "suggestions": []})[1])
     E.explore("https://github.com/o/r"); E.explore("https://github.com/o/r")
     assert len(calls) == 3                                   # partial results are re-read, never served stale
+
+
+def test_shortlist_root_without_test_markers_is_unknown_not_unsupported():
+    # the root listing can't see tests inside the package (gym-continuousDoubleAuction keeps them in pkg/test/)
+    out = shortlist("o/r", {"language": "Python"}, ["pyproject.toml", "pkg"], [iss(1, BUG)], linked={})
+    assert out["state"] != "unsupported" and out["repo_signals"]["tests_found"] is None
+    assert out["repo_signals"]["deps_checkable"] is True    # G1 resolves pyproject.toml since #63

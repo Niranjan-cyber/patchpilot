@@ -72,3 +72,22 @@ def test_g0_status_follows_contracts_table():
     assert g0_status(ok | {"unassigned": C.FAILED}) == (C.FAILED, "assigned")          # accepted warning: recorded as failed
     assert g0_status(ok | {"no_linked_pr": C.INCONCLUSIVE}) == (C.INCONCLUSIVE, "lookup_failed")
     assert g0_status(ok | {"open": C.FAILED, "no_linked_pr": C.INCONCLUSIVE})[0] == C.FAILED
+
+
+# gym-continuousDoubleAuction #355 (run 2bce152f): 108 test files under gym_continuousDoubleAuction/test/, none at the
+# root, so G0 said "no_tests" and the run was UNSUPPORTED before G2 (which collects tests for real) could look.
+from backend.github.reader import tests_in_tree as find_tests
+
+tree = lambda *paths, truncated=False: {"tree": [{"path": p, "type": "blob"} for p in paths], "truncated": truncated}
+
+
+@pytest.mark.parametrize("t, want", [
+    (tree("README.md", "pkg/__init__.py", "pkg/test/integration/test_roundtrip.py"), True),
+    (tree("pkg/tests/conftest.py"), True),
+    (tree("src/pkg/core_test.py"), True),
+    (tree("README.md", "pkg/__init__.py", "pkg/testing_utils.py", "docs/test.md"), False),
+    (tree("README.md", truncated=True), None),     # huge repo, listing cut short: unknown, never "no"
+    (None, None),                                    # lookup failed: unknown
+])
+def test_tests_in_tree(t, want):
+    assert find_tests(t) is want
