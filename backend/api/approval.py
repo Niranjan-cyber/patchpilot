@@ -26,6 +26,16 @@ def _run(request: Request, run_id: str) -> RunView:
     return db.get_run(db.connect(), run_id)
 
 
+NO_BUDGET = "This run has used its AI budget, so a revision would stop at once. Start a new run to try a different fix."
+
+
+def budget_left(run_id: str) -> bool:
+    """Revise needs AI tokens; the gateway refuses every call once the run's cap is reached (ends with budget_run)."""
+    from backend import llm_gateway
+    from backend.config import limits
+    return llm_gateway.tokens_used(run_id=run_id) < limits()["run_llm_tokens"]
+
+
 def exact_diff(v: RunView) -> str:
     if not v.patch:
         raise _err(409, "NOT_READY", "This run has no verified change to review.")
@@ -75,7 +85,8 @@ def approval_context(run_id: str, request: Request):
     return {"revision": v.revision, "diff": diff, "diff_hash": dh, "evidence_hash": eh, "files": sorted(changed_files(diff)),
             "publish_blockers": v.publish_blockers, "approved": v.approval is not None,
             "pr_title": f"Fix #{v.issue.number}: {v.issue.title}"[:120],
-            "pr_summary": (v.diagnosis.hypothesis if v.diagnosis else "") or ""}
+            "pr_summary": (v.diagnosis.hypothesis if v.diagnosis else "") or "",
+            "revise_blocked": None if budget_left(run_id) else NO_BUDGET}
 
 
 @router.post("/api/runs/{run_id}/approve", response_model=RunView)
@@ -131,6 +142,8 @@ def revise(run_id: str, body: ReviseBody, request: Request):
         raise _err(409, "NOT_REVISABLE", "Only a finished fix can be revised.")
     if set(v.publish_blockers) & PERMANENT_BLOCKERS:
         raise _err(409, "NOT_REVISABLE", "This run can't be revised; start a new run instead.")
+    if not budget_left(run_id):
+        raise _err(409, "BUDGET_SPENT", NO_BUDGET)
     _void(v, "revise")
     v.revisions.append(RevisionSummary(revision=v.revision, outcome=v.outcome, end_reason=v.end_reason,
                                        diff_hash=diff_hash(exact_diff(v)), finished_at=v.updated_at))
