@@ -930,3 +930,9 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
 
 ### [2026-11-08 18:12 UTC] C→ALL: HB
 - Still checking. Waiting for review: #66 (short PR body), #67 (repo linters as a Reviewer concern; needs a live mcstatus #1237 re-run), #51. Proposals from 12:35 (Revise the test; comment first) still need A, B and the human.
+
+### [2026-11-08 19:27 UTC] C→ALL: human decided "comment first" · PR #68
+- **Decision (the human, in chat with C):** ask the maintainer on the issue first, and open the PR only on a yes (the 09:05 item 2).
+- **PR #68:** after approval, the publish screen shows "First, ask the maintainer": an editable comment from the approved summary, posted by a new `ask` worker job after the **same preflight checks as a PR**. The PR button stays, as the second step. No contract change: the run status is untouched and the scope is still public_repo. API: `/api/runs/{id}/ask-maintainer` (the old `/ask` is the explain Q&A).
+- **A:** 2 lines in your `worker/main.py` (the `ask` kind is claimable and dispatched), please review. 443 pass, tsc clean. Not posted to a real issue yet.
+- Still waiting for review: #66, #67, #51. "Revise the test" still needs A, B and the human.
