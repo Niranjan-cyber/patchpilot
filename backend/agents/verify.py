@@ -38,7 +38,12 @@ def junit_id(test_id: str) -> str:
 
 def passed(ids: list[str], results: dict[str, bool]) -> bool:
     """Every listed test passed. An empty list is never a pass (issue #23)."""
-    return bool(ids) and all(results.get(t) is True or results.get(junit_id(t)) is True for t in ids)
+    def ok(t: str) -> bool:
+        if results.get(t) is True or results.get(junit_id(t)) is True:
+            return True
+        cases = [v for k, v in results.items() if k.startswith((t + "[", junit_id(t) + "["))]   # a parametrized test: every case
+        return bool(cases) and all(cases)
+    return bool(ids) and all(ok(t) for t in ids)
 
 
 def evaluate_g5(new_ids: list[str], baseline_pass: list[str], suite: dict[str, bool], second: dict[str, bool]):

@@ -134,3 +134,15 @@ def test_second_run_ids_match_when_the_repos_pytest_ini_is_in_tests(tmp_path):
     subprocess.run([*args, "--junitxml", str(tmp_path / "j.xml"), "tests/test_patchpilot_issue_1.py"], cwd=tmp_path, capture_output=True)
     got = junit_outcomes((tmp_path / "j.xml").read_text())
     assert passed(["tests/test_patchpilot_issue_1.py::test_x"], got), got
+
+
+def test_a_parametrized_new_test_matches_its_cases():
+    # rich #4250 (run b1dfc2c9): the Test designer names the function; junit reports "name[abc-3]" per case, so a fix that
+    # passed all 5 cases was called new_test_fails four times. Every case must pass; one failing case is a fail.
+    from backend.agents.verify import passed
+    tid = "tests/test_patchpilot_issue_4250.py::test_write_count"
+    cases = {f"{tid}[abc-3]": True, f"{tid}[-0]": True}
+    assert passed([tid], cases)
+    assert not passed([tid], {**cases, f"{tid}[a\nb-3]": False})
+    assert not passed([tid], {f"{tid}_other": True})       # a different test with the same prefix is not a case
+    assert evaluate_g5([tid], BASE, {**{t: True for t in BASE}, **cases}, cases)[:2] == (C.PASSED, "verified")
