@@ -292,7 +292,7 @@ def test_default_chain_uses_every_strong_model_quota_before_pausing(monkeypatch)
     monkeypatch.delenv("NEBIUS_API_KEY", raising=False)
     assert G.chain("agent") == ["groq/openai/gpt-oss-120b", "groq/qwen/qwen3.8-27b", "gemini/gemini-3.8-flash", "gemini/gemini-3.5-flash"]
     monkeypatch.setenv("NEBIUS_API_KEY", "v1.test")      # paid credit: only after both free Groq models
-    assert G.chain("agent")[:3] == ["groq/openai/gpt-oss-120b", "groq/qwen/qwen3.8-27b", "nebius/openai/gpt-oss-120b"]
+    assert G.chain("agent")[:3] == ["groq/openai/gpt-oss-120b", "groq/qwen/qwen3.8-27b", "nebius/deepseek-ai/DeepSeek-V4.1-Flash"]
     monkeypatch.delenv("NEBIUS_API_KEY")
     assert G.chain("short")[0] == "groq/openai/gpt-oss-120b" and G.chain("short")[-1] == "ollama_chat/qwen2.5-coder:7b"
     monkeypatch.delenv("GROQ_API_KEY")
