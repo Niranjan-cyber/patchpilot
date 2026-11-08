@@ -67,6 +67,12 @@ def review(ctx: StepContext) -> GateResult:
         concerns = [*concerns, hv]
     from backend.gates.diff_policy import swallowed_excepts   # code-decided: an added catch-all or silent `except` (run 11)
     concerns = [*concerns, *swallowed_excepts((artifacts.get(run.patch.fix_diff_id) or b"").decode("utf-8", "replace"))]
+    from backend.agents.lint import review_concerns   # code-decided: the repo's own linters on what the change adds (mcstatus #1238)
+    try:
+        concerns = [*concerns, *review_concerns(ctx.run_id, *[(artifacts.get(i) or b"").decode("utf-8", "replace")   # whole diffs: a cut one won't apply
+                                                                    for i in (run.patch.test_diff_id, run.patch.fix_diff_id)])]
+    except Exception as e:   # never fails the review; say it wasn't checked
+        ctx.emit("step.progress", "review", message=f"The repo's linters weren't run ({type(e).__name__}).")
     run.review = ReviewResult(concerns=concerns, lowers_readiness=any(c["severity"] in ("high", "medium") for c in concerns))
     db.save_run(db.connect(), run)
     ev = artifacts.put(render(run))
