@@ -56,11 +56,15 @@ def evaluate_g5(new_ids: list[str], baseline_pass: list[str], suite: dict[str, b
     return CheckStatus.FAILED, "new_test_fails", []
 
 
+# --rootdir: a pytest.ini under tests/ (rich) would make a file-argument run root there and drop "tests/" from junit ids
+PYTEST = "python -m pytest -p no:cacheprovider -rfE --rootdir=/src"
+
+
 def _fresh_run(rid: str, diffs: list[str], args: str) -> tuple[dict[str, bool], str, str]:
     name = f"pp-{rid[:8]}-verify-{uuid.uuid4().hex[:6]}"
     b64 = lambda s: base64.b64encode(s.encode()).decode()
     apply = " && ".join(f"echo {b64(d)} | base64 -d > /tmp/d{i}.diff && git apply /tmp/d{i}.diff" for i, d in enumerate(diffs))
-    r = docker.run(image(rid), f"{apply} || {{ echo APPLY_FAILED; exit 3; }}; python -m pytest -p no:cacheprovider -rfE "
+    r = docker.run(image(rid), f"{apply} || {{ echo APPLY_FAILED; exit 3; }}; {PYTEST} "
                    f"--junitxml=/tmp/j.xml {args} > /tmp/o.log 2>&1; tail -c 20000 /tmp/o.log; echo '{JUNIT_SEP}'; cat /tmp/j.xml",
                    name=name, timeout=600, snapshot_volume=snap(rid), log_path="/tmp/o.log")
     log, xml = split_junit(r.out)
