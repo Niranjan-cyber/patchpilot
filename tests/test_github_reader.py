@@ -91,3 +91,18 @@ tree = lambda *paths, truncated=False: {"tree": [{"path": p, "type": "blob"} for
 ])
 def test_tests_in_tree(t, want):
     assert find_tests(t) is want
+
+
+def test_renamed_repo_uses_its_new_name(monkeypatch):
+    # sdispater/pendulum → python-pendulum/pendulum: the 301 wasn't followed, so the run said closed + lookup_failed
+    import backend.github.reader as R
+    assert R._client().follow_redirects
+    new = "https://api.github.com/repos/python-pendulum/pendulum"
+    canned = {"/repos/sdispater/pendulum/issues/1": {"state": "open", "title": "t", "body": "b", "assignees": [], "labels": [],
+                                                     "repository_url": new},
+              "/repos/python-pendulum/pendulum": {"language": "Python", "default_branch": "master"}}
+    monkeypatch.setattr(R, "_get", lambda h, path, required=True: canned.get(path))
+    monkeypatch.setattr("backend.github.assess.extract", lambda **k: None)
+    chk = R.check_issue("https://github.com/sdispater/pendulum/issues/1")
+    assert chk.issue.repo == "python-pendulum/pendulum" and chk.default_branch == "master"
+    assert chk.issue.html_url == "https://github.com/python-pendulum/pendulum/issues/1" and "closed" not in chk.warnings
