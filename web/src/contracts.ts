@@ -33,7 +33,8 @@ export type Outcome =
   | "ENV_FAILED"
   | "BLOCKED"
   | "STOPPED"
-  | "SYSTEM_ERROR";
+  | "SYSTEM_ERROR"
+  | "ASSESSMENT_ONLY";
 /**
  * This interface was referenced by `Contracts`'s JSON-Schema
  * via the `definition` "EndReason".
@@ -61,6 +62,35 @@ export type Labels = string[];
  */
 export type CheckStatus = "passed" | "failed" | "inconclusive" | "not_run" | "blocked";
 export type BaseSha = string;
+export type SchemaVersion = 1;
+export type IssueType =
+  | "bug"
+  | "regression"
+  | "feature"
+  | "enhancement"
+  | "docs"
+  | "refactor"
+  | "maintenance"
+  | "build_ci"
+  | "test_failure"
+  | "question"
+  | "other"
+  | "unknown";
+export type IssueTypeSource = "label" | "text" | "model" | "none";
+export type IssueStatus = "open" | "closed";
+export type ProblemSummary = string | null;
+export type AcceptanceConditions = string[];
+export type MissingInformation = string[];
+export type ReproductionInformation = string | null;
+export type ExistingResolution = number[] | null;
+export type BuildSystem = "pip" | "setuptools" | "poetry" | "uv" | "hatch" | "pdm" | "unknown";
+export type TestFramework = "pytest" | "unittest" | "unknown";
+export type EnvironmentRequirements = string[];
+export type CompatibilityStatus = "supported" | "unsupported" | "unknown";
+export type HandlingDecision =
+  "READY" | "NEEDS_INFORMATION" | "UNSUPPORTED" | "ALREADY_ADDRESSED" | "HUMAN_DECISION" | "ASSESSMENT_ONLY";
+export type DecisionReasons = string[];
+export type DraftComment = string | null;
 export type AiPolicy = "allowed" | "forbidden" | "unknown";
 export type PrsRestricted = boolean | null;
 export type SourceEvidenceIds = string[];
@@ -233,6 +263,7 @@ export interface RunView {
   readiness?: Readiness;
   issue: IssueSpec;
   base_sha: BaseSha;
+  assessment?: IssueAssessment | null;
   policy?: RepoPolicy;
   env?: EnvProfile | null;
   baseline?: TestRun | null;
@@ -274,6 +305,33 @@ export interface IssueSpec {
 }
 export interface Checks {
   [k: string]: CheckStatus;
+}
+/**
+ * #48 intake assessment (contracts v0.4 §2). handling_decision is decided by code (backend/github/assess.py), never a model;
+ * it is a field, not a run status. Fields already in the contract (issue URL/number, expected/actual, language, policy,
+ * base_sha) live on IssueSpec / IssueCheck / RunView and are not repeated here.
+ *
+ * This interface was referenced by `Contracts`'s JSON-Schema
+ * via the `definition` "IssueAssessment".
+ */
+export interface IssueAssessment {
+  schema_version?: SchemaVersion;
+  issue_type: IssueType;
+  issue_type_source: IssueTypeSource;
+  issue_status: IssueStatus;
+  problem_summary?: ProblemSummary;
+  acceptance_conditions?: AcceptanceConditions;
+  missing_information?: MissingInformation;
+  reproduction_information?: ReproductionInformation;
+  existing_resolution?: ExistingResolution;
+  build_system?: BuildSystem;
+  test_framework?: TestFramework;
+  environment_requirements?: EnvironmentRequirements;
+  compatibility_status: CompatibilityStatus;
+  handling_decision: HandlingDecision;
+  decision_reasons?: DecisionReasons;
+  draft_comment?: DraftComment;
+  [k: string]: unknown;
 }
 export interface RepoPolicy {
   ai_policy?: AiPolicy;
@@ -541,6 +599,7 @@ export interface IssueCheck {
   policy: RepoPolicy1;
   warnings?: Warnings;
   unsupported?: Unsupported;
+  assessment?: IssueAssessment | null;
   fetched_at: FetchedAt;
   [k: string]: unknown;
 }

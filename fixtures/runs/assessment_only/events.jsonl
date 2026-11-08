@@ -1,0 +1,2 @@
+{"v":1,"run_id":"assessment_only","seq":1,"ts":"2026-11-11T10:00:00Z","type":"gate.result","step":"intake","revision":0,"payload":{"gate":"G0","status":"blocked","reason":"not_a_bug:enhancement","evidence_ids":[]}}
+{"v":1,"run_id":"assessment_only","seq":2,"ts":"2026-11-11T10:00:00Z","type":"analysis.finished","step":null,"revision":0,"payload":{"outcome":"ASSESSMENT_ONLY","end_reason":"completed","readiness":"Assessment only: no fix attempted","publish_blockers":["outcome_not_verified"]}}

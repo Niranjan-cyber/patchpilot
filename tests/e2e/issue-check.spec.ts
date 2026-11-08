@@ -6,8 +6,11 @@ test("paste a real issue → green checklist", async ({ page }) => {
   await page.goto(BASE);
   await page.getByLabel("GitHub issue link").fill("https://github.com/pallets/click/issues/3888");
   await page.getByRole("button", { name: "Check issue" }).click();
-  await expect(page.getByRole("button", { name: "Start run" })).toBeEnabled({ timeout: 20000 });
-  await expect(page.getByText("It's a Python project")).toBeVisible();
+  await expect(page.getByText("It's a Python project")).toBeVisible({ timeout: 20000 });
+  // #48: an issue with no bug label or error can be a HUMAN_DECISION; the user's consent enables Start run
+  const accept = page.getByLabel("I understand, start anyway");
+  if (await accept.count()) await accept.check();
+  await expect(page.getByRole("button", { name: "Start run" })).toBeEnabled();
   await page.screenshot({ path: shot("success"), fullPage: true });
 });
 
@@ -28,5 +31,6 @@ test("non-Python repo → unsupported, no Start run", async ({ page }) => {
   await page.goto(`${BASE}/check?url=${encodeURIComponent("https://github.com/expressjs/express/issues/1")}`);
   await expect(page.getByText("only run Python projects")).toBeVisible({ timeout: 20000 });
   await expect(page.getByRole("button", { name: "Start run" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Save the assessment report" })).toBeVisible();   // #48: a report, not a dead end
   await page.screenshot({ path: shot("unsupported"), fullPage: true });
 });

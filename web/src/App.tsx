@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, NavLink, Route, Routes, useNavigate, useParams } from "react-router-dom";
 import { api, SHOWCASE, useRun } from "./api";
-import { LiveStatus, Loading, ProofPanel, ReadinessBadge, SampleBadge, Stepper, VerdictNote } from "./components";
+import { AssessmentCard, LiveStatus, Loading, ProofPanel, ReadinessBadge, SampleBadge, Stepper, VerdictNote } from "./components";
 import IssueCheck from "./IssueCheck";
 import Review from "./Review";
 import { Connect, PrOpened } from "./Publish";
@@ -101,6 +101,7 @@ function Run() {
   const done = !!run.outcome;
   const real = /^[0-9a-f-]{36}$/.test(id);
   const next = run.status === "awaiting_approval" || !!run.pr;
+  const assessed = run.outcome === "ASSESSMENT_ONLY";   // nothing ran: the assessment is the whole report
   return (
     <section className="run-page">
       <div className="chapter verdict">
@@ -112,6 +113,7 @@ function Run() {
           <ReadinessBadge run={run} />
         </div>
         {done ? <><ProofPanel run={run} /><VerdictNote run={run} /></> : <LiveStatus run={run} />}
+        {assessed && <AssessmentCard a={run.assessment} />}
       </div>
       <GuidedPauseNotice run={run} />
       {run.status === "paused" && run.pause?.reason !== "guided_pause" && (
@@ -125,7 +127,7 @@ function Run() {
       )}
       {done && <ExtraChecks run={run} />}
       <div className="run-grid">
-        <Stepper run={run} />
+        {assessed ? <div /> : <Stepper run={run} />}
         <aside className="side">
           {next && (
             <div className="card next-card">

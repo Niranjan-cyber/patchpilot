@@ -99,4 +99,30 @@ case("published_fork", S.REVIEW, status=R.PUBLISHED, pr=PullRequestRef(url="http
 case("publish_branch_only", S.REVIEW, status=R.PUBLISHED, pr=PullRequestRef(head_branch="patchpilot/issue-1-branchon",
      fork_owner="pp-contributor", compare_url="https://github.com/patchpilot-demo/tinycalc/compare/main...pp-contributor:patchpilot/issue-1-branchon?expand=1"))
 case("details_expired", S.REVIEW, status=R.FINISHED, details_expired_at=T0 + timedelta(days=31))
+
+
+def assessment_only():
+    """#48 / v0.4: a feature request, assessed at G0; no job, nothing ran (built directly: case() always starts the worker)."""
+    from backend.github.assess import assess
+    name = "assessment_only"
+    issue = ISSUE.model_copy(update=dict(title="Add a power() function", expected=None, actual=None, labels=["enhancement"],
+                                         summary="It would be nice to have power(x, y) next to add and divide."))
+    a = assess(title=issue.title, body=issue.summary, labels=issue.labels, names=["pyproject.toml", "tests"], state="open",
+               checks=issue.checks, unsupported=None, warnings=[], linked=[], extracted={"issue_type": "enhancement"},
+               base_sha="a1b2c3d")   # model + label agree: a non-bug (A's review of #50, bugs 2+3)
+    blockers = end_blockers(E.COMPLETED, O.ASSESSMENT_ONLY)
+    events = [Event(run_id=name, seq=1, ts=T0, type="gate.result", step="intake", payload=dict(
+                  gate="G0", status="blocked", reason=a.decision_reasons[0], evidence_ids=[])),
+              Event(run_id=name, seq=2, ts=T0, type="analysis.finished", payload=dict(
+                  outcome="ASSESSMENT_ONLY", end_reason="completed", readiness=readiness(O.ASSESSMENT_ONLY),
+                  publish_blockers=[b.value for b in blockers]))]
+    v = RunView(run_id=name, status=R.FINISHED, outcome=O.ASSESSMENT_ONLY, end_reason=E.COMPLETED,
+                readiness=readiness(O.ASSESSMENT_ONLY), issue=issue, base_sha="a1b2c3d" * 5 + "a1b2c", assessment=a,
+                gates={"G0": C.BLOCKED}, publish_blockers=blockers, created_at=T0, updated_at=T0)
+    d = Path("fixtures/runs") / name; d.mkdir(parents=True, exist_ok=True)
+    (d / "state.json").write_text(v.model_dump_json(indent=2))
+    (d / "events.jsonl").write_text("".join(e.model_dump_json() + "\n" for e in events))
+
+
+assessment_only()
 print("wrote", len(list(Path("fixtures/runs").iterdir())), "fixture runs")

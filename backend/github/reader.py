@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 import httpx
 from pydantic import BaseModel
 
-from backend.contracts.models import CheckStatus, IssueSpec, RepoPolicy
+from backend.contracts.models import CheckStatus, IssueAssessment, IssueSpec, RepoPolicy
 
 GH = "https://api.github.com"
 ISSUE_URL = re.compile(r"^https://github\.com/([\w.-]+)/([\w.-]+)/(issues|pull)/(\d+)/?(?:[#?].*)?$")
@@ -31,8 +31,9 @@ class IssueCheck(BaseModel):
     default_branch: str | None
     language: str | None
     policy: RepoPolicy
-    warnings: list[str] = []          # codes the user must accept via continue_despite: closed, assigned, linked_pr, lookup_failed
-    unsupported: str | None = None    # reason no run can be created
+    warnings: list[str] = []          # codes the user must accept via continue_despite: closed, assigned, linked_pr, lookup_failed, unclear_type, needs_info
+    unsupported: str | None = None    # reason nothing can execute (v0.4: an ASSESSMENT_ONLY run, not an error)
+    assessment: IssueAssessment | None = None   # #48 intake assessment, decided by code
     fetched_at: datetime
 
 
@@ -77,10 +78,12 @@ def ai_policy(texts: list[str]) -> str:
     return "unknown"
 
 
-def g0_status(checks: dict[str, CheckStatus]) -> tuple[CheckStatus, str]:
-    """G0 for the run's gates (contracts §1.1): a failed check the user accepted = failed, a failed lookup = inconclusive."""
+def g0_status(checks: dict[str, CheckStatus], accepted: list[str] = ()) -> tuple[CheckStatus, str]:
+    """G0 for the run's gates (contracts §1.1): a failed check the user accepted = failed, a failed lookup = inconclusive.
+    accepted = warning codes the user sent in continue_despite; v0.4's assessment warnings count as accepted failures."""
     failed = [code for key, code in (("open", "closed"), ("unassigned", "assigned"), ("no_linked_pr", "linked_pr"))
               if checks.get(key) == CheckStatus.FAILED]
+    failed += [w for w in ("unclear_type", "needs_info", "other_os", "base_unknown") if w in accepted]
     if failed:
         return CheckStatus.FAILED, failed[0]
     if any(s == CheckStatus.INCONCLUSIVE for s in checks.values()):
@@ -114,7 +117,8 @@ def _get(h: httpx.Client, path: str, *, required: bool = True):
     return r.json()
 
 
-def check_issue(url: str) -> IssueCheck:
+def check_issue(url: str, *, extract_model: bool = True) -> IssueCheck:
+    """extract_model=False: callers that only need repo facts (approval's stale check, publisher) skip the assessor call."""
     repo, num = parse_url(url)
     warnings: list[str] = []
     with _client() as h:
@@ -161,5 +165,13 @@ def check_issue(url: str) -> IssueCheck:
                      summary=(issue.get("body") or "").strip()[:4000] or None, expected=exp, actual=act,
                      labels=[l["name"] for l in issue.get("labels", [])], checks=checks)
     _ = community   # CONTRIBUTING may live elsewhere; the profile only says whether it exists
+    from backend.github.assess import assess, extract, new_warnings   # late: assess imports explore, which imports this module
+    body = issue.get("body") or ""
+    x = None if unsupported or not extract_model else extract(url=spec.html_url, updated_at=issue.get("updated_at"), title=spec.title, body=body,
+                                         labels=spec.labels)   # nothing will run for an unsupported repo: don't spend tokens
+    a = assess(title=spec.title, body=body, labels=spec.labels, names=names, state=issue.get("state") or "open",
+               checks=checks, unsupported=unsupported, warnings=warnings, linked=linked, extracted=x,
+               base_sha=(head or {}).get("sha"), forbids_ai=policy.ai_policy == "forbidden")
+    warnings += [w for w in new_warnings(a) if w not in warnings]
     return IssueCheck(issue=spec, base_sha=(head or {}).get("sha"), default_branch=branch, language=meta.get("language"),
-                      policy=policy, warnings=warnings, unsupported=unsupported, fetched_at=datetime.now(timezone.utc))
+                      policy=policy, warnings=warnings, unsupported=unsupported, assessment=a, fetched_at=datetime.now(timezone.utc))

@@ -31,6 +31,7 @@ class Outcome(str, Enum):
     VERIFIED_FIX = "VERIFIED_FIX"; FIX_NEEDS_ATTENTION = "FIX_NEEDS_ATTENTION"
     TRIAGE_ONLY = "TRIAGE_ONLY"; CANNOT_REPRODUCE = "CANNOT_REPRODUCE"
     ENV_FAILED = "ENV_FAILED"; BLOCKED = "BLOCKED"; STOPPED = "STOPPED"; SYSTEM_ERROR = "SYSTEM_ERROR"
+    ASSESSMENT_ONLY = "ASSESSMENT_ONLY"   # G0 blocked: assessed, nothing executed (contracts v0.4, §1.1)
 
 
 class EndReason(str, Enum):
@@ -56,6 +57,7 @@ READINESS = {
     Outcome.FIX_NEEDS_ATTENTION: "Needs attention",
     Outcome.TRIAGE_ONLY: "Unable to verify a fix",
     Outcome.STOPPED: "Stopped, report so far",
+    Outcome.ASSESSMENT_ONLY: "Assessment only: no fix attempted",
 }
 
 
@@ -63,6 +65,30 @@ READINESS = {
 class Owner(BaseModel):
     session_id_hash: str | None = None
     account_id: int | None = None
+
+
+class IssueAssessment(BaseModel):
+    """#48 intake assessment (contracts v0.4 §2). handling_decision is decided by code (backend/github/assess.py), never a model;
+    it is a field, not a run status. Fields already in the contract (issue URL/number, expected/actual, language, policy,
+    base_sha) live on IssueSpec / IssueCheck / RunView and are not repeated here."""
+    schema_version: Literal[1] = 1
+    issue_type: Literal["bug", "regression", "feature", "enhancement", "docs", "refactor", "maintenance",
+                        "build_ci", "test_failure", "question", "other", "unknown"]
+    issue_type_source: Literal["label", "text", "model", "none"]
+    issue_status: Literal["open", "closed"]
+    problem_summary: str | None = None
+    acceptance_conditions: list[str] = []
+    missing_information: list[str] = []            # codes: no_expected, no_actual, no_repro
+    reproduction_information: str | None = None
+    existing_resolution: list[int] | None = None   # linked open PR numbers; None = lookup failed
+    build_system: Literal["pip", "setuptools", "poetry", "uv", "hatch", "pdm", "unknown"] = "unknown"
+    test_framework: Literal["pytest", "unittest", "unknown"] = "unknown"
+    environment_requirements: list[str] = []
+    compatibility_status: Literal["supported", "unsupported", "unknown"]
+    handling_decision: Literal["READY", "NEEDS_INFORMATION", "UNSUPPORTED", "ALREADY_ADDRESSED",
+                               "HUMAN_DECISION", "ASSESSMENT_ONLY"]
+    decision_reasons: list[str] = []
+    draft_comment: str | None = None               # NEEDS_INFORMATION only; PatchPilot never posts it
 
 
 class IssueSpec(BaseModel):
@@ -226,6 +252,7 @@ class RunView(BaseModel):
     readiness: str | None = None
     issue: IssueSpec
     base_sha: str
+    assessment: IssueAssessment | None = None   # None for runs created before v0.4
     policy: RepoPolicy = RepoPolicy()
     env: EnvProfile | None = None
     baseline: TestRun | None = None
@@ -290,6 +317,8 @@ def decide_outcome(gates: dict[str, CheckStatus], end_reason: EndReason, *, revi
                    readiness_capped: bool = False, diagnosis_valid: bool = False,
                    stopped_during_diagnose: bool = False) -> Outcome:
     g = lambda k: gates.get(k, CheckStatus.NOT_RUN)
+    if g("G0") == CheckStatus.BLOCKED:   # row 0 (v0.4): assessed only, nothing ran. (G0 "failed" = a warning the user accepted)
+        return Outcome.ASSESSMENT_ONLY
     if g("G1") == CheckStatus.BLOCKED:
         return Outcome.BLOCKED
     if g("G2") == CheckStatus.FAILED:

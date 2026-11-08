@@ -10,7 +10,7 @@ type Summary = { generated_at: string | null; commit: string | null; state: "suc
 const OUTCOME: Record<string, string> = {
   VERIFIED_FIX: "Verified fix", FIX_NEEDS_ATTENTION: "Fix needs attention", TRIAGE_ONLY: "Triage only",
   CANNOT_REPRODUCE: "Couldn't reproduce", ENV_FAILED: "Setup failed", BLOCKED: "Blocked", STOPPED: "Stopped",
-  SYSTEM_ERROR: "System error",
+  SYSTEM_ERROR: "System error", ASSESSMENT_ONLY: "Assessment only",
 };
 const OFFICIAL = { pass: "Pass", fail: "Fail" } as const;
 const mins = (s: number | null) => (s == null ? "—" : `${Math.round(s / 6) / 10} min`);

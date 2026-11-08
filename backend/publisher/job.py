@@ -16,7 +16,7 @@ def run_publish(job: dict) -> None:
     try:
         if not token:
             raise PublishRefused("AUTH_REQUIRED", "Your GitHub connection expired. Connect GitHub again.")
-        default_branch = reader.check_issue(v.issue.html_url).default_branch or "main"
+        default_branch = reader.check_issue(v.issue.html_url, extract_model=False).default_branch or "main"
         db.emit(c, rid, "publish.progress", "publish", v.revision, stage="apply")
         res = publish(v, GitHubWriter(token), default_branch)
         v.pr, v.status = res.pr, RunStatus.PUBLISHED

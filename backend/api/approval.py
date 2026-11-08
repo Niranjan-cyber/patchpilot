@@ -54,7 +54,7 @@ def stale_checks(v: RunView, diff: str) -> list[PublishBlocker]:
     """Has the world moved since we tested? Fails closed: if GitHub can't confirm, raise (never assume unchanged)."""
     out = []
     try:
-        chk = reader.check_issue(v.issue.html_url)
+        chk = reader.check_issue(v.issue.html_url, extract_model=False)   # repo facts only: no assessor call
         if {"closed", "linked_pr"} & set(chk.warnings):
             out.append(PublishBlocker.ISSUE_CHANGED)
         with reader._client() as h:
