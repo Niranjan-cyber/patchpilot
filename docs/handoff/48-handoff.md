@@ -9,7 +9,7 @@ Status at 2026-11-07 ~22:45 UTC. Only the demo-laptop items (§7, §4 limits) ar
 | Intake assessment layer, contracts v0.4: `IssueAssessment`, `Outcome.ASSESSMENT_ONLY`, G0 `blocked`, the model as classifier with a code decision, overridable intake warnings | PR #50 (`c48-intake`) | **ready**, out of draft per the human; the human merges |
 | A's 5 confirmed review bugs on #50 (save-only could queue a job; model-only or keyword-only hard blocks; accepted warnings recorded as passed; post-commit save racing the worker) | `cd85eae` in #50 | done, with tests |
 | A's second review: copy fallback, saved-assessment wording, finished event in the create transaction, limits comment, fail-closed 422 | branch `c48-followups`, stacked on #50 | PR open against `c48-intake`; **retarget to main after #50 merges** |
-| §7 third-party candidate: tabulate #494 | `docs/handoff/48-section7-candidates.md` | demo laptop |
+| §7 third-party validation | §7 below | 2 VERIFIED_FIX (msoffcrypto #108, mcstatus #1237); 2 PRs published, both closed |
 
 ## 2. Files modified
 - **Backend:**
@@ -65,11 +65,19 @@ Status at 2026-11-07 ~22:45 UTC. Only the demo-laptop items (§7, §4 limits) ar
   - STOPPED handling;
   - a G0-blocked run gets no job, so it can never reach the Fixer, and `decide_outcome` row 0 is a safety net if one ever did.
 
-## 7. Third-party validation (demo laptop, after #50 merges)
-1. Restart the worker and API, then set the demo values in `limits.toml` (the human).
-2. `POST /api/issues/check` on https://github.com/astanin/python-tabulate/issues/494. Check that the assessor answers within 20 s, and check its tokens (`llm_calls`, `role='assessor'`).
-3. Full run. Then **the human** reviews the exact diff and evidence and approves. Draft PR to **our fork** only.
-4. Record the run ID, outcome and PR URL here, and record a backup video.
+## 7. Third-party validation (demo laptop, 2026-11-08; details in `LEARNING.md` and `messages.md`)
+| Issue | Run | Outcome | Published |
+|---|---|---|---|
+| tabulate #494 | 8340439b | FIX_NEEDS_ATTENTION (G1 inconclusive for pyproject-only, fixed since in #63; Reviewer flagged scope) | no |
+| msoffcrypto-tool #108 | 3e1efde6 rev 2 | **VERIFIED_FIX**, G1 clean (poetry.lock), after one Revise (the hidden variant caught a partial fix) | draft #109, closed at the reporter's request (they had offered to send their own PR) |
+| py-mine/mcstatus #1237 | 462e8e6a rev 1 | **VERIFIED_FIX**, after one Revise (the Reviewer caught that `ip_address()` rejects hostnames) | #1238, closed by the maintainer unreviewed: "too much vibe-coding" |
+| inflect, toolz, boltons, more-itertools, rich (5 repos) | various | test-only (all had others' PRs); found 3 PatchPilot bugs, fixed in #60–#62 | no |
+
+What these runs changed:
+- the publisher asks on the issue first (#68, human decision 2026-11-09) and writes a shorter PR body (#66);
+- the repo's own linters now run on the change (#67);
+- renamed repos are followed (#65);
+- **still open:** Revise can't change the reproduction test (proposal in `messages.md`, needs everyone's agreement).
 
 ## 8. Known limitations (deferred by the human, 2026-11-07)
 - ASSESSMENT_ONLY rows have no per-owner cap, and limit checks run after `_check()`.
