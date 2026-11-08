@@ -21,12 +21,14 @@ QUIET = "test/test_api.py::test_tabulate_formats\ntest/test_output.py::test_ragg
 ONE = "test_x.py::test_only\n\n1 test collected in 0.01s\n"
 NO_SUMMARY = "test_x.py::test_a\ntest_x.py::test_b\n"   # truncated log: fall back to counting node ids
 NONE = "\nno tests collected in 0.01s\n"
+# repo addopts "-q" + our -q = -qq (msoffcrypto-tool, run d20ce608): per-file counts, no ids, no summary
+QQ = "msoffcrypto/__init__.py: 1\nmsoffcrypto/format/ppt97.py: 2\ntests/test_cli.py: 1\ntests/test_xls_padding.py: 5\n"
 
 
 @pytest.mark.skipif(not shutil.which("bash"), reason="needs bash")
-@pytest.mark.parametrize("log, want", [(TREE, 3), (QUIET, 2), (ONE, 1), (NO_SUMMARY, 2), (NONE, 0)])
+@pytest.mark.parametrize("log, want", [(TREE, 3), (QUIET, 2), (ONE, 1), (NO_SUMMARY, 2), (NONE, 0), (QQ, 9)])
 def test_collected_count_reads_pytest_summary(tmp_path, log, want):
-    line = re.search(r'^(?:n=.*\n)?echo "COLLECTED=.*$', INSTALL, re.M).group(0).split("; tail")[0]
+    line = re.search(r'^(?:(?:n=|\[ -n).*\n)*echo "COLLECTED=.*$', INSTALL, re.M).group(0).split("; tail")[0]
     f = tmp_path / "collect.log"
     f.write_text(log, encoding="utf-8")
     bash = shutil.which("bash")   # full path: a bare "bash" on Windows starts WSL
