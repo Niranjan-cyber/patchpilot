@@ -1,6 +1,7 @@
 """Pure gate rules for G1 (pre-flight) and G2 (setup) and baseline sets. No I/O; tested in tests/test_sandbox_rules.py."""
 import xml.etree.ElementTree as ET
 import re
+import tomllib
 
 from backend.contracts.models import CheckStatus
 
@@ -81,3 +82,27 @@ def baseline_sets(first: dict[str, bool], rerun: dict[str, bool]) -> tuple[list[
     failed = sorted(t for t, ok in first.items() if not ok and not rerun.get(t, False))
     flaky = sorted(t for t, ok in first.items() if not ok and rerun.get(t, False))
     return passed, failed, flaky
+
+
+def pyproject_requirements(text: str) -> list[str] | None:
+    """What G2 installs from a pyproject-only repo, for G1 (INSTALL in steps.py): [project] dependencies, the first of the
+    test/tests/testing/dev extras, the test/tests/dev dependency groups, pytest. Unknown (no [project], dynamic deps,
+    bad TOML) -> None, so G1 stays inconclusive."""
+    try:
+        doc = tomllib.loads(text)
+    except tomllib.TOMLDecodeError:
+        return None
+    proj, groups = doc.get("project"), doc.get("dependency-groups") or {}
+    if not isinstance(proj, dict) or "dependencies" in (proj.get("dynamic") or []) or not isinstance(proj.get("dependencies", []), list):
+        return None
+    extras = proj.get("optional-dependencies") or {}
+    out = list(proj.get("dependencies", [])) + next((extras[x] for x in ("test", "tests", "testing", "dev") if x in extras), [])
+
+    def group(name: str, seen: frozenset = frozenset()) -> list[str]:
+        if name in seen or not isinstance(groups.get(name), list):
+            return []
+        return [d for e in groups[name] for d in ([e] if isinstance(e, str) else group(e.get("include-group", ""), seen | {name}))]
+
+    for g in ("test", "tests", "dev"):
+        out += [d for d in group(g) if d not in out]
+    return [*out, "pytest"]
