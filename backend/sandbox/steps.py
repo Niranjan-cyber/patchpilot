@@ -51,12 +51,19 @@ def fetch_source(repo: str, rid: str, sha: str | None = None) -> tuple[str, str]
         for m in tf.getmembers():
             m.name = m.name[len(top) + 1:] if m.name.startswith(top + "/") else ""
         tf.extractall(dest, members=[m for m in tf.getmembers() if m.name], filter="data")
-    git = ["git", "-c", "core.hooksPath=/dev/null", "-c", "user.name=PatchPilot", "-c", "user.email=pp@localhost", "-C", str(dest)]
+    commit_base(dest, sha, tag)
+    return sha, str(dest)
+
+
+def commit_base(dest, sha: str, tag: str | None = None) -> None:
+    """The base commit the sandbox diffs against, made by the host's git."""
+    # autocrlf=false: a Windows host's autocrlf=true stores CRLF files as LF, so the sandbox sees them all as modified
+    git = ["git", "-c", "core.hooksPath=/dev/null", "-c", "core.autocrlf=false", "-c", "user.name=PatchPilot",
+           "-c", "user.email=pp@localhost", "-C", str(dest)]
     for args in (["init", "-q"], ["add", "-A"], ["commit", "-qm", f"base {sha}"]):
         subprocess.run(git + args, check=True, capture_output=True)
     if tag:   # a bad tag name just means no version hint, never a failed fetch
         subprocess.run(git + ["tag", tag], capture_output=True)
-    return sha, str(dest)
 
 
 def _release_tag(h: httpx.Client, repo: str, sha: str) -> str | None:
