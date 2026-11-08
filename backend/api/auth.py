@@ -5,6 +5,7 @@ from urllib.parse import urlencode
 
 from fastapi import APIRouter, Request
 from fastapi.responses import RedirectResponse
+from pydantic import BaseModel, Field
 
 from backend import db
 from backend.api import session
@@ -115,3 +116,42 @@ def publish(run_id: str, request: Request):
         c.execute("INSERT INTO jobs(run_id,kind,state,available_at) VALUES(?,?,?,?)", (run_id, "publish", "queued", db.now().isoformat()))
     db.emit(c, run_id, "publish.progress", "publish", v.revision, stage="queued")
     return {"status": "publishing"}
+
+
+class AskBody(BaseModel):
+    body: str = Field(min_length=20, max_length=2000)
+
+
+@router.get("/api/runs/{run_id}/ask-maintainer")
+def ask_state(run_id: str, request: Request):
+    """'Ask the maintainer first' (human decision 2026-11-09): the default comment, and the posted link or error once done."""
+    import json
+    from backend.api.approval import _run
+    from backend.publisher.publisher import ask_comment
+    v, c = _run(request, run_id), db.connect()
+    pending = c.execute("SELECT 1 FROM jobs WHERE run_id=? AND kind='ask' AND state IN ('queued','running')", (run_id,)).fetchone()
+    return {"draft": ask_comment(v) if v.approval else None, "pending": bool(pending),
+            **json.loads(db.get_kv(c, f"ask:{run_id}") or "{}")}
+
+
+@router.post("/api/runs/{run_id}/ask-maintainer")
+def ask_maintainer(run_id: str, body: AskBody, request: Request):
+    from backend.api.approval import _run
+    v = _run(request, run_id)
+    acct = session.account(request)
+    if not acct:
+        raise _err(401, "AUTH_REQUIRED", "Connect GitHub to comment on the issue.")
+    if v.status not in (RunStatus.AWAITING_APPROVAL, RunStatus.PUBLISHED) or v.approval is None or v.approval.revision != v.revision:
+        raise _err(409, "APPROVAL_STALE", "Approve the current version of the change first.")
+    blocked = [b for b in v.publish_blockers if b not in (PublishBlocker.NOT_SIGNED_IN,)]
+    if blocked:
+        raise _err(409, "PUBLISH_BLOCKED", "Publishing is blocked: " + ", ".join(b.value for b in blocked))
+    c = db.connect()
+    with db.tx(c):   # one comment per click: refuse while one is queued or running
+        if c.execute("SELECT 1 FROM jobs WHERE run_id=? AND kind='ask' AND state IN ('queued','running')", (run_id,)).fetchone():
+            raise _err(409, "ALREADY_ASKING", "The comment is already being posted.")
+        db.put_kv(c, f"publish_account:{run_id}", str(acct["id"]))
+        db.put_kv(c, f"ask_body:{run_id}", body.body)
+        c.execute("DELETE FROM kv WHERE key=?", (f"ask:{run_id}",))
+        c.execute("INSERT INTO jobs(run_id,kind,state,available_at) VALUES(?,?,?,?)", (run_id, "ask", "queued", db.now().isoformat()))
+    return {"status": "asking"}

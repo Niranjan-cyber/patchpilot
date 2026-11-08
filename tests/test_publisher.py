@@ -37,6 +37,7 @@ class FakeGH:
     def find_pr(self, repo, head): return self.existing
     def create_pr(self, repo, head, base, title, body):
         self.calls.append(("create", head, body)); return None if self.refuse else {"html_url": "https://github.com/up/proj/pull/9", "number": 9}
+    def comment(self, repo, n, body): self.calls.append(("comment", repo, n, body)); return {"html_url": f"https://github.com/{repo}/issues/{n}#issuecomment-1"}
     def update_pr(self, repo, n, title, body): self.calls.append(("update", n)); return {"html_url": f"https://github.com/up/proj/pull/{n}", "number": n}
 
 
@@ -115,3 +116,21 @@ def test_the_diff_reaches_git_apply_as_bytes(monkeypatch):
     P.GitHubWriter("gho_x").push_branch("me/proj", "a" * 40, "up/proj", "b", "line1\nline2\n", "m")
     apply = [kw for a, kw in seen if "apply" in a][0]
     assert apply["input"] == b"line1\nline2\n" and not apply.get("text")
+
+
+def test_ask_comment_is_short_and_asks_before_any_pr(run):
+    # human decision 2026-11-09 after mcstatus #1238: ask the maintainer first, open the PR only on a yes
+    body = P.ask_comment(run)
+    assert "Raises now." in body and "only open one if you say yes" in body and P.ASK_NOTE in body
+    assert "2 existing tests still pass" in body and len(body) < 1000 and "<details>" not in body
+
+
+def test_ask_posts_one_comment_after_the_same_checks(run):
+    gh = FakeGH()
+    assert P.ask(run, gh, "Would you like a PR?").endswith("#issuecomment-1")
+    assert gh.calls == [("comment", "up/proj", 7, "Would you like a PR?")]   # no fork, no branch, no PR
+    run.revision = 1   # approval no longer matches: nothing is posted
+    gh = FakeGH()
+    with pytest.raises(P.PublishRefused):
+        P.ask(run, gh, "Would you like a PR?")
+    assert gh.calls == []

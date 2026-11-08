@@ -3,16 +3,40 @@ from backend import db
 from backend.contracts.models import RunStatus
 from backend.github import reader
 from backend.publisher import tokens
-from backend.publisher.publisher import GitHubWriter, PublishRefused, publish
+from backend.publisher.publisher import GitHubWriter, PublishRefused, ask, publish
+
+
+def _token(c, rid: str) -> str | None:
+    aid = db.get_kv(c, f"publish_account:{rid}")
+    row = c.execute("SELECT token_enc FROM accounts WHERE id=?", (int(aid),)).fetchone() if aid else None
+    return tokens.decrypt(row[0]) if row and row[0] else None
+
+
+def run_ask(job: dict) -> None:
+    """'Ask the maintainer first': post the user's comment on the issue. Result in kv ask:<run_id> for the UI."""
+    import json
+    c, rid = db.connect(), job["run_id"]
+    v, token = db.get_run(c, rid), _token(c, rid)
+    try:
+        if not token:
+            raise PublishRefused("AUTH_REQUIRED", "Your GitHub connection expired. Connect GitHub again.")
+        out = {"url": ask(v, GitHubWriter(token), db.get_kv(c, f"ask_body:{rid}") or "")}
+    except PublishRefused as e:
+        out = {"error": str(e)}
+    except Exception as e:   # nothing is claimed as posted
+        out = {"error": f"The comment wasn't posted: {type(e).__name__}. Try again."}
+    finally:
+        token = None
+    with db.tx(c):
+        db.put_kv(c, f"ask:{rid}", json.dumps(out))
+        c.execute("UPDATE jobs SET state='succeeded', lease_owner=NULL WHERE id=?", (job["id"],))
 
 
 def run_publish(job: dict) -> None:
     c, rid = db.connect(), job["run_id"]
     v = db.get_run(c, rid)
     emit = lambda **p: db.emit(c, rid, "publish.finished", "publish", v.revision, **p)
-    aid = db.get_kv(c, f"publish_account:{rid}")
-    row = c.execute("SELECT token_enc FROM accounts WHERE id=?", (int(aid),)).fetchone() if aid else None
-    token = tokens.decrypt(row[0]) if row and row[0] else None
+    token = _token(c, rid)
     try:
         if not token:
             raise PublishRefused("AUTH_REQUIRED", "Your GitHub connection expired. Connect GitHub again.")
