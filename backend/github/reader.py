@@ -125,7 +125,8 @@ def g0_status(checks: dict[str, CheckStatus], accepted: list[str] = ()) -> tuple
 
 def _client() -> httpx.Client:
     tok = os.getenv("GITHUB_READ_TOKEN")
-    return httpx.Client(base_url=GH, timeout=10, headers={"Accept": "application/vnd.github+json",
+    # follow_redirects: a renamed repo answers 301 (sdispater/pendulum → python-pendulum/pendulum)
+    return httpx.Client(base_url=GH, timeout=10, follow_redirects=True, headers={"Accept": "application/vnd.github+json",
                         **({"Authorization": f"Bearer {tok}"} if tok else {})})
 
 
@@ -157,6 +158,8 @@ def check_issue(url: str, *, extract_model: bool = True) -> IssueCheck:
         issue = _get(h, f"/repos/{repo}/issues/{num}")
         if issue.get("pull_request"):
             raise GitHubError("NOT_AN_ISSUE", "That's a pull request link. Paste the issue it fixes instead.")
+        if (moved := (issue.get("repository_url") or "").removeprefix(f"{GH}/repos/")).count("/") == 1:
+            repo = moved   # renamed repo: use its current name from here on (sandbox clone, publisher, links)
         meta = _get(h, f"/repos/{repo}")
         if meta.get("private"):
             raise GitHubError("PRIVATE_REPO", "This repository is private; PatchPilot only reads public repositories.")
