@@ -27,9 +27,11 @@ Description:
 {(i.summary or "")[:4000]}
 
 Rules:
-- Only add or edit files under tests/ (create tests/test_patchpilot_issue_{i.number}.py). Never modify source files.
+- Put the test where this repo's tests already live (often tests/ or test/; check with `ls`), so the repo's conftest and
+  pytest settings apply: create <that dir>/test_patchpilot_issue_{i.number}.py. Use tests/ only if the repo has no test folder.
+  Only add or edit test files. Never modify source files.
 - Run your test with `python -m pytest -q -p no:cacheprovider <file>` and check it fails for the right reason.
-- When done, run: echo {loop.DONE} '{{"test_ids": ["tests/test_patchpilot_issue_{i.number}.py::<name>"], "expected_failure": "<one line>"}}'
+- When done, run: echo {loop.DONE} '{{"test_ids": ["<that dir>/test_patchpilot_issue_{i.number}.py::<name>"], "expected_failure": "<one line>"}}'
 {"Previous attempt was rejected: " + previous if previous else ""}(attempt {attempt})"""
 
 
@@ -91,7 +93,7 @@ def reproduce(ctx: StepContext) -> GateResult:
             db.save_run(db.connect(), run)
             ctx.scratch["headline"] = "We wrote a test that fails because of this bug. It failed twice, as expected."
             return last
-        previous = f"G3 said '{last.reason}'. The test must fail twice, on an assertion or the issue's error, and touch only tests/."
+        previous = f"G3 said '{last.reason}'. The test must fail twice, on an assertion or the issue's error, and touch only test files."
         if seen := next((ln[4:].strip() for ln in outs[0].splitlines() if ln.startswith("E   ")), None):   # say what it saw
             previous += (f" It failed with: {seen[:200]}. If that error is the bug's symptom, catch it and assert the behaviour "
                          "the issue expects, so the test fails on an assert.")
