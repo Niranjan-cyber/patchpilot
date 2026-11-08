@@ -245,6 +245,7 @@ def test_a_dotted_prefix_does_not_make_a_different_class_match():
         (["tests/test_slugify.py"], True),
         (["tests/unit/test_a.py", "tests/conftest.py"], True),
         (["src/slugify/core_test.py"], True),
+        (["test/test_patchpilot_issue_494.py"], True),   # tabulate keeps its tests in test/
         (["src/slugify/core.py"], False),
         (["tests/test_a.py", "src/slugify/core.py"], False),
         (["requirements.txt"], False),

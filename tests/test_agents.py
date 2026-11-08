@@ -374,3 +374,10 @@ def test_reproduce_retry_feedback_quotes_the_error_it_saw(node):
     mp.setattr(R, "_check_run", lambda rid, d, t: "E   itsdangerous.exc.BadPayload: Could not load the payload\n1 failed in 0.05s\n")
     R.reproduce(ctx)
     assert "BadPayload: Could not load the payload" in prompts[1] and "assert" in prompts[1]
+
+
+def test_reproduce_prompt_uses_the_repos_own_test_dir(node):
+    # tabulate #494: the model created tests/ next to the repo's test/, so the repo's conftest and settings didn't apply
+    ctx, _ = node
+    p = R.task_prompt(ctx, 1, None)
+    assert "test/" in p and "already live" in p and "only add or edit files under tests/" not in p.lower()
