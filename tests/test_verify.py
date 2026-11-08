@@ -119,3 +119,18 @@ def test_split_junit_without_a_separator_is_all_log():
 def test_split_junit_on_the_apply_failed_output():
     from backend.agents.verify import split_junit
     assert split_junit("APPLY_FAILED\n") == ("APPLY_FAILED\n", "")
+
+
+def test_second_run_ids_match_when_the_repos_pytest_ini_is_in_tests(tmp_path):
+    # rich #4250 (run ebbf6e48): tests/pytest.ini made the file-argument run's rootdir tests/, so its junit ids lost the
+    # "tests/" prefix and a fix that passed both runs was called flaky_1_of_2. Real pytest, same flags as _fresh_run.
+    import subprocess, sys
+    from backend.agents.verify import PYTEST, passed
+    from backend.sandbox.rules import junit_outcomes
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "tests" / "pytest.ini").write_text("[pytest]\n")
+    (tmp_path / "tests" / "test_patchpilot_issue_1.py").write_text("def test_x():\n    pass\n")
+    args = [sys.executable if a == "python" else a.replace("/src", str(tmp_path)) for a in PYTEST.split()]
+    subprocess.run([*args, "--junitxml", str(tmp_path / "j.xml"), "tests/test_patchpilot_issue_1.py"], cwd=tmp_path, capture_output=True)
+    got = junit_outcomes((tmp_path / "j.xml").read_text())
+    assert passed(["tests/test_patchpilot_issue_1.py::test_x"], got), got
