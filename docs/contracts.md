@@ -295,7 +295,7 @@ global_concurrent_runs = 1    # 2 on a VM
 global_llm_tokens_per_day = 0 # REQUIRED: must be set from a measured run before the demo. 0 = unset → the worker leases no jobs, /healthz is red, POST /api/runs returns LIMIT_GLOBAL_BUDGET. Never treated as unlimited
 budget_measured_tokens_per_run = 0   # record the M3 feasibility measurement here
 budget_measured_on = ""             # date + model of that measurement
-run_llm_tokens = 300_000
+run_llm_tokens = 600_000   # human-approved 2026-11-08 (was 400_000 on the demo, 300_000 in v0.2); limits.toml is the source of truth
 assess_llm_tokens_per_day = 120_000   # v0.4 (#48): intake extraction only (role "assessor"), ~3k tokens per new issue version → ~40/day; also counted in global_llm_tokens_per_day; 0 = extraction off. Not an execution quota: assessments use no run slot
 run_active_seconds = 1500
 setup_seconds = 480
