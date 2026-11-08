@@ -7,7 +7,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-CONTRACTS_VERSION = "0.2"
+CONTRACTS_VERSION = "0.4"   # v0.4 = #50 (#48 intake assessment), merged 2026-11-08
 
 
 class StepId(str, Enum):

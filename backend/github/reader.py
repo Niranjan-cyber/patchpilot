@@ -62,6 +62,30 @@ def linked_open_prs(timeline: list[dict]) -> list[int]:
     return out
 
 
+_STOP = {"with", "when", "that", "this", "from", "into", "should", "does", "doesn", "fixes", "issue", "error", "errors",
+         "returns", "return", "instead", "using", "support", "allow", "make", "makes", "properly", "correctly", "after",
+         "before", "about", "where", "which", "their", "there", "while"}
+
+
+def _words(text: str) -> set[str]:
+    return {w for w in re.findall(r"[a-z][a-z0-9_]+", (text or "").lower()) if len(w) >= 4 and w not in _STOP}
+
+
+def mentioning_open_prs(pulls: list, repo: str, num: int, title: str) -> list[int]:
+    """Open PRs that likely fix this issue without a timeline cross-reference (A's P1, 2026-11-08: python-dotenv #715,
+    jmespath #381). A hit is only the overridable linked_pr warning ("lookups can be wrong"), never a block.
+    shortcut: the newest 100 open PRs and a 2-shared-title-words rule; upgrade to the search API if it misses real cases."""
+    ref = re.compile(rf"(?<![\w/])#{num}\b|{re.escape(repo)}/issues/{num}\b", re.I)
+    want, out = _words(title), []
+    for p in pulls if isinstance(pulls, list) else []:
+        if not isinstance(p, dict) or not isinstance(p.get("number"), int):
+            continue
+        text = f"{p.get('title') or ''}\n{p.get('body') or ''}"
+        if ref.search(text) or len(want & _words(p.get("title") or "")) >= 2:
+            out.append(p["number"])
+    return sorted(out)
+
+
 def detect(root_names: list[str], language: str | None) -> tuple[bool, bool]:
     names = {n.lower() for n in root_names}
     python = language == "Python" or bool(names & {n.lower() for n in PY_FILES})
@@ -132,6 +156,7 @@ def check_issue(url: str, *, extract_model: bool = True) -> IssueCheck:
         head = _get(h, f"/repos/{repo}/commits/{branch}", required=False)
         root = _get(h, f"/repos/{repo}/contents/", required=False)
         timeline = _get(h, f"/repos/{repo}/issues/{num}/timeline?per_page=100", required=False)
+        pulls = _get(h, f"/repos/{repo}/pulls?state=open&per_page=100", required=False)
         community = _get(h, f"/repos/{repo}/community/profile", required=False)
         docs = []
         for path in ("CONTRIBUTING.md", ".github/CONTRIBUTING.md", "AI_POLICY.md", ".github/AI_POLICY.md", "README.md"):
@@ -140,7 +165,10 @@ def check_issue(url: str, *, extract_model: bool = True) -> IssueCheck:
                 docs.append((path, base64.b64decode(f["content"]).decode("utf-8", "replace")))
     names = [x["name"] for x in root] if isinstance(root, list) else []
     python, tests = detect(names, meta.get("language"))
-    linked = linked_open_prs(timeline) if isinstance(timeline, list) else None
+    title = issue.get("title") or ""
+    # timeline cross-references + open PRs that name the issue or share its title (cross-references can be missing)
+    found = set(linked_open_prs(timeline) if isinstance(timeline, list) else []) | set(mentioning_open_prs(pulls, repo, num, title))
+    linked = sorted(found) if found or isinstance(timeline, list) else None   # nothing found and no timeline = unknown
     exp, act = expected_actual(issue.get("body") or "")
     lookup = lambda ok_val, known: CheckStatus.PASSED if (known and ok_val) else (CheckStatus.FAILED if known else CheckStatus.INCONCLUSIVE)
     checks = {
