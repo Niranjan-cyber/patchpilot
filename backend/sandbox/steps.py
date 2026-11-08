@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import tarfile
 import uuid
+from pathlib import Path
 
 import httpx
 
@@ -15,7 +16,8 @@ from backend import artifacts, db
 from backend.config import ROOT, limits
 from backend.contracts.models import CheckStatus, EnvProfile, GateResult, PublishBlocker, SGReport, StepId, TestRun
 from backend.sandbox import docker
-from backend.sandbox.rules import baseline_sets, evaluate_setup, junit_outcomes, map_supplyguard, release_tag_before
+from backend.sandbox.rules import (baseline_sets, evaluate_setup, junit_outcomes, map_supplyguard, pyproject_requirements,
+                                    release_tag_before)
 from backend.worker import nodes
 from backend.worker.nodes import StepContext
 
@@ -75,19 +77,43 @@ def _release_tag(h: httpx.Client, repo: str, sha: str) -> str | None:
         return None
 
 
+def _pyproject_pins(src: Path) -> str | None:
+    """A pyproject-only repo's install set as exact pins (transitive included), or None (has a lock file / unknown / failed).
+    --no-build: resolves from published metadata only, so no package or repo code runs on the host."""
+    if not (src / "pyproject.toml").exists() or any((src / f).exists() for f in ("requirements.txt", "Pipfile.lock", "poetry.lock")):
+        return None
+    reqs = pyproject_requirements((src / "pyproject.toml").read_text(encoding="utf-8", errors="replace"))
+    uv = shutil.which("uv")
+    if reqs is None or uv is None:
+        return None
+    try:
+        p = subprocess.run([uv, "pip", "compile", "-", "--no-build", "--no-config", "--python-version", "3.12", "--no-header",
+                            "--no-annotate", "--quiet"], input="\n".join(reqs), capture_output=True, text=True, timeout=120,
+                           cwd=src.parent)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    return p.stdout if p.returncode == 0 and "==" in p.stdout else None
+
+
 def run_supplyguard(rid: str) -> SGReport:
     """Static dependency check on the extracted source (never installs). Unknown → inconclusive, never clean."""
     src = WORK / rid / "src"
     code, report, log = None, None, ""
     cmd = os.getenv("SUPPLYGUARD_CMD")   # e.g. "data/tools/supplyguard/backend/node_modules/.bin/tsx …/cli/index.ts"
+    target, note = src, ""
+    if cmd and src.exists() and (pins := _pyproject_pins(src)) is not None:
+        target = WORK / rid / "sg"
+        target.mkdir(exist_ok=True)
+        (target / "requirements.txt").write_text(pins, encoding="utf-8")
+        note = "Scanned pyproject.toml's requirements, resolved to exact versions with uv (no builds):\n" + pins + "\n"
     if cmd and src.exists():
         try:
             argv = shlex.split(cmd, posix=os.name != "nt")
             # absolute: a relative "data/..." .CMD path is read by cmd.exe as command "data" + switch "/tools" (never ran)
             argv[0] = os.path.abspath(found) if (found := shutil.which(argv[0])) else argv[0]
-            p = subprocess.run(argv + ["analyze", str(src), "--json"], capture_output=True, text=True,
+            p = subprocess.run(argv + ["analyze", str(target), "--json"], capture_output=True, text=True,
                                encoding="utf-8", errors="replace", timeout=180)
-            code, log = p.returncode, p.stdout[-200000:] + p.stderr[-20000:]
+            code, log = p.returncode, note + p.stdout[-200000:] + p.stderr[-20000:]
             report = json.loads(p.stdout) if p.stdout.strip().startswith("{") else None
         except Exception as e:
             log = f"SupplyGuard failed to run: {e!r}"

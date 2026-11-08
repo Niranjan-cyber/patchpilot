@@ -1,3 +1,4 @@
+import pytest
 from backend.contracts.models import CheckStatus as C
 from backend.sandbox.rules import baseline_sets, evaluate_setup, junit_outcomes, map_supplyguard, release_tag_before
 
@@ -114,3 +115,39 @@ def test_baseline_ignores_a_test_that_prints_the_junit_separator(monkeypatch):
     out = "EXIT=0\nsome test printed <<<JUNIT>>> here\n1 passed\n<<<JUNIT>>>\n" + XML
     monkeypatch.setattr(steps.docker, "run", lambda *a, **k: docker.Result(0, out))
     assert steps._pytest("r", "")[0] == junit_outcomes(XML) != {}
+
+
+# G1 for pyproject-only repos (requests #7642, rich #4249, networkx #8997 had no lock file, so G1 was always inconclusive):
+# the requirements G2 will install, read without running anything. None = unknown -> G1 stays inconclusive.
+from backend.sandbox.rules import pyproject_requirements as preqs
+
+RICH = '''[project]
+name = "rich"
+dependencies = ["markdown-it-py>=2.2.0", "pygments>=2.13.0,<3.0.0"]
+[project.optional-dependencies]
+jupyter = ["ipywidgets>=7.5.1,<9"]
+[dependency-groups]
+dev = ["mypy", {include-group = "test"}]
+test = ["pytest>=8", "attrs"]
+docs = ["sphinx"]
+'''
+
+
+def test_pyproject_deps_plus_what_g2_installs():
+    # dependencies + the test groups G2 installs (includes followed); not unrelated extras or groups; pytest always
+    assert preqs(RICH) == ["markdown-it-py>=2.2.0", "pygments>=2.13.0,<3.0.0", "pytest>=8", "attrs", "mypy", "pytest"]
+
+
+def test_pyproject_first_test_extra_only_like_g2():
+    t = '[project]\ndependencies = []\n[project.optional-dependencies]\ntests = ["hypothesis"]\ndev = ["black"]\n'
+    assert preqs(t) == ["hypothesis", "pytest"]
+
+
+@pytest.mark.parametrize("text", [
+    '[project]\nname = "x"\ndynamic = ["version", "dependencies"]\n',    # declared elsewhere (setup.py): unknown
+    '[tool.poetry.dependencies]\npython = "^3.10"\n',                     # no [project] table
+    '[project\nbroken',                                                     # not TOML
+    '[project]\ndependencies = "requests"\n',                               # not a list
+])
+def test_pyproject_unknown_is_none(text):
+    assert preqs(text) is None
