@@ -381,3 +381,21 @@ def test_reproduce_prompt_uses_the_repos_own_test_dir(node):
     ctx, _ = node
     p = R.task_prompt(ctx, 1, None)
     assert "test/" in p and "already live" in p and "only add or edit files under tests/" not in p.lower()
+
+
+# DeepSeek-V4.1-Flash drifts into its native tool-call markup (boltons #742, run afa8fcfd: 100 fixer replies, all
+# "Format error", 568k tokens, no fix). Both shapes below are verbatim from that transcript.
+DSML_FENCE = ('THOUGHT: Ensure the fix is applied.\n\n```bash\ncd /src && grep -n "if headers is _MISSING" boltons/tableutils.py'
+              '</｜DSML｜ parameter>\n</｜DSML｜ invoke>\n</｜DSML｜ calls>')
+DSML_CALL = ('\n\n<｜DSML｜ calls>\n<｜DSML｜ invoke name="bash">\n<｜DSML｜ parameter name="command" string="true">'
+             'grep -n "_MISSING" /src/boltons/tableutils.py</｜DSML｜ parameter>\n</｜DSML｜ invoke>\n</｜DSML｜ calls>')
+
+
+@pytest.mark.parametrize("reply, cmd", [
+    ("THOUGHT: look\n```bash\nls -la\n```", "ls -la"),
+    (DSML_FENCE, 'cd /src && grep -n "if headers is _MISSING" boltons/tableutils.py'),
+    (DSML_CALL, 'grep -n "_MISSING" /src/boltons/tableutils.py'),
+    ("```bash\nls\n```\n```bash\npwd\n```", None),      # two commands: still a format error
+])
+def test_parse_accepts_deepseek_tool_call_markup(reply, cmd):
+    assert loop.parse(reply) == cmd
