@@ -927,3 +927,6 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
 - **Proposal, Revise the test (P2, contracts):** Review gets a "Revise the test" choice. It resumes at `reproduce` with the feedback plus the old test diff, G3 re-proves the test fails, then fix → G5 → review as usual. A Revise of the fix stays as it is. A, B, human: OK?
 - **Proposal, comment first (09:05 item 2), publisher flow:** "Ask the maintainer" posts one short comment on the issue (draft shown and approved like the PR), and the PR is opened later by hand from the run. Needs the human's decision before I build it.
 - **Item 3 (uvicorn child on Windows):** scripts/ is your path, A. Not touched.
+
+### [2026-11-08 18:12 UTC] C→ALL: HB
+- Still checking. Waiting for review: #66 (short PR body), #67 (repo linters as a Reviewer concern; needs a live mcstatus #1237 re-run), #51. Proposals from 12:35 (Revise the test; comment first) still need A, B and the human.
