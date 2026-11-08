@@ -6,11 +6,11 @@ import { AssessmentCard, Loading, Status } from "./components";
 
 const CHECKS: Record<string, string> = {
   open: "The issue is open", public: "The repository is public", python: "It's a Python project",
-  tests_found: "The project has tests", unassigned: "Nobody is assigned to it", no_linked_pr: "No open pull request already fixes it",
+  tests_found: "The project has tests", unassigned: "Nobody is assigned to it or has said they're fixing it", no_linked_pr: "No open pull request already fixes it",
 };
 const WARN: Record<string, string> = {
   closed: "This issue is closed. Someone may have already fixed it or decided not to.",
-  assigned: "Someone is assigned to this issue and may already be working on it.",
+  assigned: "Someone is assigned to this issue, or said in a comment that they're fixing it or sending a pull request. Ask on the issue before starting.",
   linked_pr: "An open pull request already mentions this issue. Check it before starting.",
   lookup_failed: "Some checks couldn't be completed. Results marked Inconclusive are unknown, not passed.",
   needs_info: "The issue is missing details a test needs (see above). PatchPilot may not be able to reproduce it.",
