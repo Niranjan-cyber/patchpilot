@@ -93,6 +93,14 @@ def detect(root_names: list[str], language: str | None) -> tuple[bool, bool]:
     return python, tests
 
 
+def tests_in_tree(tree: dict | None) -> bool | None:
+    """Tests anywhere in the repo (a recursive git tree), for repos that keep them inside the package. None = unknown."""
+    if not isinstance(tree, dict) or not isinstance(tree.get("tree"), list) or tree.get("truncated"):
+        return None
+    test_file = re.compile(r"(^|/)(tests?|testing)/.+\.py$|(^|/)test_[^/]*\.py$|_test\.py$")
+    return any(test_file.search(e.get("path", "")) for e in tree["tree"] if isinstance(e, dict))
+
+
 def ai_policy(texts: list[str]) -> str:
     blob = "\n".join(texts)
     if FORBID.search(blob):
@@ -155,6 +163,9 @@ def check_issue(url: str, *, extract_model: bool = True) -> IssueCheck:
         branch = meta.get("default_branch")
         head = _get(h, f"/repos/{repo}/commits/{branch}", required=False)
         root = _get(h, f"/repos/{repo}/contents/", required=False)
+        root_tests = detect([x["name"] for x in root] if isinstance(root, list) else [], None)[1]
+        # no tests at the top level: look inside the package before calling the repo unsupported (G2 checks for real)
+        tree = None if root_tests else _get(h, f"/repos/{repo}/git/trees/{branch}?recursive=1", required=False)
         timeline = _get(h, f"/repos/{repo}/issues/{num}/timeline?per_page=100", required=False)
         pulls = _get(h, f"/repos/{repo}/pulls?state=open&per_page=100", required=False)
         community = _get(h, f"/repos/{repo}/community/profile", required=False)
@@ -165,6 +176,8 @@ def check_issue(url: str, *, extract_model: bool = True) -> IssueCheck:
                 docs.append((path, base64.b64decode(f["content"]).decode("utf-8", "replace")))
     names = [x["name"] for x in root] if isinstance(root, list) else []
     python, tests = detect(names, meta.get("language"))
+    deep = None if tests else tests_in_tree(tree)
+    tests = tests or bool(deep)
     title = issue.get("title") or ""
     # timeline cross-references + open PRs that name the issue or share its title (cross-references can be missing)
     found = set(linked_open_prs(timeline) if isinstance(timeline, list) else []) | set(mentioning_open_prs(pulls, repo, num, title))
@@ -175,7 +188,7 @@ def check_issue(url: str, *, extract_model: bool = True) -> IssueCheck:
         "open": lookup(issue.get("state") == "open", True),
         "public": CheckStatus.PASSED,
         "python": lookup(python, root is not None or meta.get("language") is not None),
-        "tests_found": lookup(tests, root is not None),
+        "tests_found": lookup(tests, root is not None and (tests or deep is not None)),
         "unassigned": lookup(not issue.get("assignees"), True),
         "no_linked_pr": lookup(not linked, linked is not None),
     }

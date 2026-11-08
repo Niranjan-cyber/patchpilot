@@ -77,8 +77,9 @@ def shortlist(repo: str, meta: dict, root_names: list[str] | None, items: list[d
     python, tests = detect(root_names or [], meta.get("language"))
     names = {n.lower() for n in root_names or []}
     unk = lambda v: v if known else (v or None)
-    signals = {"python": unk(python), "tests_found": unk(tests), "recipe_known": unk(bool(names & RECIPE)),
-               "deps_checkable": unk(bool(names & LOCKS))}
+    # the root listing can't see tests inside the package: no marker there is unknown, not "no tests" (G0 looks deeper)
+    signals = {"python": unk(python), "tests_found": True if tests else None, "recipe_known": unk(bool(names & RECIPE)),
+               "deps_checkable": unk(bool(names & (LOCKS | {"pyproject.toml"})))}   # G1 resolves pyproject.toml (#63)
     base = {"repo": repo, "repo_signals": signals, "language": meta.get("language")}
     if signals["python"] is False or signals["tests_found"] is False:
         return {**base, "state": "unsupported", "unsupported": "not_python" if signals["python"] is False else "no_tests",
