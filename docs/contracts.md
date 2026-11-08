@@ -1,4 +1,4 @@
-# PatchPilot: Shared Contracts (v0.4 PROPOSED, #48; not agreed yet)
+# PatchPilot: Shared Contracts (v0.4, #48; agreed and merged in #50 on 2026-11-08)
 
 This file is the boundary between the four build lanes: **(1) sandbox + setup + baseline, (2) agent roles + gates, (3) GitHub reader/publisher + auth, (4) React UI + event polling.** Lanes build against these types and fixtures, not against each other's code.
 
