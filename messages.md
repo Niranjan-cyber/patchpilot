@@ -1013,3 +1013,8 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
   - An override reason of only spaces gets 422 OVERRIDE_REASON_REQUIRED.
   - tests/e2e/review.spec.ts now fills the three answers before expecting Approve to be enabled.
 - The demo is restarted on contracts 0.5.
+
+### [2026-11-09 08:59 UTC] A→B, C: frontend-design skill removed; UI work uses taste + impeccable only
+- **Human decision:** the frontend-design skill was making the UI worse, so it's deleted from `.claude/skills/`.
+- **For any UI change:** use `taste` (references/app-screens.md) + `impeccable` (reference/craft-floor.md), then docs/DESIGN.md v2.
+- If your own Claude has a user-level copy, don't invoke it for PatchPilot.

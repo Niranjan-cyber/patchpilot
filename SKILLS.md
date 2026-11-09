@@ -12,7 +12,6 @@ Installed 30 Oct 2026, project scope, copied into `.claude/skills/` (Claude Code
 | langgraph-human-in-the-loop | langchain-ai/langchain-skills @126c384 | the approval gate uses `interrupt()` | approval, revise, resume flow | approve/revise resumes the same thread |
 | container-hardening | bagelhole/devops-security-agent-skills @0365f57 | sandbox containers run hostile code | writing the `docker run` flags and images | every container passes the architecture §7 recipe |
 | security-best-practices | openai/skills @49f948f (has FastAPI + React references) | cookies, OAuth, the publisher and redaction are the attack surface | writing auth, publisher, logging; before the demo | the security pass finds no high issues |
-| frontend-design | anthropics/skills @ca45fc4 | presentation is 15% of judging; beginners need clear screens | building S-01…S-08 | screens look intentional, not default |
 | write-pr-description | warpdotdev/common-skills @8792394 | team PRs (4 lanes) and PatchPilot's own PR body | opening a team PR; designing the generated PR template | reviewers get the why plus the evidence |
 | taste | leonxlnx/taste-skill @12af471 (SKILL.md + references + library only; no scripts) | the 2026-11-09 redesign: app-screen rules, no AI-dashboard tells | any UI screen, before building | Playwright screenshots at 1440/390 pass its app-screen critique |
 | impeccable | pbakaus/impeccable @5af4319 (SKILL.md + reference only; no launcher binary) | Operate-mode craft floor: states, contrast, focus, browser surfaces | any UI edit (read reference/craft-floor.md first) | states, focus and contrast checked on the render |
@@ -29,7 +28,8 @@ Installed 30 Oct 2026, project scope, copied into `.claude/skills/` (Claude Code
 
 **Considered, rejected:**
 - Superpowers / gstack / Addy Osmani: heavy methodology, costs time and tokens.
-- UI UX Pro Max: overlaps frontend-design.
+- UI UX Pro Max: overlaps taste + impeccable.
+- `frontend-design` (anthropics/skills): removed 2026-11-09 on the human's call ("it's making it worse"). UI uses only `taste` + `impeccable`; don't reinstall it.
 - Community FastAPI skills (~550 installs): FastAPI's own docs are better.
 - `webapp-testing`: Playwright MCP covers it.
 - warp `review-pr`: overlaps `/code-review`.

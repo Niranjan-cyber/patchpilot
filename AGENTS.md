@@ -19,7 +19,7 @@ Before each task say `Skills: <chain> (task: …; phase …)`, then invoke each 
 | LangGraph nodes, checkpoints, approval interrupt | `langgraph-fundamentals` (+ `langgraph-persistence` / `langgraph-human-in-the-loop` for those parts) → `tdd` |
 | Sandbox / Docker | `container-hardening` (architecture §7 wins) → `/security-review` |
 | Auth, cookies, OAuth, publisher, logging | `security-best-practices` → build → `/security-review` |
-| UI screens S-01…S-08 | `taste` (references/app-screens.md) + `impeccable` (craft-floor) → follow docs/DESIGN.md → Playwright MCP check |
+| UI screens S-01…S-08 | `taste` (references/app-screens.md) + `impeccable` (craft-floor) only, never `frontend-design` → follow docs/DESIGN.md → Playwright MCP check |
 | Bug / flaky / slow | `diagnosing-bugs` |
 | Team PR or generated PR body | `write-pr-description` |
 | Demo, video, README | `hackathon-demo-submission` |

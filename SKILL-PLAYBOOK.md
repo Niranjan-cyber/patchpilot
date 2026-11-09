@@ -10,7 +10,7 @@
 | build: worker graph | `langgraph-fundamentals` | `langgraph-persistence` only for checkpoints/resume; `langgraph-human-in-the-loop` only for approve/revise `interrupt()` |
 | build: sandbox | `container-hardening` | architecture §7 recipe wins on any conflict |
 | build: API / backend | none: FastAPI docs by section | `security-best-practices` (python-fastapi reference) for cookies, OAuth, publisher |
-| ui | `frontend-design` | the user-level plugin copy isn't enabled, so no conflict |
+| ui | `taste` (references/app-screens.md) + `impeccable` (craft-floor) → docs/DESIGN.md | never `frontend-design` (removed 2026-11-09, human decision) |
 | test | `tdd` | gates, outcome table, hashing, limits, parsers |
 | debug | `diagnosing-bugs` | its HITL script runs only when you choose to |
 | review | built-in `/code-review` | built-in `/security-review` for sandbox, auth, publisher, logging diffs |
@@ -25,10 +25,10 @@ Gaps (no skill, work normally): FastAPI, mini-SWE-agent, LiteLLM, the GitHub API
 | # | Phase | Exit check | Chain | Skip in Sprint |
 |---|---|---|---|---|
 | 0 | Prep | contracts v0.2 frozen; `fixtures/runs/*` exist; demo GitHub accounts + planted-bug repo ready; Funnel URL reachable | `tdd` (contract tests replay fixtures) | a separate design phase |
-| 1 | Walking skeleton (B01–B02) | SPA served by FastAPI on the Funnel URL; S-01→S-04 render fixture runs via `/api/runs/{id}` + polling | `frontend-design` → build → Playwright check → `/code-review` | pixel polish |
+| 1 | Walking skeleton (B01–B02) | SPA served by FastAPI on the Funnel URL; S-01→S-04 render fixture runs via `/api/runs/{id}` + polling | `taste` + `impeccable` → build → Playwright check → `/code-review` | pixel polish |
 | 2 | Sandbox + setup + baseline (riskiest) | a real repo installs in a per-run image; baseline sets recorded; ENV_FAILED/BLOCKED shown | `container-hardening` → `tdd` (G1/G2) → build → `/security-review` | gVisor (MVP) |
 | 3 | Agent loop + gates | repro fails 2/2; G3/G4 enforced; kill-worker test resumes | `langgraph-fundamentals` → `langgraph-persistence` → `tdd` (gates, outcome table) → build → `/code-review` | hidden variant (S4) |
-| 4 | ⭐ Verify + report | fresh-container red → green on S-04; every outcome state renders | `tdd` (G5/G6, readiness) → build → `frontend-design` (proof panel) → Playwright | — |
+| 4 | ⭐ Verify + report | fresh-container red → green on S-04; every outcome state renders | `tdd` (G5/G6, readiness) → build → `taste` + `impeccable` (proof panel) → Playwright | — |
 | 5 | Approve + publish | approve → OAuth → draft PR from the fork; hash, stale and upstream checks refuse correctly | `langgraph-human-in-the-loop` → `tdd` (hash contract) → `security-best-practices` → build → `/security-review` → `write-pr-description` (PR body) | GitHub App flow |
 | 6 | Prototype exit + demo | demo path walked twice on the URL; triage path shown; README, video, deck | Playwright full walk → `/code-review` → `hackathon-demo-submission` | new features (freeze) |
 | 7 | Should (S1–S6), only after phase 6 | per the feature scope | per step | — |
@@ -37,7 +37,7 @@ Gaps (no skill, work normally): FastAPI, mini-SWE-agent, LiteLLM, the GitHub API
 - Unexpected error or failing test → `diagnosing-bugs`, then back.
 - A wrong outcome, status, gate result, or a failure shown as empty/"clean" → stop features; `diagnosing-bugs` + a regression test first (trust gate).
 - Touching the sandbox flags, cookies, OAuth, tokens, publisher or log redaction → `security-best-practices` while coding, `/security-review` on the diff.
-- UI inside a backend task → `frontend-design` for that part.
+- UI inside a backend task → `taste` + `impeccable` for that part (never `frontend-design`).
 - Build/lint passes → not done; run the Playwright check on the Funnel URL.
 - Async work (jobs, polling) → test commit-before-enqueue and stale-response handling.
 - `.env` / deploy config → edit one variable at a time and verify.
