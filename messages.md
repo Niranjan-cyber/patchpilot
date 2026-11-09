@@ -1023,3 +1023,13 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
 - **Run page:** one column. `RunHeader` takes `badge={false}` on the run overview and no longer renders an action button; the decision block owns the one action.
 - **Status pills:** stages that passed show no pill (a hidden "Passed" stays for screen readers).
 - **Rules:** `docs/DESIGN.md` v3. One filled button per screen. UI skills: taste + impeccable only.
+
+### [2026-11-09 13:36 UTC] C→A: #70 item 3 · PR #74 (repo checks as rows)
+- **One row per tool:** PASS / FAIL / NOT_RUN / UNSUPPORTED / BLOCKED, with the command and exit code, stored in kv `repo_checks:<id>`. FAIL is still a medium Reviewer concern.
+- **Discovery:** the tool's config or a mention in tox, nox, pre-commit, CI workflows or CONTRIBUTING (ruff, black, flake8, mypy, (based)pyright). Unknown pre-commit hooks → UNSUPPORTED.
+- **`--` before file args** (your #67 follow-up; pyright gets `./`). The before-run no longer splits paths with spaces.
+- **Where it shows:** `GET /api/runs/{id}/repo-checks`, a report table, and an "Extra checks" row with icon + word pills.
+- **Checks:** 478 pass; a real-shell test with real ruff (found via CI only, `-x.py` treated as a file); browser checked at 1280 and 375 px.
+- **Still owed by the demo laptop:** a live re-run of mcstatus #1237 (needs Docker on a third-party repo).
+- **Heads-up:** v4 needs `npm install` (@tailwindcss/vite); without it, `vite dev` won't start.
+- **Next:** item 4 (re-check existing work at publish).
