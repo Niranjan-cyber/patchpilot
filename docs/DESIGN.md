@@ -1,73 +1,88 @@
-# PatchPilot design system v2: the graphite workspace
+# PatchPilot design system v3: calm and light
 
-Redesigned on 2026-11-09 (second pass, human brief: "premium, interactive, not boring") with Taste (`references/app-screens.md`) and Impeccable (Operate mode, `reference/craft-floor.md`).
+Redesigned on 2026-11-09, third pass. The human's brief: "it looks very cluttered and very hard to understand; make it easy and visually appealing".
+Built with `taste` (`references/app-screens.md`) and `impeccable` (distill + craft-floor) only. **`frontend-design` is not used** (human decision, 2026-11-09).
 Implementation:
 - `web/src/index.css`: all tokens at the top;
+- `web/src/App.tsx`: Overview, run page;
+- `web/src/Workspace.tsx`: stages, findings, activity, details;
 - `web/src/ui.tsx`: toasts, copy, modal, drawer, sliding indicators;
-- `web/src/Workspace.tsx`: stage navigator, findings, activity log, run details;
-- `web/src/DiffView.tsx`: the diff viewer;
-- `web/src/components.tsx`: icons, status, proof.
+- `web/src/DiffView.tsx`: the diff.
 
-**The rule still holds: evidence over decoration.** Every visible state comes from recorded backend data. "Not run" is never drawn as passed.
+**Rules that still hold:**
+- Evidence over decoration. Every state shown comes from recorded backend data.
+- "Not run" is never drawn as passed.
 
-## What changed from v1 and why
-| v1 rule | v2 | Reason |
+## The three rules of v3
+1. **One column, one story per screen.** The run page reads top to bottom:
+   - title;
+   - **where it stands** (one decision block);
+   - proof;
+   - likely cause;
+   - what PatchPilot did;
+   - *More details* (collapsed).
+
+   No side rail.
+2. **One filled button per screen.** The decision block holds the only primary action. The header carries none, and nothing is repeated.
+3. **Colour only says something.**
+   - Burnt orange marks the action and the active place.
+   - Green, red and amber are used only for status.
+   - Stages that passed show a small check with no pill. Only exceptions (failed, running, not run) get a word pill, so problems stand out.
+
+## What changed from v2 and why
+| v2 | v3 | Reason |
 |---|---|---|
-| Light only, near-white sheet | **Dark graphite**, layered surfaces | Long review sessions next to an IDE. It matches the pitch deck, and depth reads better in layers. |
-| No shadows | Shadows **only on floating layers** (dialogs, drawers, toasts, tooltips, hovered cards) | Elevation tells you what floats over the work. Resting panels stay flat. |
-| Almost no motion | **One motion system** (below) | Motion now explains state changes and spatial moves: tabs, nav, expand, drawer. |
-| Flat loading bars | Bars in the final layout with a slow shimmer | Same layout, no shift. The shimmer is off with reduced motion. |
-| No syntax highlighting | **highlight.js** (core + python, ini/toml, yaml, json, markdown) | Reviewing code without it is slower. It costs about 20 KB gzipped. |
-| Orange only on mark/running/focus | **Ember is the brand**: the primary action, the active stage and tab, running, the decision card | A product needs a recognisable lead colour. Blue handles links and information. |
+| Dark graphite | **Light**: white sheet on a soft grey frame | Easier to read for first-time contributors, on a projector, and in daylight. Human choice. |
+| Two columns plus a side rail of five cards | **One column, 820px** | The side rail split attention; the next step appeared twice. |
+| Action in the header **and** in a side card | One decision block with a badge, a sentence and an action | It says once what to do next. |
+| A pill on every stage (8 identical green "Passed") | Check icon only for passed; pills for exceptions | Repetition hid the one row that mattered. |
+| Empty findings and extra-checks panels always shown | Shown only when they hold something; otherwise under *More details* | Empty panels are noise. |
+| Overview: three empty lanes, a checks card, 16 sample buttons | Issue box → *How it works* (4 steps) → *Your runs* (only if you have any) → *See example outcomes* (collapsed) | A first-time visitor has one thing to do. |
+| "Estimate" chips, the `/` hint, "0s" durations | Removed or replaced by a plain sentence | Small labels added reading without meaning. |
 
 ## Tokens
-- **Surfaces**, dark to light:
-  - `--ground` #0b0c0e (frame and sidebar)
-  - `--sheet` #111215 (workspace)
-  - `--panel` #16171b (cards)
-  - `--raised` #1c1d22 (controls)
-  - `--hover` #22242a
-  - `--code` #0d0e11 (code, logs, inputs)
-- **Lines:** `--line` #24262c, `--line-soft` #1c1e23, `--line-strong` #33363d.
-- **Text:** #ecedf0, muted #a2a5ad, faint #8a8d96, all ≥ 4.5:1 on `--panel`.
-- **Brand:** ember #ff7a45 (hover #ff9466), with dark ink #1b0c05 on ember fills. **Info and links:** blue #7cb4ff.
-- **Status:** pass #45d48f, fail #ff6b6b, warn #f2bd55. Each sits on an ~11% tint of itself with a ~33% line.
+- **Surfaces:**
+  - `--ground` #f4f5f7 (frame, sidebar)
+  - `--sheet`/`--panel` #ffffff
+  - `--raised` #f5f6f8 (quiet blocks, hover)
+  - `--code` #f8f9fb
+- **Lines:** `--line` #e4e7eb, `--line-soft` #eef0f2, `--line-strong` #d0d5dc. A line or a tone step, never both.
+- **Text:** #15171a, muted #50565f, faint #6b717b, all ≥ 4.5:1 on white.
+- **Brand:**
+  - primary fill `--ember` #c2410c (white label, 5.2:1), hover #a8380a;
+  - `--accent` #e8590c for the mark, focus ring, tab ink and icons;
+  - `--ember-tint` #fff3eb behind the decision block when you have something to do.
+- **Links:** ink, underlined in `--line-strong`; ember on hover.
+- **Status** (pale pairs):
+  - pass #157a3c on #ebf7ef
+  - fail #be2329 on #fdeeee
+  - warn #8a5300 on #fdf6e3
+  - running ember on its tint
+  - sample/info #1d4ed8 on #eef3ff (the "Sample data" label only)
 - **Type:**
-  - IBM Plex Sans: 24/600 titles, 15/600 section heads, 14/21 body, 12–12.5 meta.
-  - JetBrains Mono for code, paths, hashes, test IDs, logs and diffs.
-  - Fixed-width digits everywhere.
-- **Shape:** radius 4 for chips, 6 for controls, 8 for cards, 12 for the sheet and dialogs. 4px spacing base, 16px gap, 32px page padding (16 on a phone). Controls are 34px tall, and the main input is 44px.
-- **Motion:**
-  - durations: `--t-fast` 120ms (hover, press), `--t-mid` 200ms (tabs, nav pill, expand, route enter), `--t-slow` 320ms (drawer, dialog, toast);
-  - easing: `--ease` cubic-bezier(.2,.8,.2,1) everywhere;
-  - `prefers-reduced-motion` sets every duration to 0.
+  - IBM Plex Sans at 13 / 15 / 18 / 26 / 34: 34 for the Overview title, 26 for page titles, 22 for the decision line, 18 for section heads, 15 body.
+  - JetBrains Mono only for code, paths, hashes and test IDs.
+- **Shape:**
+  - radius: 999 for pills and run chips, 6 for controls, 10 for blocks, 14 for the decision block and the sheet;
+  - spacing: 36px between run-page sections, 48px on the Overview;
+  - controls 36px tall, the issue input 48px.
+- **Shadows:** only on what floats (dialogs, drawer, toasts, tooltips) and on the active nav pill.
+- **Motion:** unchanged from v2.
+  - durations 120 / 200 / 320ms; easing `--ease` cubic-bezier(.2,.8,.2,1);
+  - nav pill, tab ink, expand, route enter;
+  - all of it off under `prefers-reduced-motion`.
 
 ## Components
-- **Shell:**
-  - The sidebar sits on the frame. A **sliding pill** follows the active route.
-  - "My runs" carries a **count only for runs waiting on your approval**.
-  - A live-host dot shows that this is the demo machine.
-  - On a phone, the sidebar becomes an animated sheet under a 52px bar. Escape closes it.
-- **Run header and tabs** (`RunNav.tsx`): a breadcrumb, the title, a readiness badge, and the one next action (hidden on the screen it points to). Tabs: Overview · Change and approval · Publish, with a **sliding ember underline**. Stages you can't reach yet are greyed out.
-- **Proof:** a red-tinted "original code" column and a green-tinted "after the fix" column, joined by an arrow, plus the base commit, the regression test ID and the existing-test count.
-- **Stage navigator:**
-  - A rail of status nodes. Each row shows the stage, its recorded headline, its duration and a status pill.
-  - Rows **expand** to show the recorded evidence:
-    - times, attempt, and the gate with a tooltip explaining it;
-    - the test command, test IDs, the failure on the original code, the hypothesis, the policy result, regressions.
-  - The running or failed stage opens by default.
-- **Review findings:** the reviewer's concerns, coloured by severity (high red, medium amber, low blue). If none were recorded, the panel says so honestly; it never claims success.
-- **Activity log:** a drawer (native `<dialog>`: focus trap, Escape, backdrop click) holding the run's real event stream.
-- **Stop run:** a confirm dialog that states the consequence ("can never be published").
-- **Diff viewer:**
-  - a file navigator with per-file and total +/− counts;
-  - files that collapse with animation, a sticky file header, New file and Deleted marks;
-  - old and new line numbers, syntax highlighting, copy buttons for the path, the file diff and the whole diff;
-  - horizontal scroll inside each file.
-- **Copy and toasts:** every hash, run ID, test ID and command can be copied, and a toast confirms it. A clipboard that isn't available is reported, never faked.
-- **Tooltips:** `data-tip` explains technical terms (gates, base commit, revision). They appear on hover and keyboard focus after a 350ms delay.
-- **Overview:** an ember-lit launch panel (the issue input checks the link inline, accepts `owner/repo#123`, and `/` focuses it), then lanes built from the user's real runs: *Needs your attention*, *In progress*, *Recently finished*. Empty lanes explain what will appear.
-- **States:** loading keeps the layout. Empty states say what will appear. Errors appear inside the failed block; the red frame is only for real failures.
+- **Decision block** (`.decision`, `.decision.act` when it's your turn): the readiness badge (the only `.badge` on the page), one line saying where the run stands, one sentence, then the action and *Download report*.
+  - While a run is working, it holds the live status and *Stop run*, which confirms in a dialog.
+- **Proof:** two pale tiles, red "Before the fix" and green "After the fix", with run chips. Below: the test ID and the existing-tests sentence.
+- **What PatchPilot did:** one bordered list.
+  - A row expands to its recorded evidence.
+  - A failed or running stage opens by default.
+- **Likely cause:** plain text with the cited locations as links and one honesty line ("Written by AI and checked against the code it cites. It can still be wrong.").
+- **More details:** run details with copy buttons, extra checks that didn't run, and the activity log drawer.
+- **Overview:** issue box, *How it works* (one bordered strip split into 4, not 4 cards), *Your runs*, *See example outcomes*.
+- **Review:** the diff on the left and the decision form on the right (a work surface, so two columns stay). The own-words hint appears only once you start typing.
 
 ## Still banned
-Purple or blue gradient backgrounds, neon borders, glowing cards, glass panels, decorative blobs, emoji or text symbols as icons, fake metrics or activity, controls that do nothing, sample data without its label, a "passed" look on anything that didn't run.
+Gradients, glows, glass, decorative blobs, emoji or text symbols as icons, eyebrow labels, index numbers, fake metrics or activity, controls that do nothing, sample data without its label, a "passed" look on anything that didn't run, and **more than one filled button on a screen**.

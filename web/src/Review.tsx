@@ -102,7 +102,7 @@ export default function Review() {
             <label key={k}>{q}
               <textarea rows={2} value={answers[k] ?? ""} placeholder={eg} maxLength={1000}
                 onChange={(e) => setAnswers({ ...answers, [k]: e.target.value })} />
-              {(answers[k] ?? "").trim().length < MIN && <span className="hint">At least {MIN} characters ({(answers[k] ?? "").trim().length} so far).</span>}
+              {(answers[k] ?? "").trim().length > 0 && (answers[k] ?? "").trim().length < MIN && <span className="hint">At least {MIN} characters ({(answers[k] ?? "").trim().length} so far).</span>}
             </label>
           ))}
           {ctx.help && (ctx.help.cause || ctx.help.tests.length > 0) && (
