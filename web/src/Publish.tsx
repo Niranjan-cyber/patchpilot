@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { api, ApiError, useRun } from "./api";
-import { Loading } from "./components";
+import { Loading, StatusIcon } from "./components";
+import { Modal } from "./ui";
 
 type Me = { signed_in: boolean; login: string | null; oauth_ready: boolean };
 const ERR: Record<string, string> = {
@@ -20,6 +21,7 @@ export function Connect() {
   const [err, setErr] = useState<ApiError | null>(null);
   const [busy, setBusy] = useState(false);
   useEffect(() => { api<Me>("/api/me").then(setMe).catch(setErr); }, []);
+  const [consented, setConsented] = useState(false);
   const publish = async () => {
     setBusy(true); setErr(null);
     try { await api(`/api/runs/${run}/publish`, { method: "POST" }); nav(`/runs/${run}/pr`); }
@@ -49,15 +51,92 @@ export function Connect() {
         </div>
       )}
       {me?.signed_in && run && <AskFirst run={run} />}
+      {me?.signed_in && run && <ConsentCard run={run} onChange={setConsented} />}
       {me?.signed_in && run && (
         <div className="card">
           <h2>Then, if they say yes: open the pull request</h2>
+          {!consented && <p className="hint">Available once a maintainer's yes (or your reason) is recorded above.</p>}
           <p>We'll check that nothing changed upstream, re-apply your approved change on a clean copy, and open a draft pull request. If you can't push to the repository, we use your fork.</p>
-          <div className="row"><button className="secondary-btn" onClick={publish} disabled={busy}>{busy ? "Starting…" : "Publish draft pull request"}</button></div>
+          <div className="row"><button className="secondary-btn" onClick={publish} disabled={busy || !consented}>{busy ? "Starting…" : "Publish draft pull request"}</button></div>
         </div>
       )}
       {err && <p className="notice warn">{err.message}</p>}
     </section>
+  );
+}
+
+type Reply = { url: string; author: string; association: string; quote: string; positive: boolean; declined: boolean };
+type Consent = { consent: { kind: string; source_url?: string | null; author?: string | null; quote?: string | null;
+  attested_by_user?: boolean; override_reason?: string | null } | null; state: string; replies: Reply[]; why?: string | null };
+const STATE: Record<string, string> = {
+  none: "No maintainer has said yes yet. Ask them first (above).",
+  waiting: "Waiting for a maintainer to reply to your comment. Silence isn't a yes.",
+  replied: "A maintainer replied, but not with a clear yes. Read it, and record it below only if it agrees to your fix.",
+  declined: "A maintainer declined. Respect that unless something new has changed their mind.",
+};
+const KIND: Record<string, string> = {
+  maintainer_reply: "A maintainer replied yes", maintainer_request: "A maintainer asked for a fix",
+  contributing_invites: "The project's contributing guide invites fixes like this", user_override: "You chose to publish without a maintainer's yes",
+};
+
+// status pill per DESIGN.md (icon + word); an override is a warning, never the "passed" green
+const PILL: Record<string, [string, string]> = {
+  recorded: ["passed", "Consent recorded"], override: ["inconclusive", "Override"], granted: ["passed", "Consent found"],
+  replied: ["inconclusive", "Unclear reply"], waiting: ["not_run", "Waiting for a reply"], none: ["not_run", "Not asked yet"],
+  declined: ["failed", "Declined"],
+};
+function ConsentPill({ state }: { state: string }) {
+  const [s, word] = PILL[state] ?? ["not_run", state];
+  return <span className={`status status-${s}`}><StatusIcon s={s} size={12} />{word}</span>;
+}
+
+/** Contracts v0.5 §2.2: publishing needs a maintainer's yes, an invitation, or the user's typed reason. */
+function ConsentCard({ run, onChange }: { run: string; onChange: (ok: boolean) => void }) {
+  const [st, setSt] = useState<Consent | null>(null);
+  const [err, setErr] = useState<ApiError | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [reason, setReason] = useState("");
+  const [confirm, setConfirm] = useState(false);
+  const show = (c: Consent) => { setSt(c); onChange(!!c.consent); };
+  useEffect(() => { api<Consent>(`/api/runs/${run}/consent`).then(show).catch(setErr); }, [run]);
+  const send = async (body: object) => {
+    setBusy(true); setErr(null);
+    try { show(await api<Consent>(`/api/runs/${run}/consent`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) })); }
+    catch (e) { setErr(e as ApiError); } finally { setBusy(false); }
+  };
+  const k = st?.consent;
+  return (
+    <div className="card form">
+      <div className="row"><h2>Maintainer's answer</h2>{st && <ConsentPill state={k?.kind === "user_override" ? "override" : st.state} />}</div>
+      {k ? <p className={k.kind === "user_override" ? "notice warn" : "notice"}>{KIND[k.kind] ?? k.kind}{k.attested_by_user ? " (you confirmed their reply)" : ""}
+          {k.quote && <>: "{k.quote}"</>}{k.source_url && <> <a href={k.source_url}>source</a></>}
+          {k.override_reason && <>. Your reason: {k.override_reason}</>}</p>
+        : st && <>
+          <p>{STATE[st.state] ?? st.state}{st.why ? ` ${st.why}` : ""}</p>
+          {st.replies.filter((r) => !r.declined).map((r) => (
+            <div key={r.url} className="row">
+              <p><strong>{r.author}</strong> <span className="hint">({r.association.toLowerCase()})</span>: "{r.quote}" <a href={r.url}>Open on GitHub</a></p>
+              <button className="secondary-btn" disabled={busy} onClick={() => send({ attest_comment_url: r.url })}>They agreed: record this reply</button>
+            </div>
+          ))}
+          <div className="row"><button className="secondary-btn" disabled={busy} onClick={() => send({})}>{busy ? "Checking…" : "Check the issue for a reply"}</button></div>
+          <details>
+            <summary>Publish without a maintainer's yes</summary>
+            <label>Why is it right to open this pull request anyway? (at least 20 characters)
+              <textarea rows={2} value={reason} onChange={(e) => setReason(e.target.value)} maxLength={1000} /></label>
+            <p className="hint">Your reason goes in the report as an override. It never appears in the pull request as if a maintainer asked.</p>
+            <button className="secondary-btn" disabled={busy || reason.trim().length < 20} onClick={() => setConfirm(true)}>Record my reason</button>
+          </details>
+        </>}
+      {err && <p className="notice warn">{err.message}</p>}
+      <Modal open={confirm} onClose={() => setConfirm(false)} title="Publish without a maintainer's yes?"
+        actions={<>
+          <button className="secondary" onClick={() => setConfirm(false)}>Go back</button>
+          <button onClick={() => { setConfirm(false); send({ override_reason: reason }); }}>Record my reason</button>
+        </>}>
+        <p>This can't be undone for this run. Your reason goes in the report as an override, and the pull request will never claim a maintainer asked for it.</p>
+      </Modal>
+    </div>
   );
 }
 
@@ -68,6 +147,7 @@ function AskFirst({ run }: { run: string }) {
   const [st, setSt] = useState<Ask | null>(null);
   const [text, setText] = useState("");
   const [err, setErr] = useState<ApiError | null>(null);
+  const [confirm, setConfirm] = useState(false);
   const load = () => api<Ask>(`/api/runs/${run}/ask-maintainer`).then((a) => { setSt(a); setText((t) => t || a.draft || ""); }).catch(setErr);
   useEffect(() => { load(); }, [run]);
   useEffect(() => { if (st?.pending) { const t = setTimeout(load, 3000); return () => clearTimeout(t); } }, [st]);
@@ -84,10 +164,17 @@ function AskFirst({ run }: { run: string }) {
       {st.url ? <p className="notice">Comment posted. <a href={st.url}>Open it on GitHub</a> and wait for a reply before opening the pull request.</p> : <>
         <label>Your comment (edit it so it sounds like you)
           <textarea rows={6} value={text} onChange={(e) => setText(e.target.value)} maxLength={2000} /></label>
-        <div className="row"><button onClick={post} disabled={st.pending || text.trim().length < 20}>{st.pending ? "Posting…" : "Post this comment on the issue"}</button></div>
+        <div className="row"><button onClick={() => setConfirm(true)} disabled={st.pending || text.trim().length < 20}>{st.pending ? "Posting…" : "Post this comment on the issue"}</button></div>
       </>}
       {st.error && <p className="notice warn">{st.error}</p>}
       {err && <p className="notice warn">{err.message}</p>}
+      <Modal open={confirm} onClose={() => setConfirm(false)} title="Post this comment on the issue?"
+        actions={<>
+          <button className="secondary" onClick={() => setConfirm(false)}>Keep editing</button>
+          <button onClick={() => { setConfirm(false); post(); }}>Post comment</button>
+        </>}>
+        <p>It appears publicly on GitHub under your account, and you can ask only once per run. Edit or delete it on GitHub if you need to.</p>
+      </Modal>
     </div>
   );
 }

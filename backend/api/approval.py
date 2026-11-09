@@ -10,7 +10,7 @@ from backend.github import reader
 
 router = APIRouter()
 CHECKLIST = ("read_diff", "understands_change", "ai_note_ok")
-CLEARABLE_OK = {PublishBlocker.NOT_APPROVED, PublishBlocker.NOT_SIGNED_IN}
+CLEARABLE_OK = {PublishBlocker.NOT_APPROVED, PublishBlocker.NOT_SIGNED_IN, PublishBlocker.NO_MAINTAINER_CONSENT}   # v0.5: consent comes later
 
 
 def _err(status, code, msg, retry=None):

@@ -62,6 +62,11 @@ def render(v: RunView, narrative: str | None = None) -> str:
     if narrative:
         L += ["## Explanation", narrative, ""]
     blockers = [b.value for b in v.publish_blockers]
+    k = v.consent
+    L += ["## Maintainer consent", "- Not recorded: no maintainer has agreed yet, so publishing is blocked." if k is None else
+          f"- Override by the user (no maintainer consent): {k.override_reason}" if k.kind == "user_override" else
+          f"- {k.kind.replace('_', ' ')}" + (f" by {k.author} ({k.author_association})" if k.author else "")
+          + (", confirmed by the user" if k.attested_by_user else "") + f": \"{k.quote}\"" + (f" ({k.source_url})" if k.source_url else ""), ""]
     L += ["## Publishing", f"- Blockers: {', '.join(blockers) or 'none'}",
           *([f"- Pull request: {v.pr.url or v.pr.compare_url}"] if v.pr else []), "",
           "## Limitations",

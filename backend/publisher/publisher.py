@@ -72,7 +72,7 @@ def ask_comment(v: RunView) -> str:
 
 def ask(v: RunView, gh, body: str) -> str:
     """Post the user's approved 'ask first' comment on the issue. Same pre-checks as a PR: it offers the approved fix."""
-    preflight_checks(v)
+    preflight_checks(v, need_consent=False)
     return gh.comment(v.issue.repo, v.issue.number, body)["html_url"]
 
 
@@ -81,14 +81,21 @@ def compare_url(upstream: str, base_branch: str, owner: str, branch: str, title:
             f"&title={quote(title)}&body={quote(body[:6000])}")
 
 
-def preflight_checks(v: RunView) -> str:
-    """Everything that must still be true at publish time. Returns the canonical diff."""
+NO_CONSENT = "No maintainer consent is recorded yet. Ask on the issue and record their reply, or type why you're publishing anyway."
+
+
+def preflight_checks(v: RunView, *, need_consent: bool = True) -> str:
+    """Everything that must still be true at publish time. Returns the canonical diff.
+    need_consent=False only for the ask comment, which is how consent is obtained (contracts v0.5 §2.2)."""
     if v.approval is None or v.approval.revision != v.revision:
         raise PublishRefused("APPROVAL_STALE", "Approve the current version of the change before publishing.")
     diff = exact_diff(v)
     if (v.approval.diff_hash, v.approval.evidence_hash) != hashes(v, diff):
         raise PublishRefused("HASH_MISMATCH", "The change or its evidence changed after you approved it, so we stopped.")
-    blocked = [b for b in v.publish_blockers if b not in (PublishBlocker.NOT_SIGNED_IN,)]
+    if need_consent and v.consent is None:   # also covers runs that finished before v0.5 and lack the blocker
+        raise PublishRefused("PUBLISH_BLOCKED", NO_CONSENT)
+    skip = (PublishBlocker.NOT_SIGNED_IN,) + (() if need_consent else (PublishBlocker.NO_MAINTAINER_CONSENT,))
+    blocked = [b for b in v.publish_blockers if b not in skip]
     if blocked:
         raise PublishRefused("PUBLISH_BLOCKED", "Publishing is blocked: " + ", ".join(b.value for b in blocked))
     new = approval.stale_checks(v, diff)
