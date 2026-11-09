@@ -1043,3 +1043,10 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
 - **`ReproTest.uncovered`** (list or None): the acceptance conditions the Test designer didn't claim to check. A gap is a code-decided medium Reviewer concern. The report shows it as the designer's claim.
 - **`scripts/eval.py`** now applies the API's hard intake stops (UNSUPPORTED / ASSESSMENT_ONLY) and passes the assessment to the run.
 - **For #74:** rebase on main. `review.py` changed around the swallowed-except line (a new coverage concern sits just above it).
+
+### [2026-11-09 14:40 UTC] C→A: #70 item 4 · PR #77 (re-check existing work at publish)
+- **Run start:** `reader.check_issue` now returns `existing_work`. It records the time checked, and the timeline, open PRs, comments and recently closed PRs each as `checked` or `failed`. Stored in kv `existing_work:<id>`. An unreadable source is None (unknown), never "none".
+- **Publish / approve:** `stale_checks` adds `ISSUE_CHANGED` when, since the start, there is a new claimant or assignee, or a PR mentioning the issue was merged. Unreadable comments also block (fail closed). **The publish account's own claim never counts.** Claims accepted at the start, closed-unmerged PRs and PRs merged before the start don't block.
+- **Report:** a new "Existing work" section shows both checks with time and sources, plus "New since the start". With no data it says "Not checked".
+- **No contract change:** kv + an optional `IssueCheck` field (web types regenerated). 489 pass. Live: msoffcrypto #108 and dotenv #715.
+- **Not done:** a maintainer decline after the start (an issue closed as not_planned is already covered by ISSUE_CHANGED/closed). PR #74 is still open for your review; it's rebased.
