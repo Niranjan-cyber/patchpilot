@@ -49,7 +49,7 @@ export default function Review() {
   if (!ctx) return err ? <section className="panel failed"><h1>Couldn't open the change</h1><p>{err.message}</p><Link className="button secondary" to={`/runs/${id}`}>Back to the run</Link></section>
     : <Loading label="Loading the exact change…" />;
 
-  const hard = ctx.publish_blockers.filter((b) => !["not_approved", "not_signed_in", "issue_changed"].includes(b));
+  const hard = ctx.publish_blockers.filter((b) => !["not_approved", "not_signed_in", "issue_changed", "no_maintainer_consent"].includes(b));
   const allTicked = BOXES.every(([k]) => boxes[k]);
   const approve = async () => {
     const r = await post(`/api/runs/${id}/approve`, { revision: ctx.revision, diff_hash: ctx.diff_hash, evidence_hash: ctx.evidence_hash,
