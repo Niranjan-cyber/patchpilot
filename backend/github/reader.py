@@ -35,6 +35,9 @@ class IssueCheck(BaseModel):
     unsupported: str | None = None    # reason nothing can execute (v0.4: an ASSESSMENT_ONLY run, not an error)
     assessment: IssueAssessment | None = None   # #48 intake assessment, decided by code
     fetched_at: datetime
+    # #70 item 3/4.3: what was checked for existing work, where, and when. Each source is "checked" or "failed" (unknown,
+    # never "none found"). Stored at run start and compared again at publish (approval.stale_checks).
+    existing_work: dict | None = None
 
 
 def parse_url(url: str) -> tuple[str, int]:
@@ -196,6 +199,7 @@ def check_issue(url: str, *, extract_model: bool = True) -> IssueCheck:
         timeline = _get(h, f"/repos/{repo}/issues/{num}/timeline?per_page=100", required=False)
         pulls = _get(h, f"/repos/{repo}/pulls?state=open&per_page=100", required=False)
         comments = _get(h, f"/repos/{repo}/issues/{num}/comments?per_page=100", required=False) if issue.get("comments") else []
+        closed = _get(h, f"/repos/{repo}/pulls?state=closed&sort=updated&direction=desc&per_page=50", required=False)
         community = _get(h, f"/repos/{repo}/community/profile", required=False)
         docs = []
         for path in ("CONTRIBUTING.md", ".github/CONTRIBUTING.md", "AI_POLICY.md", ".github/AI_POLICY.md", "README.md"):
@@ -243,5 +247,15 @@ def check_issue(url: str, *, extract_model: bool = True) -> IssueCheck:
                checks=checks, unsupported=unsupported, warnings=warnings, linked=linked, extracted=x,
                base_sha=(head or {}).get("sha"), forbids_ai=policy.ai_policy == "forbidden")
     warnings += [w for w in new_warnings(a) if w not in warnings]
+    now = datetime.now(timezone.utc)
+    hit = set(mentioning_open_prs(closed, repo, num, title)) if isinstance(closed, list) else set()
+    work = {"checked_at": now.isoformat(),
+            "sources": {k: "checked" if ok else "failed" for k, ok in (("timeline", isinstance(timeline, list)),
+                        ("open_prs", isinstance(pulls, list)), ("comments", comments is not None), ("closed_prs", isinstance(closed, list)))},
+            "linked_prs": linked, "assignees": [u.get("login") for u in issue.get("assignees") or [] if isinstance(u, dict)],
+            "claimants": claimed_by(comments) if comments is not None else None,
+            # shortcut: the 50 most recently updated closed PRs; enough for "fixed while you worked", not a full history
+            "closed_prs": [{"number": p["number"], "merged_at": p.get("merged_at"), "closed_at": p.get("closed_at")}
+                           for p in closed if isinstance(p, dict) and p.get("number") in hit] if isinstance(closed, list) else None}
     return IssueCheck(issue=spec, base_sha=(head or {}).get("sha"), default_branch=branch, language=meta.get("language"),
-                      policy=policy, warnings=warnings, unsupported=unsupported, assessment=a, fetched_at=datetime.now(timezone.utc))
+                      policy=policy, warnings=warnings, unsupported=unsupported, assessment=a, fetched_at=now, existing_work=work)

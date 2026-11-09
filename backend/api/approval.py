@@ -4,7 +4,9 @@ from pydantic import BaseModel, Field
 
 from backend import artifacts, db
 from backend.contracts.hashing import canonical_diff, diff_hash, evidence_hash, evidence_manifest
-from backend.contracts.models import (Approval, ApproveRequest, Owner, PERMANENT_BLOCKERS, PublishBlocker, RevisionSummary,
+from datetime import datetime
+
+from backend.contracts.models import (Approval, ApproveRequest, CheckStatus, Owner, PERMANENT_BLOCKERS, PublishBlocker, RevisionSummary,
                                       RunStatus, RunView)
 from backend.github import reader
 
@@ -60,6 +62,25 @@ def changed_files(diff: str) -> set[str]:
     return {l.split(" b/", 1)[1].strip() for l in diff.splitlines() if l.startswith("diff --git ") and " b/" in l}
 
 
+def new_existing_work(start: dict | None, now: dict, *, me: str | None, started_at: str, claims_known_at_start: bool) -> list[str]:
+    """#70 item 4: work that appeared since the run started (code decides). The user's own comments never count.
+    An unreadable source now is unknown, so it fails closed. Without a start snapshot (older runs), claims count only if the
+    issue had none at the start."""
+    out, mine = [], (me or "").lower()
+    if now.get("claimants") is None:
+        out.append("the issue's comments couldn't be read, so we can't confirm nobody has claimed it")
+    else:
+        before = set() if start is None else {x for x in (start.get("claimants") or []) + (start.get("assignees") or [])}
+        people = [p for p in dict.fromkeys((now.get("claimants") or []) + (now.get("assignees") or []))
+                  if p and p.lower() != mine and p not in before]
+        if people and (start is not None or claims_known_at_start):
+            out.append("since the run started, " + ", ".join(people) + " claimed the issue or was assigned")
+    for pr in now.get("closed_prs") or []:
+        if pr.get("merged_at") and datetime.fromisoformat(pr["merged_at"]) > datetime.fromisoformat(started_at):
+            out.append(f"pull request #{pr['number']}, which mentions this issue, was merged after the run started")
+    return out
+
+
 def stale_checks(v: RunView, diff: str) -> list[PublishBlocker]:
     """Has the world moved since we tested? Fails closed: if GitHub can't confirm, raise (never assume unchanged)."""
     out = []
@@ -67,6 +88,17 @@ def stale_checks(v: RunView, diff: str) -> list[PublishBlocker]:
         chk = reader.check_issue(v.issue.html_url, extract_model=False)   # repo facts only: no assessor call
         if {"closed", "linked_pr"} & set(chk.warnings):
             out.append(PublishBlocker.ISSUE_CHANGED)
+        if chk.existing_work is not None:   # new claims / assignees / merged PRs since the start (#70 item 4)
+            import json
+            c = db.connect()
+            start = json.loads(db.get_kv(c, f"existing_work:{v.run_id}") or "null")
+            aid = db.get_kv(c, f"publish_account:{v.run_id}")
+            me = (c.execute("SELECT login FROM accounts WHERE id=?", (int(aid),)).fetchone() or [None])[0] if aid else None
+            new = new_existing_work(start, chk.existing_work, me=me, started_at=v.created_at.isoformat(),
+                                    claims_known_at_start=v.issue.checks.get("unassigned") == CheckStatus.PASSED)
+            db.put_kv(c, f"existing_work_recheck:{v.run_id}", json.dumps({**chk.existing_work, "new": new}))
+            if new and PublishBlocker.ISSUE_CHANGED not in out:
+                out.append(PublishBlocker.ISSUE_CHANGED)
         with reader._client() as h:
             cmp = reader._get(h, f"/repos/{v.issue.repo}/compare/{v.base_sha}...{chk.default_branch}")
     except reader.GitHubError as e:
@@ -118,7 +150,7 @@ def approve(run_id: str, body: ApproveRequest, request: Request, accept_issue_ch
         db.save_run(db.connect(), v)
         code = "UPSTREAM_CHANGED" if PublishBlocker.UPSTREAM_CHANGED in new else "APPROVAL_STALE"
         raise _err(409, code, "Files in this change were edited upstream after we tested. Re-run on the latest code."
-                   if code == "UPSTREAM_CHANGED" else "The issue changed since the run (closed or a new linked pull request).")
+                   if code == "UPSTREAM_CHANGED" else "The issue changed since the run: it was closed, a pull request now addresses it, or someone else claimed it.")
     v.approval = Approval(run_id=run_id, revision=v.revision, diff_hash=body.diff_hash, evidence_hash=body.evidence_hash,
                           approved_by=Owner(session_id_hash=session.current(request)), approved_at=db.now(),
                           checklist=body.checklist, explanation=body.explanation, ownership=body.ownership, pr_title=body.pr_title, pr_summary=body.pr_summary)
