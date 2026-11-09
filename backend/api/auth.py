@@ -136,6 +136,7 @@ def ask_state(run_id: str, request: Request):
 
 @router.post("/api/runs/{run_id}/ask-maintainer")
 def ask_maintainer(run_id: str, body: AskBody, request: Request):
+    import json
     from backend.api.approval import _run
     v = _run(request, run_id)
     acct = session.account(request)
@@ -150,6 +151,8 @@ def ask_maintainer(run_id: str, body: AskBody, request: Request):
     with db.tx(c):   # one comment per click: refuse while one is queued or running
         if c.execute("SELECT 1 FROM jobs WHERE run_id=? AND kind='ask' AND state IN ('queued','running')", (run_id,)).fetchone():
             raise _err(409, "ALREADY_ASKING", "The comment is already being posted.")
+        if "url" in json.loads(db.get_kv(c, f"ask:{run_id}") or "{}"):   # one ask per run: never ping the maintainer twice
+            raise _err(409, "ALREADY_ASKED", "You already asked on the issue. Wait for the maintainer's reply.")
         db.put_kv(c, f"publish_account:{run_id}", str(acct["id"]))
         db.put_kv(c, f"ask_body:{run_id}", body.body)
         c.execute("DELETE FROM kv WHERE key=?", (f"ask:{run_id}",))

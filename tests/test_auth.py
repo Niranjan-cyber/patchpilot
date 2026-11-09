@@ -123,3 +123,4 @@ def test_ask_first_queues_one_comment_and_reports_the_link(env, monkeypatch):
     st = b.get(f"/api/runs/{rid}/ask-maintainer").json()
     assert seen["body"] == msg["body"] and st["url"].endswith("#c") and st["pending"] is False
     assert db.get_run(db.connect(), rid).status == RunStatus.AWAITING_APPROVAL   # asking never changes the run's status
+    assert b.post(f"/api/runs/{rid}/ask-maintainer", json=msg).json()["code"] == "ALREADY_ASKED"   # never ping twice
