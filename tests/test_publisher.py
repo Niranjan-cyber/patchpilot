@@ -11,8 +11,9 @@ TEST = "diff --git a/tests/test_a.py b/tests/test_a.py\n--- /dev/null\n+++ b/tes
 
 
 @pytest.fixture
-def run(monkeypatch):
+def run(monkeypatch, tmp_path):
     monkeypatch.setattr(approval, "stale_checks", lambda v, d: [])
+    monkeypatch.setattr(__import__("backend.db", fromlist=["x"]), "DB_PATH", str(tmp_path / "app.db"))   # pr_body reads kv
     t = __import__("backend.db", fromlist=["now"]).now()
     v = RunView(run_id="1234abcd-0000-4000-8000-000000000000", status=RunStatus.AWAITING_APPROVAL, outcome=Outcome.VERIFIED_FIX,
                 issue=IssueSpec(html_url="https://github.com/up/proj/issues/7", repo="up/proj", number=7, title="bug"),
@@ -69,13 +70,37 @@ def test_refused_pr_falls_back_to_compare_link(run):
     assert r.status == "branch_only" and r.pr.compare_url.startswith("https://github.com/up/proj/compare/main...alice:")
 
 
-def test_body_has_evidence_and_ai_note(run):
+def test_body_has_labels_evidence_and_ai_note(run):
     body = P.pr_body(run)
-    assert "Fixes #7" in body and "fails 2/2 on the original code" in body and P.AI_NOTE in body
+    # #70 item 5: bold labels in this order, no headings (mcstatus #1238: the long body read as vibe-coding)
+    labels = ["**Problem:**", "**Cause:**", "**Fix:**", "**Tests:**", "**Limitations:**", "**AI assistance:**", "<details>"]
+    assert [body.index(x) for x in labels] == sorted(body.index(x) for x in labels) and "## " not in body
+    assert "Fixes #7" in body and "**Problem:** bug" in body and "**Cause:** Raises now." in body
+    assert "**Fix:** changes `src/a.py` (+1 −1)." in body   # counted from the fix diff, not the test diff
+    assert "fails 2/2 on the original code" in body and P.AI_NOTE in body
     assert "2 existing tests passed before" in body and "1 were already failing" in body
-    # evidence folded below the summary and the AI note (mcstatus #1238: the long body read as vibe-coding)
-    assert body.index(P.AI_NOTE) < body.index("<details>") < body.index("fails 2/2") < body.index("</details>")
-    assert "## " not in body
+    assert "own linters and type checkers were not checked" in body   # no rows stored: never implied as passed
+    assert "A maintainer agreed to a pull request [on the issue](https://github.com/up/proj/issues/7#issuecomment-2)." in body
+
+
+def test_body_names_the_repo_checks_that_ran_and_did_not(run):
+    import json
+    from backend import db
+    db.put_kv(db.connect(), f"repo_checks:{run.run_id}", json.dumps({"checks": [
+        {"tool": "ruff check", "status": "PASS"}, {"tool": "mypy", "status": "FAIL"},
+        {"tool": "flake8", "status": "NOT_RUN"}, {"tool": "pre-commit: codespell", "status": "UNSUPPORTED"}], "files": [], "reason": None}))
+    run.repro.uncovered = ["works for uppercase schemes"]
+    body = P.pr_body(run)
+    assert "run on the changed files: ruff check (no new problems), mypy (new problems)." in body
+    assert "Not run here: flake8, pre-commit: codespell; please check them in CI." in body
+    assert "The test doesn't claim to check: works for uppercase schemes." in body
+
+
+@pytest.mark.parametrize("kind", ["user_override", "contributing_invites"])
+def test_body_never_claims_a_maintainer_asked_without_their_words(run, kind):
+    run.consent = run.consent.model_copy(update={"kind": kind, "override_reason": "The maintainer said yes on Discord, link lost"})
+    body = P.pr_body(run)
+    assert "maintainer agreed" not in body and "Discord" not in body
 
 
 @pytest.mark.parametrize("mutate,code", [
