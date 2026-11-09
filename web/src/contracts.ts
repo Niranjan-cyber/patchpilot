@@ -259,6 +259,9 @@ export type Suitability =
       [k: string]: unknown;
     }[]
   | null;
+export type ExistingWork = {
+  [k: string]: unknown;
+} | null;
 
 export interface Contracts {
   RunView?: RunView;
@@ -657,6 +660,7 @@ export interface IssueCheck {
   assessment?: IssueAssessment | null;
   fetched_at: FetchedAt;
   suitability?: Suitability;
+  existing_work?: ExistingWork;
   [k: string]: unknown;
 }
 /**

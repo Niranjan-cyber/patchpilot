@@ -36,6 +36,9 @@ class IssueCheck(BaseModel):
     assessment: IssueAssessment | None = None   # #48 intake assessment, decided by code
     fetched_at: datetime
     suitability: list[dict] | None = None       # #70 item 7: per-dimension outcome + evidence (backend/github/suitability.py)
+    # #70 item 3/4.3: what was checked for existing work, where, and when. Each source is "checked" or "failed" (unknown,
+    # never "none found"). Stored at run start and compared again at publish (approval.stale_checks).
+    existing_work: dict | None = None
 
 
 def parse_url(url: str) -> tuple[str, int]:
@@ -72,7 +75,7 @@ def _words(text: str) -> set[str]:
     return {w for w in re.findall(r"[a-z][a-z0-9_]+", (text or "").lower()) if len(w) >= 4 and w not in _STOP}
 
 
-def mentioning_open_prs(pulls: list, repo: str, num: int, title: str) -> list[int]:
+def mentioning_open_prs(pulls: list, repo: str, num: int, title: str, *, title_words: bool = True) -> list[int]:
     """Open PRs that likely fix this issue without a timeline cross-reference (A's P1, 2026-11-08: python-dotenv #715,
     jmespath #381). A hit is only the overridable linked_pr warning ("lookups can be wrong"), never a block.
     shortcut: the newest 100 open PRs and a 2-shared-title-words rule; upgrade to the search API if it misses real cases."""
@@ -82,7 +85,7 @@ def mentioning_open_prs(pulls: list, repo: str, num: int, title: str) -> list[in
         if not isinstance(p, dict) or not isinstance(p.get("number"), int):
             continue
         text = f"{p.get('title') or ''}\n{p.get('body') or ''}"
-        if ref.search(text) or len(want & _words(p.get("title") or "")) >= 2:
+        if ref.search(text) or (title_words and len(want & _words(p.get("title") or "")) >= 2):
             out.append(p["number"])
     return sorted(out)
 
@@ -197,6 +200,7 @@ def check_issue(url: str, *, extract_model: bool = True) -> IssueCheck:
         timeline = _get(h, f"/repos/{repo}/issues/{num}/timeline?per_page=100", required=False)
         pulls = _get(h, f"/repos/{repo}/pulls?state=open&per_page=100", required=False)
         comments = _get(h, f"/repos/{repo}/issues/{num}/comments?per_page=100", required=False) if issue.get("comments") else []
+        closed = _get(h, f"/repos/{repo}/pulls?state=closed&sort=updated&direction=desc&per_page=50", required=False)
         community = _get(h, f"/repos/{repo}/community/profile", required=False)
         docs = []
         for path in ("CONTRIBUTING.md", ".github/CONTRIBUTING.md", "AI_POLICY.md", ".github/AI_POLICY.md", "README.md"):
@@ -244,8 +248,25 @@ def check_issue(url: str, *, extract_model: bool = True) -> IssueCheck:
                checks=checks, unsupported=unsupported, warnings=warnings, linked=linked, extracted=x,
                base_sha=(head or {}).get("sha"), forbids_ai=policy.ai_policy == "forbidden")
     warnings += [w for w in new_warnings(a) if w not in warnings]
-    from backend.github.suitability import dimensions
-    dims = dimensions(a=a, issue=issue, comments=comments if isinstance(comments, list) else None, checks=checks,
-                      expected=exp, actual=act, unsupported=unsupported, ai_policy=policy.ai_policy)
-    return IssueCheck(suitability=dims, issue=spec, base_sha=(head or {}).get("sha"), default_branch=branch, language=meta.get("language"),
-                      policy=policy, warnings=warnings, unsupported=unsupported, assessment=a, fetched_at=datetime.now(timezone.utc))
+    now = datetime.now(timezone.utc)
+    # a merged PR hard-blocks publishing, so only a real reference counts, never the 2-title-words guess
+    hit = set(mentioning_open_prs(closed, repo, num, title, title_words=False)) if isinstance(closed, list) else set()
+    work = {"checked_at": now.isoformat(),
+            "sources": {k: "checked" if ok else "failed" for k, ok in (("timeline", isinstance(timeline, list)),
+                        ("open_prs", isinstance(pulls, list)), ("comments", comments is not None), ("closed_prs", isinstance(closed, list)))},
+            "linked_prs": linked, "assignees": [u.get("login") for u in issue.get("assignees") or [] if isinstance(u, dict)],
+            "claimants": claimed_by(comments) if comments is not None else None,
+            # shortcut: the 50 most recently updated closed PRs; enough for "fixed while you worked", not a full history
+            "closed_prs": [{"number": p["number"], "merged_at": p.get("merged_at"), "closed_at": p.get("closed_at")}
+                           for p in closed if isinstance(p, dict) and p.get("number") in hit] if isinstance(closed, list) else None}
+    dims = None
+    if extract_model:   # approval's stale check and the publisher only need repo facts, not the explanation
+        try:   # an explanation panel must never fail G0, approve or publish: a crash here is "not checked"
+            from backend.github.suitability import dimensions
+            dims = dimensions(a=a, issue=issue, comments=comments if isinstance(comments, list) else None, checks=checks,
+                              expected=exp, actual=act, unsupported=unsupported, ai_policy=policy.ai_policy)
+        except Exception:
+            dims = None
+    return IssueCheck(suitability=dims, issue=spec, base_sha=(head or {}).get("sha"), default_branch=branch,
+                      language=meta.get("language"), policy=policy, warnings=warnings, unsupported=unsupported, assessment=a,
+                      fetched_at=now, existing_work=work)

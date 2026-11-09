@@ -756,6 +756,19 @@
      ],
      "default": null,
      "title": "Suitability"
+    },
+    "existing_work": {
+     "anyOf": [
+      {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Existing Work"
     }
    },
    "required": [

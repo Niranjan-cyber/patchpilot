@@ -113,3 +113,13 @@ def test_attest_is_refused_after_a_later_decline_and_blank_override_is_refused(a
     assert r.status_code == 409 and r.json()["code"] == "NOT_CONSENT"
     assert b.post(f"/api/runs/{rid}/consent", json={"override_reason": " " * 25}).status_code == 422
     assert db.get_run(db.connect(), rid).consent is None
+
+
+def test_a_maintainers_earlier_no_beats_an_invite_label():
+    # found while fixing #85: a "won't fix" before our ask plus "help wanted" was read as consent granted
+    from backend.github import consent as K2
+    issue = {"state": "open", "labels": [{"name": "help wanted"}], "html_url": "https://github.com/o/r/issues/1"}
+    no = {"user": {"login": "own"}, "author_association": "OWNER", "body": "Won't fix, working as intended.", "id": 5}
+    assert K2.read(issue, [no], asked_url=None, me=None)["state"] == "declined"
+    later_yes = {**no, "body": "Changed my mind: PRs welcome.", "id": 9}
+    assert K2.read(issue, [no, later_yes], asked_url=None, me=None)["state"] == "granted"   # the latest word wins

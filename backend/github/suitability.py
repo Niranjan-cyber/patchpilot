@@ -6,7 +6,7 @@ Each dimension: {dimension, outcome: ok | concern | blocker | unknown, explanati
 reporter (the issue author), maintainer (OWNER / MEMBER / COLLABORATOR), contributor (any other commenter),
 repository (labels, files, GitHub's own data), patchpilot (our model's extraction or our own check)."""
 from backend.contracts.models import CheckStatus, IssueAssessment
-from backend.github.consent import INVITE_LABELS, MAINTAINER
+from backend.github.consent import INVITE_LABELS, MAINTAINER, _clean, read as consent_read
 
 ORDER = ["problem_clarity", "expected_behavior", "reproducibility", "technical_scope", "repo_compatibility", "testability",
          "maintainer_intent", "existing_work", "system_support"]
@@ -14,7 +14,8 @@ FIXABLE = {"bug", "regression"}
 
 
 def _ev(source: str, text: str | None, url: str | None = None) -> dict:
-    return {"source": source, "text": (text or "").strip()[:300], **({"url": url} if url else {})}
+    # one line, whitespace collapsed: issue and comment text must not add lines or sections to the report
+    return {"source": source, "text": " ".join((text or "").split())[:300], **({"url": url} if url else {})}
 
 
 def _who(c: dict, reporter: str | None) -> str:
@@ -100,16 +101,18 @@ def dimensions(*, a: IssueAssessment, issue: dict, comments: list | None, checks
     said = [c for c in (comments or []) if isinstance(c, dict) and c.get("author_association") in MAINTAINER]
     invite = [l for l in labels if l.lower() in INVITE_LABELS]
     ev = [*[_ev("repository", f"label: {l}") for l in invite],
-          *[_ev("maintainer", f"{(c.get('user') or {}).get('login')}: {c.get('body') or ''}", c.get("html_url")) for c in said[-2:]],
+          *[_ev("maintainer", f"{(c.get('user') or {}).get('login')}: {_clean(c.get('body') or '')}", c.get("html_url"))
+            for c in said[-2:]],   # quoted (>) lines are someone else's words, never shown as the maintainer's
           *([_ev("maintainer", f"the reporter is a maintainer ({issue.get('author_association')})")]
             if issue.get("author_association") in MAINTAINER else [])]
     if ai_policy == "forbidden":
         put("maintainer_intent", "blocker", "The repository's contribution docs forbid AI-generated contributions.",
             [*ev, _ev("repository", "AI policy: forbidden")])
-    elif issue.get("state_reason") == "not_planned":
-        put("maintainer_intent", "blocker", "A maintainer closed the issue as not planned.", ev)
-    elif invite:
-        put("maintainer_intent", "ok", "A label invites contributions. Publishing still needs consent recorded on the run.", ev)
+    elif (st := consent_read(issue, comments or [], asked_url=None, me=None))["state"] == "declined":   # same rule as the consent card
+        put("maintainer_intent", "blocker", st.get("why") or "A maintainer declined.", ev)
+    elif st["state"] == "granted":
+        put("maintainer_intent", "ok", "A maintainer asked for a fix, or a label invites one. Publishing still needs consent "
+            "recorded on the run.", ev)
     elif said:
         put("maintainer_intent", "unknown", "A maintainer commented; read their words below. We don't treat a comment as "
             "agreement unless it clearly asks for a fix.", ev, ["Whether the maintainers want a pull request"])

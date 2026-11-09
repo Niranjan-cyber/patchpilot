@@ -64,6 +64,7 @@ def render(v: RunView, narrative: str | None = None) -> str:
     if narrative:
         L += ["## Explanation", narrative, ""]
     blockers = [b.value for b in v.publish_blockers]
+    L += existing_work_section(v.run_id)
     L += repo_checks_section(v.run_id)
     o = v.approval.ownership if v.approval else None   # contracts v0.5 §2.3; never in the PR body
     if o:
@@ -95,6 +96,39 @@ def suitability_section(run_id: str) -> list[str]:
     except Exception:
         raw = None
     return report_lines(json.loads(raw) if raw else None)
+
+
+def existing_work_section(run_id: str) -> list[str]:
+    """#70 item 4: where we looked for existing work and when, at the start and again at publish. A source we couldn't
+    read says so; we never write "no existing work" for it."""
+    import json
+    from backend import db
+    def get(k):
+        try:
+            raw = db.get_kv(db.connect(), f"{k}:{run_id}")
+        except Exception:
+            raw = None
+        return json.loads(raw) if raw else None
+    start, again = get("existing_work"), get("existing_work_recheck")
+    if not start and not again:
+        return ["## Existing work", "- Not re-checked for this run. G0 checked assignees, claims and linked PRs when it started (see Checks).", ""]
+    names = {"timeline": "issue timeline", "open_prs": "open pull requests", "comments": "issue comments", "closed_prs": "recently closed pull requests"}
+    def lines(w, when):
+        srcs = ", ".join(f"{names.get(k, k)} ({'read' if st == 'checked' else 'could not be read'})" for k, st in w.get("sources", {}).items())
+        prs = w.get("linked_prs")
+        merged = [p["number"] for p in (w.get("closed_prs") or []) if p.get("merged_at")]
+        return [f"- {when}, checked {w.get('checked_at', '?')}: {srcs}.",
+                f"  - Open pull requests for this issue: {', '.join(f'#{n}' for n in prs) if prs else ('none found' if prs == [] else 'unknown')}.",
+                f"  - Claimed in comments by: {', '.join(w['claimants']) if w.get('claimants') else ('nobody' if w.get('claimants') == [] else 'unknown')}."
+                + (f" Assigned to: {', '.join(w['assignees'])}." if w.get("assignees") else ""),
+                *([f"  - Merged pull requests that mention it: {', '.join(f'#{n}' for n in merged)}."] if merged else [])]
+    out = ["## Existing work"]
+    if start:
+        out += lines(start, "When the run started")
+    if again:
+        out += lines(again, "Re-checked before publishing")
+        out += [f"  - New since the start: {'; '.join(again['new'])}." if again.get("new") else "  - Nothing new since the start."]
+    return [*out, ""]
 
 
 def repo_checks_section(run_id: str) -> list[str]:

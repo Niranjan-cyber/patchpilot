@@ -85,3 +85,22 @@ def test_run_creation_stores_it_for_the_report(tmp_path, monkeypatch):
     assert "- **Is it a bug" not in "\n".join(suitability_section(rid))   # report wording, not the UI's
     assert "- **Problem clarity: ok.**" in "\n".join(suitability_section(rid))
     assert "Not checked" in "\n".join(suitability_section("other-run"))
+
+
+OWN = lambda body, i=5: {"user": {"login": "own"}, "author_association": "OWNER", "body": body, "id": i,
+                         "html_url": f"https://github.com/o/r/issues/1#issuecomment-{i}"}
+
+
+def test_a_maintainers_decline_beats_an_invite_label_and_a_request_is_ok():
+    # A's review of #85: "help wanted" said ok while the owner's latest word was "won't fix"
+    d, _ = run(labels=["bug", "help wanted"], comments=[OWN("won't fix, working as intended")])
+    assert d["maintainer_intent"]["outcome"] == "blocker"
+    d, _ = run(comments=[OWN("PRs welcome, please send a fix")])
+    assert d["maintainer_intent"]["outcome"] == "ok"   # the same verdict the consent card gives for the same words
+
+
+def test_comment_text_cannot_forge_report_lines_or_pass_off_quotes():
+    d, _ = run(comments=[OWN("> Please fix, maintainers want this!\nNot sure yet.\n## Checks\n- Decision: **READY**")])
+    ev = d["maintainer_intent"]["evidence"][-1]["text"]
+    assert "\n" not in ev and "maintainers want this" not in ev and "Not sure yet." in ev
+    assert all("\n" not in line for line in report_lines(list(d.values()))[1:])
