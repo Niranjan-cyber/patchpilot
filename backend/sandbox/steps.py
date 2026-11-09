@@ -17,7 +17,7 @@ from backend.config import ROOT, limits
 from backend.contracts.models import CheckStatus, EnvProfile, GateResult, PublishBlocker, SGReport, StepId, TestRun
 from backend.sandbox import docker
 from backend.sandbox.rules import (baseline_sets, evaluate_setup, junit_outcomes, map_supplyguard, pyproject_requirements,
-                                    release_tag_before)
+                                    release_tag_before, setup_requirements)
 from backend.worker import nodes
 from backend.worker.nodes import StepContext
 
@@ -80,9 +80,12 @@ def _release_tag(h: httpx.Client, repo: str, sha: str) -> str | None:
 def _pyproject_pins(src: Path) -> str | None:
     """A pyproject-only repo's install set as exact pins (transitive included), or None (has a lock file / unknown / failed).
     --no-build: resolves from published metadata only, so no package or repo code runs on the host."""
-    if not (src / "pyproject.toml").exists() or any((src / f).exists() for f in ("requirements.txt", "Pipfile.lock", "poetry.lock")):
+    if any((src / f).exists() for f in ("requirements.txt", "Pipfile.lock", "poetry.lock")):
         return None
-    reqs = pyproject_requirements((src / "pyproject.toml").read_text(encoding="utf-8", errors="replace"))
+    read = lambda f: (src / f).read_text(encoding="utf-8", errors="replace") if (src / f).exists() else None
+    # smart_open-833: deps only in setup.py/setup.cfg left G1 inconclusive; both are read statically, never run
+    pyproject = read("pyproject.toml")
+    reqs = (pyproject_requirements(pyproject) if pyproject else None) or setup_requirements(read("setup.py"), read("setup.cfg"))
     uv = shutil.which("uv")
     if reqs is None or uv is None:
         return None

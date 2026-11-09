@@ -23,10 +23,10 @@ def release_tag_before(releases: list[dict], commit_date: str) -> str | None:
 
 def map_supplyguard(exit_code: int | None, report: dict | None) -> tuple[CheckStatus, str, list[dict]]:
     """G1 from a SupplyGuard run. Unknown is inconclusive, never clean."""
+    if exit_code == 3:   # SupplyGuard prints plain text, not JSON, when it finds no dependency file it reads
+        return CheckStatus.INCONCLUSIVE, "no_supported_dependency_files", []
     if exit_code is None or report is None:
         return CheckStatus.INCONCLUSIVE, "supplyguard_unavailable", []
-    if exit_code == 3:
-        return CheckStatus.INCONCLUSIVE, "no_supported_dependency_files", []
     projects = report.get("projects") or []
     findings, blocked = [], []
     for p in projects:
@@ -82,6 +82,60 @@ def baseline_sets(first: dict[str, bool], rerun: dict[str, bool]) -> tuple[list[
     failed = sorted(t for t, ok in first.items() if not ok and not rerun.get(t, False))
     flaky = sorted(t for t, ok in first.items() if not ok and rerun.get(t, False))
     return passed, failed, flaky
+
+
+TEST_EXTRAS = ("test", "tests", "testing", "dev")
+
+
+def setup_requirements(setup_py: str | None, setup_cfg: str | None) -> list[str] | None:
+    """install_requires + the first test extra from setup.cfg, else from setup.py, read statically: setup.py is parsed
+    with ast and never run. Only list literals, names bound to them and `+` count; anything else -> None (G1 stays
+    inconclusive, never "no dependencies")."""
+    import ast
+    import configparser
+    out = None
+    if setup_cfg:
+        cp = configparser.ConfigParser(interpolation=None)
+        try:
+            cp.read_string(setup_cfg)
+        except configparser.Error:
+            cp = None
+        lines = lambda sec, key: [x.strip() for x in cp.get(sec, key, fallback="").splitlines() if x.strip() and not x.strip().startswith("#")]
+        if cp and cp.has_option("options", "install_requires"):
+            out = lines("options", "install_requires") + next(
+                (lines("options.extras_require", k) for k in TEST_EXTRAS if cp.has_option("options.extras_require", k)), [])
+    if out is None and setup_py:
+        try:
+            tree = ast.parse(setup_py)
+        except SyntaxError:
+            return None
+        names = {t.id: n.value for n in tree.body if isinstance(n, ast.Assign) for t in n.targets if isinstance(t, ast.Name)}
+
+        def val(node, depth=0):
+            if depth > 20:
+                raise ValueError
+            if isinstance(node, (ast.List, ast.Tuple)) and all(isinstance(e, ast.Constant) and isinstance(e.value, str) for e in node.elts):
+                return [e.value for e in node.elts]
+            if isinstance(node, ast.Name) and node.id in names:
+                return val(names[node.id], depth + 1)
+            if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+                return val(node.left, depth + 1) + val(node.right, depth + 1)
+            raise ValueError
+        call = next((n for n in ast.walk(tree) if isinstance(n, ast.Call) and getattr(n.func, "id", getattr(n.func, "attr", "")) == "setup"), None)
+        kw = {k.arg: k.value for k in (call.keywords if call else [])}
+        if "install_requires" not in kw:
+            return None
+        try:
+            out = val(kw["install_requires"])
+            ex = kw.get("extras_require")
+            if isinstance(ex, ast.Dict):
+                extras = {k.value: v for k, v in zip(ex.keys, ex.values) if isinstance(k, ast.Constant)}
+                out += next((val(extras[k]) for k in TEST_EXTRAS if k in extras), [])
+        except ValueError:
+            return None
+    if out is None:
+        return None
+    return list(dict.fromkeys([*out, *([] if any(r.split("[")[0].strip().lower() == "pytest" for r in out) else ["pytest"])]))
 
 
 def pyproject_requirements(text: str) -> list[str] | None:
