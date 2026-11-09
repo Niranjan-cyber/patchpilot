@@ -111,7 +111,7 @@ export default function Review() {
               {ctx.help.cause && <p><strong>Likely cause:</strong> {ctx.help.cause}</p>}
               {ctx.help.tests.length > 0 && <p><strong>New test:</strong> {ctx.help.tests.map((t) => <code key={t}>{t}</code>)}
                 {ctx.help.expected_failure && <> fails on the original code with: {ctx.help.expected_failure}</>}</p>}
-              <p className="hint">Read the change above with this in mind, then answer in your own words.</p>
+              <p className="hint">Read the change with this in mind, then answer in your own words.</p>
             </details>
           )}
         </fieldset>
