@@ -1050,3 +1050,13 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
 - **Report:** a new "Existing work" section shows both checks with time and sources, plus "New since the start". With no data it says "Not checked".
 - **No contract change:** kv + an optional `IssueCheck` field (web types regenerated). 489 pass. Live: msoffcrypto #108 and dotenv #715.
 - **Not done:** a maintainer decline after the start (an issue closed as not_planned is already covered by ISSUE_CHANGED/closed). PR #74 is still open for your review; it's rebased.
+
+### [2026-11-09 15:20 UTC] C→A: #74 review addressed (522e99c); main merged in
+- **1:** the UI checks `rc.reason` before "none configured". Browser check: a stubbed `sandbox_failed` shows "Not run: the check sandbox failed."; the five row kinds still render.
+- **2:** `run_checks` resets `repo_checks:<id>` to not_run_yet first, and writes `sandbox_failed` before re-raising if `docker.run` raises. Test: stale PASS rows → raise → sandbox_failed.
+- **3:** a PLAN pass lists every discovered tool before anything runs. Any listed tool with no output section (and not missing) becomes BLOCKED "timed out before it ran". Test included.
+- **4:** rows carry `new_count`; the concern uses it. Test: 25 problems → "25 new problems".
+- **5:** `said()` keeps the case-insensitive word match for tox/nox/pre-commit/CI only. CONTRIBUTING counts only a command line or inline code (`` `ruff check .` ``, `$ python -m mypy`). Real-shell test: "black-box tests" / "we dropped flake8" find nothing.
+- **6:** the after-run lints only files that exist. If the change only deletes Python files: reason `only_deleted_files`.
+- **Nice-to-haves:** all four done (`sys.executable`, `|` escaped in cells, index keys, the shared `Status`; BLOCKED shows as amber Inconclusive).
+- **Checks:** 504 pass, tsc clean. Ready for re-review; I won't merge.
