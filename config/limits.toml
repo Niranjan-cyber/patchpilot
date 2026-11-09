@@ -8,7 +8,7 @@ budget_measured_tokens_per_run = 260_000
 budget_measured_on = "2026-10-30"
 # #48 intake assessment: one capped model call per issue version (cached), role "assessor". Its own daily cap, separate
 # from the execution quotas above; still counted in global_llm_tokens_per_day. ~3k tokens/call -> ~40 new issues a day.
-# 0 = model extraction off (every issue is then at best HUMAN_DECISION or a keyword-clear ASSESSMENT_ONLY).
+# 0 = model extraction off: every issue is then at best HUMAN_DECISION (no keyword-only ASSESSMENT_ONLY since #50's review).
 assess_llm_tokens_per_day = 120_000
 run_llm_tokens = 600_000   # human-approved 2026-11-08: msoffcrypto #108 used 400.5k in one pass (binary-file repro), leaving nothing for Revise
 run_active_seconds = 1500

@@ -69,7 +69,7 @@ def emit(c, run_id: str, type_: str, step: str | None = None, revision: int = 0,
 
 def create_run(c, issue: IssueSpec, base_sha: str, owner_session_hash: str | None = None,
                owner_account_id: int | None = None, g0: tuple[CheckStatus, str] | None = None, job: bool = True,
-               **fields) -> RunView:
+               finished: dict | None = None, **fields) -> RunView:
     """Run + job + run.queued in ONE transaction: the worker can't see the job before the run is committed.
     g0 = (status, reason) from the API's eligibility check, recorded in the same transaction so the worker can't overwrite it."""
     t = now()
@@ -87,6 +87,8 @@ def create_run(c, issue: IssueSpec, base_sha: str, owner_session_hash: str | Non
             _append(c, v.run_id, "run.queued", position=c.execute("SELECT COUNT(*) FROM jobs WHERE state='queued'").fetchone()[0])
         if g0:
             _append(c, v.run_id, "gate.result", "intake", 0, gate="G0", status=g0[0].value, reason=g0[1], evidence_ids=[])
+        if finished is not None:   # an ASSESSMENT_ONLY run ends in the same transaction it starts in (#50 review 2, item 3)
+            _append(c, v.run_id, "analysis.finished", None, 0, **finished)
     return v
 
 
