@@ -34,14 +34,16 @@ def branch_name(v: RunView) -> str:
 def _changed(diff: str) -> list[str]:
     """`path` (+added −removed) per file, counted from the diff itself."""
     files: dict[str, list[int]] = {}
-    cur = None
+    cur, hunk = None, False
     for line in diff.splitlines():
-        if line.startswith("diff --git "):
-            cur = line.rsplit(" b/", 1)[-1]; files[cur] = [0, 0]
-        elif cur and line.startswith("+") and not line.startswith("+++"):
-            files[cur][0] += 1
-        elif cur and line.startswith("-") and not line.startswith("---"):
-            files[cur][1] += 1
+        if line.startswith("diff --git "):   # same path rule as approval.changed_files (the Review screen's list)
+            cur, hunk = (line.split(" b/", 1)[1].strip() if " b/" in line else None), False
+            if cur:
+                files[cur] = [0, 0]
+        elif line.startswith("@@"):
+            hunk = True
+        elif cur and hunk and line[:1] in "+-":   # inside a hunk, so "----" or "+++x" are content, not headers
+            files[cur][line[0] == "-"] += 1
     return [f"`{p}` (+{a} −{d})" for p, (a, d) in files.items()]
 
 
@@ -52,6 +54,9 @@ def _repo_checks(run_id: str) -> tuple[str, list[str]]:
     try:
         raw = db.get_kv(db.connect(), f"repo_checks:{run_id}")
         rows = (json.loads(raw) if raw else {}).get("checks")
+        if not (isinstance(rows, list) and all(isinstance(c, dict) and isinstance(c.get("tool"), str)
+                                               and isinstance(c.get("status"), str) for c in rows)):
+            rows = None   # a malformed record is "not checked", never a crash in the middle of publishing
     except Exception:
         rows = None
     if not rows:
@@ -67,7 +72,7 @@ def pr_body(v: RunView) -> str:
     closed as "too much vibe-coding"): no headings, no agent history; run details stay in the report."""
     a, base = v.approval, v.baseline
     tests = ", ".join(f"`{t}`" for t in (v.repro.test_ids if v.repro else [])) or "(not recorded)"
-    problem = (v.assessment.problem_summary if v.assessment and v.assessment.problem_summary else v.issue.title).strip()
+    problem = v.issue.title.strip()   # the reporter's words, which the user approved in the PR title; never model text
     fix = _changed(artifacts.get(v.patch.fix_diff_id).decode("utf-8", "replace")) if v.patch and artifacts.get(v.patch.fix_diff_id) else []
     checks, not_run = _repo_checks(v.run_id)
     existing = ((f" {len(base.pass_set)} existing tests passed before and still pass."

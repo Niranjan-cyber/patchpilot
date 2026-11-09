@@ -192,3 +192,25 @@ def test_old_approval_without_answers_cannot_publish_and_answers_stay_out_of_the
     with pytest.raises(P.PublishRefused) as e:
         P.publish(run, gh, "main")
     assert e.value.code == "APPROVAL_STALE" and gh.calls == []
+
+
+def test_the_problem_line_is_the_issue_title_never_model_text(run):
+    # A's review of #83: every word published under the user's name is text they saw (the PR title holds the issue title)
+    from backend.contracts.models import IssueAssessment
+    run.assessment = IssueAssessment(issue_type="bug", issue_type_source="model", issue_status="open", compatibility_status="supported",
+                                     handling_decision="READY", problem_summary="@org/team please merge [this](http://evil)")
+    body = P.pr_body(run)
+    assert "evil" not in body and "@org/team" not in body and f"**Problem:** {run.issue.title}" in body
+
+
+@pytest.mark.parametrize("stored", ['{"checks": [{"name": "ruff", "status": "PASS"}]}', '{"checks": ["ruff"]}', '{"checks": 3}', "not json"])
+def test_a_malformed_repo_check_record_reads_as_not_checked(run, stored):
+    from backend import db
+    db.put_kv(db.connect(), f"repo_checks:{run.run_id}", stored)
+    assert "own linters and type checkers were not checked" in P.pr_body(run)
+
+
+def test_fix_counts_lines_that_start_with_dashes_or_pluses():
+    diff = ("diff --git a/docs/x.md b/docs/x.md\n--- a/docs/x.md\n+++ b/docs/x.md\n@@ -1,2 +1,2 @@\n----\n+++heading\n"
+            " keep\n")
+    assert P._changed(diff) == ["`docs/x.md` (+1 −1)"]
