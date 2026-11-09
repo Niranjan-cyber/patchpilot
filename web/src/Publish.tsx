@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { api, ApiError, useRun } from "./api";
 import { Loading, StatusIcon } from "./components";
+import { Modal } from "./ui";
 
 type Me = { signed_in: boolean; login: string | null; oauth_ready: boolean };
 const ERR: Record<string, string> = {
@@ -95,6 +96,7 @@ function ConsentCard({ run, onChange }: { run: string; onChange: (ok: boolean) =
   const [err, setErr] = useState<ApiError | null>(null);
   const [busy, setBusy] = useState(false);
   const [reason, setReason] = useState("");
+  const [confirm, setConfirm] = useState(false);
   const show = (c: Consent) => { setSt(c); onChange(!!c.consent); };
   useEffect(() => { api<Consent>(`/api/runs/${run}/consent`).then(show).catch(setErr); }, [run]);
   const send = async (body: object) => {
@@ -123,10 +125,17 @@ function ConsentCard({ run, onChange }: { run: string; onChange: (ok: boolean) =
             <label>Why is it right to open this pull request anyway? (at least 20 characters)
               <textarea rows={2} value={reason} onChange={(e) => setReason(e.target.value)} maxLength={1000} /></label>
             <p className="hint">Your reason goes in the report as an override. It never appears in the pull request as if a maintainer asked.</p>
-            <button className="secondary-btn" disabled={busy || reason.trim().length < 20} onClick={() => send({ override_reason: reason })}>Record my reason</button>
+            <button className="secondary-btn" disabled={busy || reason.trim().length < 20} onClick={() => setConfirm(true)}>Record my reason</button>
           </details>
         </>}
       {err && <p className="notice warn">{err.message}</p>}
+      <Modal open={confirm} onClose={() => setConfirm(false)} title="Publish without a maintainer's yes?"
+        actions={<>
+          <button className="secondary" onClick={() => setConfirm(false)}>Go back</button>
+          <button onClick={() => { setConfirm(false); send({ override_reason: reason }); }}>Record my reason</button>
+        </>}>
+        <p>This can't be undone for this run. Your reason goes in the report as an override, and the pull request will never claim a maintainer asked for it.</p>
+      </Modal>
     </div>
   );
 }
@@ -138,6 +147,7 @@ function AskFirst({ run }: { run: string }) {
   const [st, setSt] = useState<Ask | null>(null);
   const [text, setText] = useState("");
   const [err, setErr] = useState<ApiError | null>(null);
+  const [confirm, setConfirm] = useState(false);
   const load = () => api<Ask>(`/api/runs/${run}/ask-maintainer`).then((a) => { setSt(a); setText((t) => t || a.draft || ""); }).catch(setErr);
   useEffect(() => { load(); }, [run]);
   useEffect(() => { if (st?.pending) { const t = setTimeout(load, 3000); return () => clearTimeout(t); } }, [st]);
@@ -154,10 +164,17 @@ function AskFirst({ run }: { run: string }) {
       {st.url ? <p className="notice">Comment posted. <a href={st.url}>Open it on GitHub</a> and wait for a reply before opening the pull request.</p> : <>
         <label>Your comment (edit it so it sounds like you)
           <textarea rows={6} value={text} onChange={(e) => setText(e.target.value)} maxLength={2000} /></label>
-        <div className="row"><button onClick={post} disabled={st.pending || text.trim().length < 20}>{st.pending ? "Posting…" : "Post this comment on the issue"}</button></div>
+        <div className="row"><button onClick={() => setConfirm(true)} disabled={st.pending || text.trim().length < 20}>{st.pending ? "Posting…" : "Post this comment on the issue"}</button></div>
       </>}
       {st.error && <p className="notice warn">{st.error}</p>}
       {err && <p className="notice warn">{err.message}</p>}
+      <Modal open={confirm} onClose={() => setConfirm(false)} title="Post this comment on the issue?"
+        actions={<>
+          <button className="secondary" onClick={() => setConfirm(false)}>Keep editing</button>
+          <button onClick={() => { setConfirm(false); post(); }}>Post comment</button>
+        </>}>
+        <p>It appears publicly on GitHub under your account, and you can ask only once per run. Edit or delete it on GitHub if you need to.</p>
+      </Modal>
     </div>
   );
 }
