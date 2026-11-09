@@ -103,6 +103,19 @@ def test_fix_rejects_test_edit_then_accepts_source_fix(run):
     assert [p["reason"] for t, p in events if t == "attempt.retry"] == ["edits_tests"]
 
 
+@pytest.mark.parametrize("target,seen", [("fix", True), ("test", False)])
+def test_fixer_gets_revise_feedback_only_when_it_was_about_the_fix(run, target, seen):
+    ctx, mp, ev, events = run
+    from backend.contracts.models import RevisionSummary
+    ctx.run.revision = 1
+    ctx.run.revisions = [RevisionSummary(revision=0, outcome=None, end_reason=None, revise_target=target, feedback="keep the public name")]
+    prompts = []
+    mp.setattr(F.docker, "exec_", _fix_exec([SRC]))
+    mp.setattr(F.loop, "run", lambda p, **k: (prompts.append(p), ({"summary": "s"}, []))[1])
+    F.fix(ctx)
+    assert ("keep the public name" in prompts[0]) is seen
+
+
 def test_fix_gives_up_after_all_attempts_with_g4_failed(run):
     ctx, mp, ev, events = run
     mp.setattr(F.docker, "exec_", _fix_exec([TEST_EDIT] * 4))

@@ -132,12 +132,16 @@ export default function Review() {
       </div>
 
       <div className="card form">
-        <label>Want something different? Describe it and we'll re-run the fix and verification.
+        <label>Want something different? Describe it and we'll run it again.
           <textarea rows={2} value={feedback} onChange={(e) => setFeedback(e.target.value)} placeholder="e.g. keep the function's public name the same" /></label>
-        <p className="hint">Revising cancels any earlier approval, because the change will be different.</p>
+        <p className="hint">If the test checks the wrong thing, use Rewrite the test: we write a new test, then fix again. Either way, any earlier approval is cancelled, because the change will be different.</p>
         {ctx.revise_blocked && <p className="notice warn">{ctx.revise_blocked}</p>}
-        <button className="secondary-btn" disabled={feedback.trim().length < 3 || !!busy || !!ctx.revise_blocked}
-          onClick={() => post(`/api/runs/${id}/revise`, { feedback }, "Starting the revision…").then((r) => r && nav(`/runs/${id}`))}>Revise the fix</button>
+        <div className="row !mt-0">
+          {(["fix", "test"] as const).map((target) => (
+            <button key={target} className="secondary-btn" disabled={feedback.trim().length < 3 || !!busy || !!ctx.revise_blocked}
+              onClick={() => post(`/api/runs/${id}/revise`, { feedback, target }, "Starting the revision…").then((r) => r && nav(`/runs/${id}`))}>
+              {target === "fix" ? "Revise the fix" : "Rewrite the test"}</button>))}
+        </div>
       </div>
       </div>
       </div>

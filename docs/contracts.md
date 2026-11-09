@@ -1,4 +1,4 @@
-# PatchPilot: Shared Contracts (v0.5 PROPOSED, #70; v0.4 agreed and merged in #50 on 2026-11-08)
+# PatchPilot: Shared Contracts (v0.6, 2026-11-09: Revise can rewrite the test; v0.5 #70; v0.4 merged in #50 on 2026-11-08)
 
 This file is the boundary between the four build lanes: **(1) sandbox + setup + baseline, (2) agent roles + gates, (3) GitHub reader/publisher + auth, (4) React UI + event polling.** Lanes build against these types and fixtures, not against each other's code.
 
@@ -103,7 +103,7 @@ When a revision's analysis ends, for whatever `EndReason`, take the **first** ro
 | any non-terminal | user stop | analysis ends, `user_stopped` → outcome by §1.2 → FINISHED |
 | INTERRUPTED | job resumed | previous status |
 | INTERRUPTED | 2 failed resumes of the same step | analysis ends, `system_error` → outcome by §1.2 → FINISHED |
-| AWAITING_APPROVAL | Revise | REVISING (revision + 1, approval voided) |
+| AWAITING_APPROVAL | Revise | REVISING (revision + 1, approval voided). v0.6: `target=fix` resumes at FIX; `target=test` resumes at REPRODUCE and clears every result and step row from there on. Either way the gates being re-run are reset to `not_run` first, so an old G5 pass never decides the new revision's outcome |
 | AWAITING_APPROVAL | recheck-deps finishes | AWAITING_APPROVAL (approval voided; blockers recomputed) |
 | AWAITING_APPROVAL | publish with a valid approval | PUBLISHING |
 | AWAITING_APPROVAL | "Keep report only" | FINISHED |
@@ -144,7 +144,7 @@ class RunState(BaseModel):
     budget: Budget                    # tokens_used/limit, active_seconds/limit, paused_since
     pause: PauseInfo | None           # reason, provider, resume_at: datetime | None (None = unknown)
     publish_blockers: list[PublishBlocker]
-    revisions: list[RevisionSummary]  # per revision: outcome, end_reason, diff_hash, evidence_ids, finished_at
+    revisions: list[RevisionSummary]  # per revision: outcome, end_reason, diff_hash, evidence_ids, finished_at; v0.6: revise_target, feedback (why the next revision started)
     details_expired_at: datetime | None  # set by retention (§9)
     approval: Approval | None
     consent: ConsentEvidence | None   # v0.5 (#70), §2.2; about the issue, so it survives Revise
@@ -280,7 +280,7 @@ data: {"v":1,"run_id":"…","seq":42,"ts":"2026-11-11T10:42:07Z","type":"step.fi
 | GET | `/api/runs/{id}/pr-status` | GitHub PR state, cached 10 min; `null` state = unknown |
 | GET | `/healthz` | DB writable, worker heartbeat fresh, Docker reachable |
 | POST | `/api/runs/{id}/stop` | ends analysis with `user_stopped`; outcome by §1.2; never publishable |
-| POST | `/api/runs/{id}/revise` | `{feedback}` → revision +1, approval voided, back to FIX |
+| POST | `/api/runs/{id}/revise` | `{feedback, target: "fix" or "test", default "fix"}` → revision +1, approval voided, back to FIX (`fix`) or REPRODUCE (`test`, v0.6). The target and feedback are kept in `revisions[]`; the Test designer sees the feedback and the rejected test, the Fixer sees feedback only for `fix` |
 | POST | `/api/runs/{id}/approve` | `{revision, diff_hash, evidence_hash, checklist, explanation: str \| null (≤ 2,000 chars), ownership (v0.5, required, §2.3), pr_title, pr_summary}` (§5) |
 | POST | `/api/runs/{id}/keep-report` | "Keep report only" → FINISHED |
 | POST | `/api/runs/{id}/rerun` | new run on the latest default-branch commit (counts against limits) |

@@ -15,6 +15,17 @@ from backend.worker.nodes import StepContext
 ERR = re.compile(r"\b([A-Z]\w*(?:Error|Exception))\b")
 
 
+def revise_note(ctx: StepContext) -> str:
+    """v0.6: the user asked to rewrite the test, so say why and show the test they rejected."""
+    ask = ctx.run.revisions[-1] if ctx.run.revisions else None
+    if not ask or ask.revise_target != "test":
+        return ""
+    old = artifacts.get(db.get_kv(db.connect(), f"revise_old_test:{ctx.run_id}") or "") or b""
+    return (f"The user rejected the previous test and asked to change it: {ask.feedback or '(no reason given)'}\n"
+            "Write a new test that follows this request and still checks what the issue expects."
+            + (f" The rejected test was:\n{old.decode('utf-8', 'replace')[:3000]}\n" if old else "\n"))
+
+
 def task_prompt(ctx: StepContext, attempt: int, previous: str | None) -> str:
     i = ctx.run.issue
     return f"""Write a NEW pytest test that reproduces this GitHub issue. It must FAIL on the current code because of the bug
@@ -32,7 +43,7 @@ Rules:
   Only add or edit test files. Never modify source files.
 - Run your test with `python -m pytest -q -p no:cacheprovider <file>` and check it fails for the right reason.
 - When done, run: echo {loop.DONE} '{{"test_ids": ["<that dir>/test_patchpilot_issue_{i.number}.py::<name>"], "expected_failure": "<one line>"}}'
-{"Previous attempt was rejected: " + previous if previous else ""}(attempt {attempt})"""
+{revise_note(ctx)}{"Previous attempt was rejected: " + previous if previous else ""}(attempt {attempt})"""
 
 
 def issue_error(ctx: StepContext) -> str | None:

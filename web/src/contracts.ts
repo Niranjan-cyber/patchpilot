@@ -167,6 +167,8 @@ export type Revision1 = number;
 export type DiffHash = string | null;
 export type EvidenceIds4 = string[];
 export type FinishedAt1 = string | null;
+export type ReviseTarget = ("fix" | "test") | null;
+export type Feedback = string | null;
 export type Revisions = RevisionSummary[];
 export type RunId1 = string;
 export type Revision2 = number;
@@ -511,6 +513,8 @@ export interface RevisionSummary {
   diff_hash?: DiffHash;
   evidence_ids?: EvidenceIds4;
   finished_at?: FinishedAt1;
+  revise_target?: ReviseTarget;
+  feedback?: Feedback;
   [k: string]: unknown;
 }
 /**

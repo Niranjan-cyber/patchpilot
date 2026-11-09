@@ -46,7 +46,8 @@ def fix(ctx: StepContext) -> GateResult | None:
     if not run.repro:
         return GateResult(gate="G4", status=CheckStatus.NOT_RUN, reason="no_reproduction")
     test_diff = (artifacts.get(run.repro.test_diff_id) or b"").decode("utf-8", "replace")
-    feedback = db.get_kv(db.connect(), f"revise:{rid}") if run.revision else None
+    last_ask = run.revisions[-1] if run.revisions else None   # v0.6: feedback aimed at the test went to the Test designer
+    feedback = last_ask.feedback if last_ask and last_ask.revise_target != "test" else None
     attempts, previous, last = limits()["retries"]["fixer"] + 1, ctx.scratch.pop("verify_feedback", None), None   # A: G5 failure → Fixer (B08)
     for attempt in range(1, attempts + 1):
         name = f"pp-{rid[:8]}-fix-{attempt}-{uuid.uuid4().hex[:4]}"
