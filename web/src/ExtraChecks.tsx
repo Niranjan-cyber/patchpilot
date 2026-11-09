@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "./api";
 import type { RunView } from "./contracts";
-import { Status } from "./components";
+import { Status, StatusIcon } from "./components";
 
 // #70 item 3: the repo's own checks, one row per tool. A check that didn't run is never shown as passed.
 type Check = { tool: string; status: "PASS" | "FAIL" | "NOT_RUN" | "UNSUPPORTED" | "BLOCKED"; command: string | null;
@@ -9,6 +9,13 @@ type Check = { tool: string; status: "PASS" | "FAIL" | "NOT_RUN" | "UNSUPPORTED"
 type RepoChecks = { checks: Check[] | null; files: string[]; reason: string | null };
 // BLOCKED means we don't know (amber), not a failure; the row's note says which kind of "not run"
 const CHECK = { PASS: "passed", FAIL: "failed", BLOCKED: "inconclusive", NOT_RUN: "not_run", UNSUPPORTED: "not_run" } as const;
+// #70 item 8: the regression test's quality, decided by code; amber for "check this", never green for unknown
+type TQ = { checks: { check: string; status: "PASS" | "FAIL" | "REVIEW_REQUIRED" | "NOT_COVERED" | "NOT_CHECKED"; note: string }[] | null; reason: string | null };
+const TQ_PILL = { PASS: ["passed", "Passed"], FAIL: ["failed", "Failed"], REVIEW_REQUIRED: ["inconclusive", "Check this"],
+  NOT_COVERED: ["inconclusive", "Not covered"], NOT_CHECKED: ["not_run", "Not checked"] } as const;
+const TQ_LABEL: Record<string, string> = { fails_on_base: "Fails on the original code", passes_with_fix: "Passes with the fix",
+  assertions: "Real assertions", mocks: "Mocks", existing_tests: "Existing tests untouched", test_location: "Follows the repo's test layout",
+  new_imports: "No new dependencies", covers_issue: "Covers what the issue expects", hidden_variant: "Hidden variant" };
 const NOCHECK: Record<string, string> = {
   not_run_yet: "Not run yet.", sample_run: "Not run: sample run.", no_python_files: "Not run: no Python files changed.",
   diff_did_not_apply: "Not run: the change didn't apply in the check sandbox.", sandbox_failed: "Not run: the check sandbox failed.",
@@ -43,10 +50,12 @@ export default function ExtraChecks({ run }: { run: RunView }) {
   const [b, setB] = useState<Bisect | null>(null);
   const [failed, setFailed] = useState(false);
   const [rc, setRc] = useState<RepoChecks | null>(null);
+  const [tq, setTq] = useState<TQ | null>(null);
   useEffect(() => {
     if (!run.repro) return;
     api<Bisect>(`/api/runs/${run.run_id}/bisect`).then(setB).catch(() => setFailed(true));
     api<RepoChecks>(`/api/runs/${run.run_id}/repo-checks`).then(setRc).catch(() => setRc({ checks: null, files: [], reason: "unavailable" }));
+    api<TQ>(`/api/runs/${run.run_id}/test-quality`).then(setTq).catch(() => setTq({ checks: null, reason: "unavailable" }));
   }, [run.run_id, run.repro, run.updated_at]);
   if (!run.repro || !run.outcome) return null;
   const hv = run.verify?.hidden_variant;
@@ -84,6 +93,23 @@ export default function ExtraChecks({ run }: { run: RunView }) {
                     )}
                   </li>
                 );
+              })}
+            </ul>
+          )}
+        </div>
+      </div>
+      <div className="extra-row">
+        <span className={`dot dot-${tq?.checks?.some((c) => c.status === "FAIL") ? "fail" : tq?.checks?.length ? "info" : "muted"}`} aria-hidden="true" />
+        <div>
+          <strong>Regression test quality</strong>
+          {!tq && <p>Loading…</p>}
+          {tq && !tq.checks?.length && <p>{tq.reason === "no_test_yet" ? "Not checked: no regression test yet." : "Status unavailable."}</p>}
+          {!!tq?.checks?.length && (
+            <ul className="repo-checks">
+              {tq.checks.map((c) => {
+                const [cls, word] = TQ_PILL[c.status];
+                return <li key={c.check}><span className={`status status-${cls}`}><StatusIcon s={cls} size={12} />{word}</span>{" "}
+                  <strong>{TQ_LABEL[c.check] ?? c.check}</strong>: {c.note}</li>;
               })}
             </ul>
           )}
