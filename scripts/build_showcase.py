@@ -57,7 +57,7 @@ def main() -> None:
     for rid in runs:
         save(f"/api/runs/{rid}", c.get(f"/api/runs/{rid}"))
         save(f"/api/runs/{rid}/events", c.get(f"/api/runs/{rid}/events", params={"after": 0}))
-        for sub in ("bisect", "pauses", "approval"):
+        for sub in ("bisect", "pauses", "approval", "repo-checks", "test-quality"):   # every GET the run screens make
             save(f"/api/runs/{rid}/{sub}", c.get(f"/api/runs/{rid}/{sub}"))
         for dl in ("report.md", "diff.patch"):   # plain links, so they live at the real path
             r = c.get(f"/api/runs/{rid}/{dl}")
