@@ -86,6 +86,30 @@ def mentioning_open_prs(pulls: list, repo: str, num: int, title: str) -> list[in
     return sorted(out)
 
 
+CLAIM = re.compile(r"""(?ix)
+  \b(?:i'?ll|i\ will|i'?d\ like\ to|i\ want\ to|let\ me|i\ can|i'?m\ going\ to)\ (?:take|pick\ up|grab|work\ on|fix)\ (?:this|it|that)\b
+| \bi'?m\ (?:already\ )?(?:working\ on|on)\ (?:this|it|a\ fix|a\ pr)\b
+| \b(?:i'?ll|i\ will|i\ can|happy\ to|glad\ to|i'?d\ (?:be\ happy|love|like)\ to)\ (?:send|open|submit|make|create|put\ up)\ (?:a\ |the\ )?(?:pr|pull\ request|fix|patch)\b
+| \b(?:can|could|may)\ i\ (?:take|work\ on|pick\ up|grab)\ (?:this|it)\b
+| \bassign\ (?:this\ |it\ |the\ issue\ )?to\ me\b
+""")
+
+
+def claimed_by(comments: list) -> list[str]:
+    """Commenters who said they'll fix it or send a PR (msoffcrypto #109 was closed: the reporter had offered to send one).
+    Folded into the overridable `assigned` warning. Quoted lines don't count.
+    shortcut: the first 100 comments and an English phrase list; upgrade if real claims slip through."""
+    out = []
+    for cm in comments if isinstance(comments, list) else []:
+        if not isinstance(cm, dict):
+            continue
+        text = "\n".join(l for l in (cm.get("body") or "").replace("’", "'").splitlines() if not l.lstrip().startswith(">"))
+        who = (cm.get("user") or {}).get("login") or "someone"
+        if CLAIM.search(text) and who not in out:
+            out.append(who)
+    return out
+
+
 def detect(root_names: list[str], language: str | None) -> tuple[bool, bool]:
     names = {n.lower() for n in root_names}
     python = language == "Python" or bool(names & {n.lower() for n in PY_FILES})
@@ -171,6 +195,7 @@ def check_issue(url: str, *, extract_model: bool = True) -> IssueCheck:
         tree = None if root_tests else _get(h, f"/repos/{repo}/git/trees/{branch}?recursive=1", required=False)
         timeline = _get(h, f"/repos/{repo}/issues/{num}/timeline?per_page=100", required=False)
         pulls = _get(h, f"/repos/{repo}/pulls?state=open&per_page=100", required=False)
+        comments = _get(h, f"/repos/{repo}/issues/{num}/comments?per_page=100", required=False) if issue.get("comments") else []
         community = _get(h, f"/repos/{repo}/community/profile", required=False)
         docs = []
         for path in ("CONTRIBUTING.md", ".github/CONTRIBUTING.md", "AI_POLICY.md", ".github/AI_POLICY.md", "README.md"):
@@ -192,7 +217,8 @@ def check_issue(url: str, *, extract_model: bool = True) -> IssueCheck:
         "public": CheckStatus.PASSED,
         "python": lookup(python, root is not None or meta.get("language") is not None),
         "tests_found": lookup(tests, root is not None and (tests or deep is not None)),
-        "unassigned": lookup(not issue.get("assignees"), True),
+        # an open claim in the comments counts like an assignee; unreadable comments = unknown, unless someone is assigned
+        "unassigned": lookup(not issue.get("assignees") and not claimed_by(comments), bool(issue.get("assignees")) or comments is not None),
         "no_linked_pr": lookup(not linked, linked is not None),
     }
     for code, key in (("closed", "open"), ("assigned", "unassigned"), ("linked_pr", "no_linked_pr")):

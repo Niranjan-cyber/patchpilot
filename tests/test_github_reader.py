@@ -106,3 +106,38 @@ def test_renamed_repo_uses_its_new_name(monkeypatch):
     chk = R.check_issue("https://github.com/sdispater/pendulum/issues/1")
     assert chk.issue.repo == "python-pendulum/pendulum" and chk.default_branch == "master"
     assert chk.issue.html_url == "https://github.com/python-pendulum/pendulum/issues/1" and "closed" not in chk.warnings
+
+
+@pytest.mark.parametrize("body, claimed", [
+    ("Happy to send a PR for this if you want!", True),                   # msoffcrypto #108's reporter
+    ("I’ll take this one.", True),
+    ("I'm working on a fix, should be up tomorrow.", True),
+    ("Can I work on this?", True),
+    ("Please assign this to me", True),
+    ("I'll take a look when I have time.", False),                        # looking isn't claiming
+    ("Thanks, I can reproduce it on 3.12 too.", False),
+    ("> I'll send a PR\nAny news on this?", False),                     # quoting someone else's claim
+])
+def test_claims_in_comments(body, claimed):
+    from backend.github.reader import claimed_by
+    assert bool(claimed_by([{"body": body, "user": {"login": "bob"}}])) is claimed
+
+
+def test_a_comment_claim_raises_the_assigned_warning(monkeypatch):
+    import backend.github.reader as R
+    canned = {"/repos/o/r/issues/1": {"state": "open", "title": "t", "body": "b", "assignees": [], "labels": [], "comments": 1},
+              "/repos/o/r": {"language": "Python", "default_branch": "main"},
+              "/repos/o/r/issues/1/comments?per_page=100": [{"body": "I'd be happy to open a pull request", "user": {"login": "bob"}}]}
+    monkeypatch.setattr(R, "_get", lambda h, path, required=True: canned.get(path))
+    monkeypatch.setattr("backend.github.assess.extract", lambda **k: None)
+    chk = R.check_issue("https://github.com/o/r/issues/1")
+    assert "assigned" in chk.warnings and chk.issue.checks["unassigned"] == C.FAILED
+
+
+def test_unreadable_comments_leave_the_claim_check_inconclusive(monkeypatch):
+    import backend.github.reader as R
+    canned = {"/repos/o/r/issues/1": {"state": "open", "title": "t", "body": "b", "assignees": [], "labels": [], "comments": 3},
+              "/repos/o/r": {"language": "Python", "default_branch": "main"}}   # comments fetch fails -> None
+    monkeypatch.setattr(R, "_get", lambda h, path, required=True: canned.get(path))
+    monkeypatch.setattr("backend.github.assess.extract", lambda **k: None)
+    assert R.check_issue("https://github.com/o/r/issues/1").issue.checks["unassigned"] == C.INCONCLUSIVE
