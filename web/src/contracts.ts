@@ -254,6 +254,14 @@ export type Language = string | null;
 export type Warnings = string[];
 export type Unsupported = string | null;
 export type FetchedAt = string;
+export type Suitability =
+  | {
+      [k: string]: unknown;
+    }[]
+  | null;
+export type ExistingWork = {
+  [k: string]: unknown;
+} | null;
 
 export interface Contracts {
   RunView?: RunView;
@@ -651,6 +659,8 @@ export interface IssueCheck {
   unsupported?: Unsupported;
   assessment?: IssueAssessment | null;
   fetched_at: FetchedAt;
+  suitability?: Suitability;
+  existing_work?: ExistingWork;
   [k: string]: unknown;
 }
 /**

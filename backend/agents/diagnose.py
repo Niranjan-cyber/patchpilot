@@ -66,8 +66,8 @@ def details(res: dict, line_count) -> dict:
             continue
         path, line = str(c.get("path") or "").removeprefix("/src/").removeprefix("./"), c.get("line")
         n = line_count(path) if path and not path.startswith("/") and ".." not in path.split("/") else None
-        if n is None or not isinstance(line, int) or not 0 < line <= n:
-            dropped.append(path or "(no path)")
+        if n is None or isinstance(line, bool) or not isinstance(line, int) or not 0 < line <= n:
+            dropped.append((path or "(no path)")[:200])
         else:
             kept.append({"path": path, "line": line, "why": str(c.get("why") or "")[:200]})
     text = lambda k: (str(res.get(k)).strip()[:300] or None) if isinstance(res.get(k), str) else None
@@ -94,6 +94,8 @@ def _bisect_once(ctx: StepContext) -> None:
 
 def diagnose(ctx: StepContext):
     rid, run = ctx.run_id, ctx.run
+    # A's review of #88: forget the last attempt's callers first, so a failed re-diagnosis never leaves them behind
+    db.put_kv(db.connect(), f"investigation:{rid}", "")
     _bisect_once(ctx)
     menu = evidence_menu(run)
     failing = (artifacts.get(run.repro.evidence_ids[2]) or b"").decode("utf-8", "replace") if run.repro and len(run.repro.evidence_ids) > 2 else ""

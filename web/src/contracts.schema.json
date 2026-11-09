@@ -740,6 +740,35 @@
      "format": "date-time",
      "title": "Fetched At",
      "type": "string"
+    },
+    "suitability": {
+     "anyOf": [
+      {
+       "items": {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       "type": "array"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Suitability"
+    },
+    "existing_work": {
+     "anyOf": [
+      {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Existing Work"
     }
    },
    "required": [

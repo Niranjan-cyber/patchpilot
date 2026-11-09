@@ -18,7 +18,7 @@ def render(v: RunView, narrative: str | None = None) -> str:
          "## Checks", "| Check | Result |", "|---|---|", *[f"| {name} | {g(k) if k != 'G6' else 'passed (template report)'} |" for k, name in GATES], ""]
     if v.assessment:
         from backend.github.assess import report_lines
-        L += report_lines(v.assessment)
+        L += report_lines(v.assessment) + suitability_section(v.run_id)
     if v.issue.checks:
         L += ["## Issue eligibility", *[f"- {k.replace('_', ' ')}: {WORD.get(s, s)}" for k, s in v.issue.checks.items()], ""]
     if v.supplyguard:
@@ -50,6 +50,8 @@ def render(v: RunView, narrative: str | None = None) -> str:
               f"- On the original code: {', '.join(WORD[s] for s in v.repro.runs_on_base) or 'not run'}",
               "- Covers what the issue expects: " + ("not checked" if v.repro.uncovered is None else "the test designer says it checks every stated condition (its own claim, not checked by code)"
                   if not v.repro.uncovered else "**no**, it leaves out: " + "; ".join(v.repro.uncovered)), ""]
+        from backend.agents.test_quality import report_lines as test_quality_lines
+        L += test_quality_lines(v)
     if v.diagnosis:
         L += ["## Likely cause (hypothesis)", v.diagnosis.hypothesis, *[f"- `{l.path}`" + (f" line {l.line}" if l.line else "") for l in v.diagnosis.locations],
               *(["", "Codebase tour:"] + [f"- `{t.path}`: {t.why}" for t in v.diagnosis.tour] if v.diagnosis.tour else []), ""]
@@ -61,10 +63,12 @@ def render(v: RunView, narrative: str | None = None) -> str:
         L += ["## Verification in a fresh sandbox", f"- New test after the fix: {', '.join(WORD[s] for s in v.verify.new_test_runs) or 'not run'}",
               f"- Regressions: {', '.join(v.verify.regressions) or 'none'}", ""]
     if v.review and v.review.concerns:
-        L += ["## Reviewer concerns", *[f"- [{c.get('severity', '?')}] {c.get('text', '')}" for c in v.review.concerns], ""]
+        # #70 item 9: level (BLOCKER / IMPORTANT / SUGGESTION / ACCEPTED_TRADEOFF), dimension, file:line, what to do
+        L += ["## Reviewer findings", *map(_finding, v.review.concerns), ""]
     if narrative:
         L += ["## Explanation", narrative, ""]
     blockers = [b.value for b in v.publish_blockers]
+    L += existing_work_section(v.run_id)
     L += repo_checks_section(v.run_id)
     o = v.approval.ownership if v.approval else None   # contracts v0.5 §2.3; never in the PR body
     if o:
@@ -94,17 +98,77 @@ def investigation_section(run_id: str) -> list[str]:
         raw = db.get_kv(db.connect(), f"investigation:{run_id}")
     except Exception:
         raw = None
-    if not raw:
+    try:
+        d = json.loads(raw) if raw else None
+    except ValueError:
+        d = None
+    if not isinstance(d, dict):   # missing or corrupt: never a broken report
         return ["## Investigation details", "- Not recorded for this run.", ""]
-    d = json.loads(raw)
-    calls = [f"- `{c['path']}:{c['line']}`" + (f": {c['why']}" if c.get("why") else "") for c in d.get("callers") or []]
+    one = lambda x: " ".join(str(x).split())   # the Investigator's words stay on their line: no forged report lines
+    calls = [f"- `{one(c.get('path'))}:{c.get('line')}`" + (f": {one(c['why'])}" if c.get("why") else "")
+             for c in d.get("callers") or [] if isinstance(c, dict)]
     return ["## Investigation details",
             "Callers (each file and line checked in the pinned source):", *(calls or ["- none listed"]),
             *([f"- {len(d['callers_dropped'])} more left out: not in the pinned source"] if d.get("callers_dropped") else []), "",
             "The Investigator's own view (not checked by code):",
-            "- Regression risks: " + ("; ".join(d.get("regression_risks") or []) or "not given"),
-            f"- Test strategy: {d.get('test_strategy') or 'not given'}",
-            f"- Uncertainty: {d.get('uncertainty') or 'not given'}", ""]
+            "- Regression risks: " + ("; ".join(one(r) for r in d.get("regression_risks") or []) or "not given"),
+            f"- Test strategy: {one(d.get('test_strategy')) if d.get('test_strategy') else 'not given'}",
+            f"- Uncertainty: {one(d.get('uncertainty')) if d.get('uncertainty') else 'not given'}", ""]
+
+
+def _finding(c: dict) -> str:
+    """One Reviewer finding: level, (dimension, `file:line`), what's wrong, what to do, the evidence it rests on."""
+    where = [x for x in (c.get("dimension", "").replace("_", " "), f"`{c['location']}`" if c.get("location") else "") if x]
+    one = lambda x: " ".join(str(x).split())   # model text stays on its line: no forged report lines
+    text = one(c.get("text", ""))
+    return (f"- **{c.get('level') or c.get('severity', '?')}**" + (f" ({', '.join(where)})" if where else "")
+            + f": {text if text[-1:] in '.?!' else text + '.'}" + (f" To do: {one(c['action'])}" if c.get("action") else "")
+            + (f" Evidence: {one(c['evidence'])}" if c.get("evidence") else ""))
+
+
+def suitability_section(run_id: str) -> list[str]:
+    """#70 item 7: each dimension with its outcome, evidence (by source) and what's missing. No data says "not checked"."""
+    import json
+    from backend import db
+    from backend.github.suitability import report_lines
+    try:
+        raw = db.get_kv(db.connect(), f"suitability:{run_id}")
+    except Exception:
+        raw = None
+    return report_lines(json.loads(raw) if raw else None)
+
+
+def existing_work_section(run_id: str) -> list[str]:
+    """#70 item 4: where we looked for existing work and when, at the start and again at publish. A source we couldn't
+    read says so; we never write "no existing work" for it."""
+    import json
+    from backend import db
+    def get(k):
+        try:
+            raw = db.get_kv(db.connect(), f"{k}:{run_id}")
+        except Exception:
+            raw = None
+        return json.loads(raw) if raw else None
+    start, again = get("existing_work"), get("existing_work_recheck")
+    if not start and not again:
+        return ["## Existing work", "- Not re-checked for this run. G0 checked assignees, claims and linked PRs when it started (see Checks).", ""]
+    names = {"timeline": "issue timeline", "open_prs": "open pull requests", "comments": "issue comments", "closed_prs": "recently closed pull requests"}
+    def lines(w, when):
+        srcs = ", ".join(f"{names.get(k, k)} ({'read' if st == 'checked' else 'could not be read'})" for k, st in w.get("sources", {}).items())
+        prs = w.get("linked_prs")
+        merged = [p["number"] for p in (w.get("closed_prs") or []) if p.get("merged_at")]
+        return [f"- {when}, checked {w.get('checked_at', '?')}: {srcs}.",
+                f"  - Open pull requests for this issue: {', '.join(f'#{n}' for n in prs) if prs else ('none found' if prs == [] else 'unknown')}.",
+                f"  - Claimed in comments by: {', '.join(w['claimants']) if w.get('claimants') else ('nobody' if w.get('claimants') == [] else 'unknown')}."
+                + (f" Assigned to: {', '.join(w['assignees'])}." if w.get("assignees") else ""),
+                *([f"  - Merged pull requests that mention it: {', '.join(f'#{n}' for n in merged)}."] if merged else [])]
+    out = ["## Existing work"]
+    if start:
+        out += lines(start, "When the run started")
+    if again:
+        out += lines(again, "Re-checked before publishing")
+        out += [f"  - New since the start: {'; '.join(again['new'])}." if again.get("new") else "  - Nothing new since the start."]
+    return [*out, ""]
 
 
 def repo_checks_section(run_id: str) -> list[str]:

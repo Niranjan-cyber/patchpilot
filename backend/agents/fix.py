@@ -30,9 +30,10 @@ def task_prompt(run, previous: str | None, feedback: str | None) -> str:
     try:   # #70 item 10: callers (code-checked) and risks from the Investigator; optional
         import json
         inv = json.loads(db.get_kv(db.connect(), f"investigation:{run.run_id}") or "{}")
-    except Exception:
-        inv = {}
-    callers = ", ".join(f"{c['path']}:{c['line']}" for c in inv.get("callers") or [])
+        inv = inv if isinstance(inv, dict) else {}
+    except Exception:   # never shown as "no callers": the Fixer is told it has to look for itself
+        inv = {"callers": [{"path": "(couldn't be loaded; check who calls the code you change)", "line": "?"}]}
+    callers = ", ".join(f"{c['path']}:{c['line']}" for c in inv.get("callers") or [] if isinstance(c, dict))
     risks = "; ".join(inv.get("regression_risks") or [])
     return f"""Fix this bug with the smallest change to the project's SOURCE code.
 
