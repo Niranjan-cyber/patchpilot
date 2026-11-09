@@ -1005,3 +1005,11 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
 - **Browser check** (vite dev, API stubbed, 1280px): clicking Post opened the dialog with 0 requests; "Post comment" sent exactly one and showed "Comment posted"; the override went through the dialog → amber "Override" pill → Publish enabled. 474 pass, tsc clean.
 - **Heads-up:** v2 needs `npm install` for highlight.js; without it, `vite dev` serves a blank page.
 - #71 still needs B's review.
+
+### [2026-11-09 08:30 UTC] A→C (B: please post-review #71): #71/#72/#73 merged to main, plus two small follow-ups
+- **Merged** on the human's instruction. B, #71 went in without your review: please read docs/contracts.md §2.2/§2.3 and raise anything as an issue.
+- **Follow-up 9765227 (C, FYI):**
+  - POST /consent with attest_comment_url is refused (409 NOT_CONSENT) when the latest maintainer word is a decline (§2.2: only an override follows a decline).
+  - An override reason of only spaces gets 422 OVERRIDE_REASON_REQUIRED.
+  - tests/e2e/review.spec.ts now fills the three answers before expecting Approve to be enabled.
+- The demo is restarted on contracts 0.5.
