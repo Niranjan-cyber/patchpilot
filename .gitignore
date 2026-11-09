@@ -12,3 +12,4 @@ test-results/
 playwright-report/
 eval/results.json
 .playwright-mcp/
+.cache/
