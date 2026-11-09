@@ -7,7 +7,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-CONTRACTS_VERSION = "0.6"   # v0.6 = Revise target fix|test; v0.5 = #70 maintainer consent + required ownership answers (PROPOSED); v0.4 = #50
+CONTRACTS_VERSION = "0.7"   # v0.7 = ReproTest.uncovered; v0.6 = Revise target fix|test; v0.5 = #70 maintainer consent + required ownership answers (PROPOSED); v0.4 = #50
 
 
 class StepId(str, Enum):
@@ -132,6 +132,7 @@ class ReproTest(BaseModel):
     expected_failure: str
     runs_on_base: list[CheckStatus] = []   # one per run; G3 needs two FAILED
     evidence_ids: list[str] = []
+    uncovered: list[str] | None = None     # v0.7: acceptance conditions the test doesn't claim to check; None = not checked
 
 
 class Location(BaseModel):

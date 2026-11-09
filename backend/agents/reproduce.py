@@ -26,8 +26,35 @@ def revise_note(ctx: StepContext) -> str:
             + (f" The rejected test was:\n{old.decode('utf-8', 'replace')[:3000]}\n" if old else "\n"))
 
 
+def conditions(run) -> list[str]:
+    return run.assessment.acceptance_conditions if run.assessment else []
+
+
+def _num(n) -> int | None:   # models write 1, "1" or 1.0; a bool or "first" is no number
+    if isinstance(n, bool):
+        return None
+    if isinstance(n, float) and n.is_integer():
+        return int(n)
+    if isinstance(n, str) and n.strip().isdigit():
+        return int(n.strip())
+    return n if isinstance(n, int) else None
+
+
+def uncovered(conds: list[str], covers) -> list[str] | None:
+    """The conditions the designer didn't claim, by number (gitingest-115). Code decides; anything not a valid number counts as nothing."""
+    if not conds:
+        return None
+    said = {_num(n) for n in covers} if isinstance(covers, list) else set()
+    return [c for n, c in enumerate(conds, 1) if n not in said]
+
+
 def task_prompt(ctx: StepContext, attempt: int, previous: str | None) -> str:
     i = ctx.run.issue
+    conds = conditions(ctx.run)
+    expects = ("What the issue expects (a correct fix must satisfy all of these):\n" + "\n".join(f"{n}. {c}" for n, c in enumerate(conds, 1))
+               + "\n- Test each of these as stated, not only the reporter's single example: if the issue says the whole URL should be\n"
+               "  case-insensitive, vary the case in every part of it.\n- Assert only what the issue expects. Don't add checks for other "
+               "behaviour, which could fail for a reason unrelated to this bug.\n\n") if conds else ""
     return f"""Write a NEW pytest test that reproduces this GitHub issue. It must FAIL on the current code because of the bug
 (an assertion failure, or the error the issue describes), not because of an import or syntax error.
 
@@ -37,12 +64,12 @@ Actual: {i.actual or "(not stated)"}
 Description:
 {(i.summary or "")[:4000]}
 
-Rules:
+{expects}Rules:
 - Put the test where this repo's tests already live (often tests/ or test/; check with `ls`), so the repo's conftest and
   pytest settings apply: create <that dir>/test_patchpilot_issue_{i.number}.py. Use tests/ only if the repo has no test folder.
   Only add or edit test files. Never modify source files.
 - Run your test with `python -m pytest -q -p no:cacheprovider <file>` and check it fails for the right reason.
-- When done, run: echo {loop.DONE} '{{"test_ids": ["<that dir>/test_patchpilot_issue_{i.number}.py::<name>"], "expected_failure": "<one line>"}}'
+- When done, run: echo {loop.DONE} '{{"test_ids": ["<that dir>/test_patchpilot_issue_{i.number}.py::<name>"], "expected_failure": "<one line>"{', "covers": [<numbers of the expectations above that your tests check>]' if conds else ''}}}'
 {revise_note(ctx)}{"Previous attempt was rejected: " + previous if previous else ""}(attempt {attempt})"""
 
 
@@ -100,7 +127,8 @@ def reproduce(ctx: StepContext) -> GateResult:
         if last.status == CheckStatus.PASSED:
             run = db.get_run(db.connect(), rid)
             run.repro = ReproTest(test_diff_id=ev[1], test_ids=tests, expected_failure=str(res.get("expected_failure", ""))[:300],
-                                  runs_on_base=[CheckStatus.FAILED, CheckStatus.FAILED], evidence_ids=ev)
+                                  runs_on_base=[CheckStatus.FAILED, CheckStatus.FAILED], evidence_ids=ev,
+                                  uncovered=uncovered(conditions(ctx.run), res.get("covers")))
             db.save_run(db.connect(), run)
             ctx.scratch["headline"] = "We wrote a test that fails because of this bug. It failed twice, as expected."
             return last

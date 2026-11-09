@@ -47,7 +47,9 @@ def render(v: RunView, narrative: str | None = None) -> str:
               *(["- Partial: some results couldn't be read."] if b.partial else []), ""]
     if v.repro:
         L += ["## Reproduction", f"- Test: {', '.join(f'`{t}`' for t in v.repro.test_ids)}", f"- Expected failure: {v.repro.expected_failure}",
-              f"- On the original code: {', '.join(WORD[s] for s in v.repro.runs_on_base) or 'not run'}", ""]
+              f"- On the original code: {', '.join(WORD[s] for s in v.repro.runs_on_base) or 'not run'}",
+              "- Covers what the issue expects: " + ("not checked" if v.repro.uncovered is None else "the test designer says it checks every stated condition (its own claim, not checked by code)"
+                  if not v.repro.uncovered else "**no**, it leaves out: " + "; ".join(v.repro.uncovered)), ""]
     if v.diagnosis:
         L += ["## Likely cause (hypothesis)", v.diagnosis.hypothesis, *[f"- `{l.path}`" + (f" line {l.line}" if l.line else "") for l in v.diagnosis.locations],
               *(["", "Codebase tour:"] + [f"- `{t.path}`: {t.why}" for t in v.diagnosis.tour] if v.diagnosis.tour else []), ""]
