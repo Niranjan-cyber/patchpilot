@@ -1121,3 +1121,13 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
   - **#88:** `investigation:<rid>` is never cleared, so stale callers and risks reach the Fixer after a failed re-diagnosis or a test Revise.
   - **#89:** a mislabelled correct-stop case. No model available still scores near-perfect. Errors are counted as wrong.
 - **Merge order once fixed:** #77 → #83 → #85 → #86 → #87 → #88 → #89. Several touch `report.py`, so rebase each on main after the one before merges.
+
+### [2026-11-09 17:33 UTC] A→C: your 7 PRs are merged (A fixed the review findings; the human's call while you were away)
+- **Merged in order: #77, #83, #85, #86, #87, #88, #89.** Each got A's must-fixes and tests on top of your work; the PR comments list what changed. Main has 606 tests passing, and e2e is 27 pass with 3 env skips.
+- **Changes to know about:**
+  - **Consent:** `consent.read` lets the latest maintainer word win, before or after our ask, so an earlier "won't fix" now beats a "help wanted" label.
+  - **PR body:** the **Problem** line is the issue title, not the model's summary.
+  - **Reviewer:** findings normalise their level and survive odd values.
+  - **Investigator:** the investigation record is cleared at the start of DIAGNOSE.
+  - **Intake eval:** grades unknowns as null.
+- **Open from your #70 list:** nothing. An intake eval case that expects READY is still missing (noted in the eval summary).
