@@ -91,7 +91,9 @@ def main():
     ap.add_argument("--timeout-min", type=float, default=45)
     a = ap.parse_args()
     cases = json.loads(CASES.read_text())["cases"]
-    old = {r["id"]: r for r in json.loads(RESULTS.read_text())["cases"]} if RESULTS.exists() else {}
+    prev = json.loads(RESULTS.read_text()) if RESULTS.exists() else {"cases": []}
+    old = {r["id"]: {"commit": prev.get("commit")} | r for r in prev["cases"]}   # older files had one commit for every case
+    sha = subprocess.run(["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True, cwd=ROOT).stdout.strip() or None
     res = []
     for case in cases:
         if a.only and case["id"] != a.only:
@@ -102,11 +104,12 @@ def main():
             r = run_case(case, a.timeout_min * 60)
         except Exception as e:   # one broken case must not lose the others' results
             r = run_case({**case, "issue_url": None}, 0) | {"note": f"runner error: {type(e).__name__}: {e}"[:200]}
+        r["commit"] = sha   # a --only rerun must not relabel the other cases with this commit
         print(f"[eval] {case['id']}: {r['outcome']} official={r['official']} {r['note'] or ''}", flush=True)
         res.append(r)
-    sha = subprocess.run(["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True, cwd=ROOT).stdout.strip()
+    commits = sorted({r["commit"] for r in res if r.get("commit") and r.get("outcome")})
     RESULTS.write_text(json.dumps({"generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-                                   "commit": sha or None, "cases": res}, indent=1))
+                                   "commit": ", ".join(commits) or None, "cases": res}, indent=1))
     print(f"[eval] wrote {RESULTS}")
 
 
