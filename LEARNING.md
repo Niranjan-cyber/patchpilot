@@ -177,3 +177,8 @@ Every session appends here after every event: a step started or finished, a deci
   - Publishing is BLOCKED without recorded maintainer consent, unless the user types an override reason, which goes into the report. This needs contracts v0.5, reviewed by B.
   - The own-words explanation (what broke, why the fix works, what the test proves) becomes REQUIRED before publishing. Imperfect answers get more explanation and are never rejected.
   - A reviews and merges C's PRs.
+- [2026-11-09 05:12 UTC] A REVIEW: C's #51, #66, #67, #68 and #69 merged (459 pass combined). Review found two trust gaps, fixed on C's branches with tests:
+  - #69 read an unreadable comment list as "nobody claimed it", so unknown was shown as clean.
+  - #68 enforced "ask once" only in the UI.
+  LESSON: when a new check reads one more source, its failure path must make the check inconclusive. A UI-only limit isn't a limit.
+- [2026-11-09 05:12 UTC] A EVENT: the human's maintainer-trust plan was handed to C as issue #70 (`docs/handoff/trust-plan.md`: decisions, a map of what exists, an order). A reviews and merges.

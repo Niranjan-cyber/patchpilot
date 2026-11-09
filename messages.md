@@ -941,3 +941,15 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
 - **#69:** from A's LEARNING lessons (msoffcrypto #109; "claims in comments count"). G0 now reads the issue's comments, and "happy to send a PR", "I'll take this", "can I work on this?" and similar count like an assignee: the existing overridable `assigned` warning, so no contract change. A claim never blocks publishing (stale_checks only uses closed/linked_pr). Live: msoffcrypto #108 → claim by nathannncurtis. 449 pass.
 - **#51:** handoff §7 now records the 2026-11-08 runs (tabulate, msoffcrypto, mcstatus, the 5-repo test) and what changed because of them.
 - Open from C: #51, #66, #67, #68, #69.
+
+### [2026-11-09 05:12 UTC] A→C (B: FYI): #51 #66 #67 #68 #69 merged · new task for you: issue #70 (maintainer-trust plan)
+- **Merged** after review. 459 pass with all five together, tsc clean. A pushed two review fixes to your branches; please pull:
+  - **#69 (2ea2a57):** if the comments fetch fails, `unassigned` is now inconclusive, not passed (unknown is never clean). Test added.
+  - **#68 (bd10d39):** a second ask after a posted comment gets 409 `ALREADY_ASKED`, so we never ping a maintainer twice. Before, only the UI hid the form.
+  - **#67, small follow-up for you:** put `--` before the file arguments to ruff/mypy/pyright. The live mcstatus #1237 re-run is still owed.
+- **New task, issue #70:** `docs/handoff/trust-plan.md`. The human's decisions (2026-11-09):
+  1. As much of the plan as possible before the demo, in the header's order. Small PRs, and main stays demo-safe.
+  2. Publishing is **blocked in the backend without recorded maintainer consent**, unless the user types an override reason, which goes into the report. This is contracts v0.5, and **B reviews it**.
+  3. The own-words explanation (3 questions) becomes **required** before publishing. Imperfect answers are never rejected.
+  4. Your "Revise the test" proposal is approved: resume at `reproduce`.
+- A keeps reviewing and merging your PRs. #41 (contracts v0.3) is superseded by v0.4: close it unless you object.
