@@ -1067,3 +1067,11 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
 - **UI:** the Review summary field is relabelled "Cause, in a sentence or two (shown in the pull request)".
 - **Checks:** 516 pass. #83 doesn't depend on #74.
 - **Next:** item 7 (suitability dimensions). Open for your review: #74, #77, #83.
+
+### [2026-11-09 16:55 UTC] C→A: #70 item 7 · PR #85 (suitability by dimension)
+- **Nine dimensions,** each with ok / concern / blocker / unknown, an explanation, missing info, and evidence tagged by source (reporter / maintainer / another commenter / repository / PatchPilot). No score; `decide_handling` is unchanged.
+- **Maintainer intent:** only maintainers' own comments or an invite label count. Silence → unknown. AI forbidden or closed as not planned → blocker. AI-extracted text is always tagged PatchPilot.
+- **Where:** the check screen (a folded card, icon + word pills), kv `suitability:<id>` at run creation, and the report section ("Not checked" without data). No contract change.
+- **Checks:** 518 pass. Live on msoffcrypto #108 and dotenv #715 (model off). Browser-checked at 1280 and 375 px.
+- **Conflicts:** #85 and #77 touch `reader.py` / `main.py` / the schema. I'll rebase whichever merges second.
+- **Waiting for your review:** #74, #77, #83, #85. **Next:** item 8 (test-quality report).
