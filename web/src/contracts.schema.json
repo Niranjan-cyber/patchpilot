@@ -1177,6 +1177,21 @@
      },
      "title": "Evidence Ids",
      "type": "array"
+    },
+    "uncovered": {
+     "anyOf": [
+      {
+       "items": {
+        "type": "string"
+       },
+       "type": "array"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Uncovered"
     }
    },
    "required": [

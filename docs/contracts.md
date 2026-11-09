@@ -1,4 +1,4 @@
-# PatchPilot: Shared Contracts (v0.6, 2026-11-09: Revise can rewrite the test; v0.5 #70; v0.4 merged in #50 on 2026-11-08)
+# PatchPilot: Shared Contracts (v0.7, 2026-11-09: test coverage of the issue's conditions; v0.6 Revise can rewrite the test; v0.5 #70; v0.4 merged in #50 on 2026-11-08)
 
 This file is the boundary between the four build lanes: **(1) sandbox + setup + baseline, (2) agent roles + gates, (3) GitHub reader/publisher + auth, (4) React UI + event polling.** Lanes build against these types and fixtures, not against each other's code.
 
@@ -62,6 +62,8 @@ Each gate is computed by code from recorded artifacts. Its `gate.result` event c
 | **G4 Diff policy** | fix diff | non-test source files only · ≤ 5 files and ≤ 200 changed lines · no dependency-file changes · no `.github/` · no test deleted, skipped or edited | → back to the Fixer with the reason (counts as a Fixer attempt) | — | — | VERIFY |
 | **G5 Verification** | fresh-container runs on original + test diff + fix diff | the new test passes in **both** runs **and** every test in the baseline pass set passes | → Fixer retry with logs (≤ 3), then one re-diagnosis, then `TRIAGE_ONLY` | the new test passes 1 of 2, or a baseline test flips → counts as a failed attempt | — | REVIEW (the Reviewer can only lower readiness) |
 | **G6 Report integrity** | report, `gates`, evidence manifest | every status in the report equals the recorded status · every claim cites an existing evidence ID | the Explainer regenerates (≤ 2); then the report is rendered from the deterministic template without AI narrative. **Never changes the outcome** | — | — | outcome + status (§1.2) |
+
+**Coverage of what the issue expects (v0.7, gitingest-115).** The Test designer is shown `assessment.acceptance_conditions` as a numbered list and must say which numbers its tests check (`covers`). Code stores the rest in `ReproTest.uncovered` (`None` = no conditions were extracted, shown as "not checked", never as covered; anything but a valid number counts as nothing). It is not a gate: a non-empty `uncovered` becomes a code-decided medium Reviewer concern, so the run can reach at most `FIX_NEEDS_ATTENTION`. The Reviewer prompt also looks for test assertions the issue doesn't ask for (smart_open-833) and for tests of only the reporter's example. The designer's claim is self-reported; this catches omissions it admits, not ones it hides.
 
 **"an import error the issue itself names" (G3).** The error **type** (`ImportError` / `ModuleNotFoundError`) **and** the missing name must both appear in the IssueSpec as extracted by code from `issue.actual` / the summary. It is **never** matched against the Test designer's own `expected_failure`: a model must not be able to whitelist its own broken import. A `SyntaxError`, and a collection error whose traceback points inside the generated test file rather than at the import of the library under test, stay hard disqualifiers. *(Carried over word for word from #41 so closing #41 loses nothing; B owns the implementation in `backend/gates/reproduction.py`.)*
 
@@ -132,7 +134,7 @@ class RunState(BaseModel):
     policy: RepoPolicy                # ai_policy: allowed|forbidden|unknown, prs_restricted, source file ids
     env: EnvProfile | None
     baseline: TestRun | None          # pass_set, fail_set, flaky_set, evidence_ids
-    repro: ReproTest | None
+    repro: ReproTest | None           # v0.7: + uncovered: list[str] | None (see §1.1 G3 note)
     diagnosis: Diagnosis | None       # locations, hypothesis, tour[], evidence_ids
     patch: Patch | None               # fix_diff_id, test_diff_id, attempt, policy_result
     verify: Verification | None

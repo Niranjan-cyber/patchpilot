@@ -91,3 +91,22 @@ def test_case_gradable_needs_fail_before_and_reference_fix_passing_after():
     assert case_gradable(f2p, p2p, before, {"t.py::new": "PASSED", "t.py::old": "FAILED"}) == (False, "reference_fix_fails")
     assert case_gradable(f2p, p2p, before, {"t.py::new": "PASSED"}) == (False, "tests_missing_after")
     assert case_gradable(f2p, p2p, None, good) == (False, "tests_not_run")
+
+
+def test_runner_stops_at_intake_like_the_api_and_passes_the_assessment_on(tmp_path, monkeypatch):
+    # csvkit-1274: the runner skipped intake, so a feature request reached the fixer
+    import importlib
+    from types import SimpleNamespace
+    from backend import db
+    from backend.contracts.models import IssueAssessment, IssueSpec
+    E = importlib.import_module("scripts.eval")
+    monkeypatch.setattr(db, "DB_PATH", str(tmp_path / "app.db"))
+    mk = lambda d: IssueAssessment(issue_type="feature", issue_type_source="model", issue_status="open", compatibility_status="supported",
+                                   handling_decision=d, decision_reasons=["not_a_bug:feature"], acceptance_conditions=["x"])
+    issue = IssueSpec(html_url="https://github.com/o/r/issues/1", repo="o/r", number=1, title="t")
+    monkeypatch.setattr(E, "check_issue", lambda url: SimpleNamespace(issue=issue, base_sha="sha", assessment=mk("ASSESSMENT_ONLY"), unsupported=None))
+    r = E.run_case({"id": "c", "kind": "swebench", "issue_url": issue.html_url}, 5)
+    assert r["outcome"] == "ASSESSMENT_ONLY" and r["run_id"] is None and "not_a_bug:feature" in r["note"]
+    monkeypatch.setattr(E, "check_issue", lambda url: SimpleNamespace(issue=issue, base_sha="sha", assessment=mk("READY"), unsupported=None))
+    r = E.run_case({"id": "c", "kind": "planted", "issue_url": issue.html_url}, 0)   # 0 s: create the run, don't wait
+    assert db.get_run(db.connect(), r["run_id"]).assessment.acceptance_conditions == ["x"]
