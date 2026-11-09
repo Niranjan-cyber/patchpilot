@@ -7,7 +7,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-CONTRACTS_VERSION = "0.4"   # v0.4 = #50 (#48 intake assessment), merged 2026-11-08
+CONTRACTS_VERSION = "0.5"   # v0.5 = #70 maintainer consent + required ownership answers (PROPOSED); v0.4 = #50
 
 
 class StepId(str, Enum):
@@ -45,6 +45,7 @@ class PublishBlocker(str, Enum):
     PRS_RESTRICTED = "prs_restricted"; RUN_STOPPED = "run_stopped"; UPSTREAM_CHANGED = "upstream_changed"
     DEPS_INCONCLUSIVE = "deps_inconclusive"; ISSUE_CHANGED = "issue_changed"
     NOT_APPROVED = "not_approved"; NOT_SIGNED_IN = "not_signed_in"
+    NO_MAINTAINER_CONSENT = "no_maintainer_consent"   # v0.5 (#70): clearable; never blocks Approve or the ask comment
 
 
 PERMANENT_BLOCKERS = {
@@ -219,6 +220,25 @@ class RevisionSummary(BaseModel):
     finished_at: datetime | None = None
 
 
+class OwnershipAnswers(BaseModel):
+    """v0.5 (#70, human decision 2026-11-09): required before publishing. A minimum length only; content is never judged."""
+    what_was_broken: str = Field(min_length=20, max_length=1000)
+    why_this_fix: str = Field(min_length=20, max_length=1000)
+    what_the_test_proves: str = Field(min_length=20, max_length=1000)
+
+
+class ConsentEvidence(BaseModel):
+    """v0.5 (#70): why publishing is allowed. Silence, an open issue, no assignee or no PR is never consent."""
+    kind: Literal["maintainer_reply", "maintainer_request", "contributing_invites", "user_override"]
+    source_url: str | None = None          # the comment / CONTRIBUTING file it came from; None only for user_override
+    author: str | None = None              # GitHub login of the maintainer (None for contributing_invites / user_override)
+    author_association: str | None = None  # GitHub's value: OWNER / MEMBER / COLLABORATOR
+    quote: str | None = Field(default=None, max_length=300)   # the words that count as consent
+    attested_by_user: bool = False         # the user confirmed a maintainer reply that wasn't clearly positive by wording
+    override_reason: str | None = Field(default=None, max_length=1000)   # user_override only; shown in the report, never in the PR body
+    recorded_at: datetime
+
+
 class Approval(BaseModel):
     run_id: str
     revision: int
@@ -228,6 +248,7 @@ class Approval(BaseModel):
     approved_at: datetime
     checklist: dict[str, bool]
     explanation: str | None = Field(default=None, max_length=2000)
+    ownership: OwnershipAnswers | None = None   # v0.5: required by Approve for new approvals; None only on older approvals
     pr_title: str
     pr_summary: str
 
@@ -238,6 +259,7 @@ class ApproveRequest(BaseModel):
     evidence_hash: str
     checklist: dict[str, bool]
     explanation: str | None = Field(default=None, max_length=2000)
+    ownership: OwnershipAnswers | None = None   # v0.5: Approve answers 422 when missing
     pr_title: str
     pr_summary: str
 
@@ -270,6 +292,7 @@ class RunView(BaseModel):
     publish_blockers: list[PublishBlocker] = []
     revisions: list[RevisionSummary] = []
     approval: Approval | None = None
+    consent: ConsentEvidence | None = None   # v0.5 (#70): about the issue, so it survives Revise
     pr: PullRequestRef | None = None
     details_expired_at: datetime | None = None
     created_at: datetime

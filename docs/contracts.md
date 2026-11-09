@@ -1,4 +1,4 @@
-# PatchPilot: Shared Contracts (v0.4, #48; agreed and merged in #50 on 2026-11-08)
+# PatchPilot: Shared Contracts (v0.5 PROPOSED, #70; v0.4 agreed and merged in #50 on 2026-11-08)
 
 This file is the boundary between the four build lanes: **(1) sandbox + setup + baseline, (2) agent roles + gates, (3) GitHub reader/publisher + auth, (4) React UI + event polling.** Lanes build against these types and fixtures, not against each other's code.
 
@@ -46,6 +46,7 @@ class PublishBlocker(str, Enum):       # empty list = publishing allowed
     # clearable: status stays AWAITING_APPROVAL
     DEPS_INCONCLUSIVE = "deps_inconclusive"; ISSUE_CHANGED = "issue_changed"
     NOT_APPROVED = "not_approved"; NOT_SIGNED_IN = "not_signed_in"
+    NO_MAINTAINER_CONSENT = "no_maintainer_consent"   # v0.5 (#70): set with NOT_APPROVED; cleared only by ConsentEvidence (§2.2)
 ```
 
 ## 1.1 Gates (canonical; the worker, the publisher and the UI all use this table)
@@ -146,6 +147,7 @@ class RunState(BaseModel):
     revisions: list[RevisionSummary]  # per revision: outcome, end_reason, diff_hash, evidence_ids, finished_at
     details_expired_at: datetime | None  # set by retention (§9)
     approval: Approval | None
+    consent: ConsentEvidence | None   # v0.5 (#70), §2.2; about the issue, so it survives Revise
     pr: PullRequestRef | None         # url, number, head_branch, fork_owner, state (from GitHub)
     created_at: datetime; updated_at: datetime
 ```
@@ -203,6 +205,40 @@ class IssueAssessment(BaseModel):
 
 Not repeated here because they already exist: issue URL/repo/number/expected/actual (`IssueSpec`), language (`IssueCheck`), contribution policy (`RunView.policy`), base commit (`RunView.base_sha`).
 
+### 2.2 Maintainer consent (v0.5, #70; human decision 2026-11-09)
+
+A verified fix is not permission to open a PR. **Publishing is refused in the backend** while `NO_MAINTAINER_CONSENT` is in `publish_blockers`. Approve and the "ask the maintainer" comment are never blocked by it.
+
+```python
+class ConsentEvidence(BaseModel):
+    kind: Literal["maintainer_reply", "maintainer_request", "contributing_invites", "user_override"]
+    source_url: str | None          # the comment or CONTRIBUTING file; None only for user_override
+    author: str | None; author_association: str | None   # GitHub's OWNER / MEMBER / COLLABORATOR
+    quote: str | None               # ≤ 300 chars: the words that count
+    attested_by_user: bool = False  # the user confirmed a maintainer reply whose wording wasn't clearly positive
+    override_reason: str | None     # user_override only
+    recorded_at: datetime
+```
+
+What counts (code decides, never a model):
+- **`maintainer_reply`:** a comment on the issue by an OWNER / MEMBER / COLLABORATOR (`author_association`), posted after our ask, that isn't a decline. Clearly positive wording ("yes", "go ahead", "PR welcome", "please do") is recorded directly. Any other maintainer reply is shown to the user, who can record it with `attested_by_user = true` (the link and quote are kept).
+- **`maintainer_request`:** a maintainer comment anywhere in the thread that asks for a fix or a PR, or a maintainer-applied label such as "PR welcome" / "contributions welcome" / "help wanted".
+- **`contributing_invites`:** CONTRIBUTING invites PRs for bug fixes without asking for an issue or discussion first (quote kept).
+- **`user_override`:** a reason the user types (≥ 20 chars). It's shown in the report as an override, **never in the PR body as if it were consent**.
+
+What never counts: silence, an open issue, no assignee, no linked PR, a non-maintainer's comment, PatchPilot's or the user's own opinion. A maintainer **decline** ("no thanks", "please don't", "won't fix", "not planned", or the issue closed as not planned) is shown as declined; only a `user_override` can follow it.
+
+The ask comment is posted at most once per run (409 `ALREADY_ASKED`). Consent is about the issue, so Revise keeps it. The publisher still re-checks the issue at publish time (§5 step 4).
+
+### 2.3 Ownership answers (v0.5, #70; human decision 2026-11-09)
+
+```python
+class OwnershipAnswers(BaseModel):   # each 20..1,000 chars
+    what_was_broken: str; why_this_fix: str; what_the_test_proves: str
+```
+
+**Approve requires them** (422 when missing or shorter than 20 characters). Content is never judged or rejected for being wrong; the UI shows more explanation instead. They are stored on `Approval.ownership` and in the report, **never in the PR body**. They are not part of either hash. Approvals recorded before v0.5 have `ownership = None` and must be re-approved before publishing.
+
 ## 3. Event stream (polling first, SSE optional)
 
 **Primary:** `GET /api/runs/{run_id}/events?after=<seq>` → `{"events": [<envelope>…], "next_after": <seq>}`, polled every 2 s while the run isn't terminal (every 10 s while paused). This works through any tunnel; Cloudflare Quick Tunnels don't support SSE. **Optional:** the same path with `Accept: text/event-stream`, using the format below. Every event is appended to the `events` table *before* it's returned, so both are views of the log.
@@ -245,10 +281,12 @@ data: {"v":1,"run_id":"…","seq":42,"ts":"2026-11-11T10:42:07Z","type":"step.fi
 | GET | `/healthz` | DB writable, worker heartbeat fresh, Docker reachable |
 | POST | `/api/runs/{id}/stop` | ends analysis with `user_stopped`; outcome by §1.2; never publishable |
 | POST | `/api/runs/{id}/revise` | `{feedback}` → revision +1, approval voided, back to FIX |
-| POST | `/api/runs/{id}/approve` | `{revision, diff_hash, evidence_hash, checklist, explanation: str \| null (≤ 2,000 chars), pr_title, pr_summary}` (§5) |
+| POST | `/api/runs/{id}/approve` | `{revision, diff_hash, evidence_hash, checklist, explanation: str \| null (≤ 2,000 chars), ownership (v0.5, required, §2.3), pr_title, pr_summary}` (§5) |
 | POST | `/api/runs/{id}/keep-report` | "Keep report only" → FINISHED |
 | POST | `/api/runs/{id}/rerun` | new run on the latest default-branch commit (counts against limits) |
-| POST | `/api/runs/{id}/publish` | requires an account + valid approval; idempotent |
+| POST | `/api/runs/{id}/publish` | requires an account + valid approval (with `ownership`, v0.5) + consent (§2.2); idempotent |
+| GET / POST | `/api/runs/{id}/ask-maintainer` | v0.5 (#68): the default ask comment and its state / `{body}` posts it once (needs an account and a current approval) |
+| POST | `/api/runs/{id}/consent` | v0.5: `{}` re-reads the issue for consent; `{attest_comment_url}` records a maintainer reply the user confirms; `{override_reason}` records a `user_override`. Returns `RunView` |
 | POST | `/api/runs/{id}/recheck-deps` | reruns SupplyGuard; **always voids the approval** (new report ID); may clear `DEPS_INCONCLUSIVE` |
 | POST | `/api/runs/{id}/false-positive` | `{note}` → team review queue; the run stays BLOCKED |
 | DELETE | `/api/runs/{id}/access` | "Forget this run" for this browser |
@@ -257,7 +295,7 @@ data: {"v":1,"run_id":"…","seq":42,"ts":"2026-11-11T10:42:07Z","type":"step.fi
 | GET | `/api/runs/{id}/report.md`, `/diff.patch` | downloads |
 | GET | `/auth/github/start`, `/auth/github/callback` | OAuth; on success, claims the session's runs |
 
-**Error shape:** `{"code": "LIMIT_SESSION_DAILY", "message": "plain words", "retry_after": 3600 | null}`. Codes: `INVALID_URL`, `NOT_AN_ISSUE`, `PRIVATE_REPO`, `UNSUPPORTED_REPO`, `GITHUB_UNAVAILABLE`, `LIMIT_SESSION_DAILY`, `LIMIT_ACCOUNT_DAILY`, `LIMIT_ACTIVE_RUN`, `LIMIT_GLOBAL_BUDGET`, `NOT_FOUND`, `APPROVAL_STALE`, `HASH_MISMATCH`, `UPSTREAM_CHANGED`, `DEPS_REPORT_CHANGED`, `PUBLISH_BLOCKED`, `AUTH_REQUIRED`, `DETAILS_EXPIRED`.
+**Error shape:** `{"code": "LIMIT_SESSION_DAILY", "message": "plain words", "retry_after": 3600 | null}`. Codes: `INVALID_URL`, `NOT_AN_ISSUE`, `PRIVATE_REPO`, `UNSUPPORTED_REPO`, `GITHUB_UNAVAILABLE`, `LIMIT_SESSION_DAILY`, `LIMIT_ACCOUNT_DAILY`, `LIMIT_ACTIVE_RUN`, `LIMIT_GLOBAL_BUDGET`, `NOT_FOUND`, `APPROVAL_STALE`, `HASH_MISMATCH`, `UPSTREAM_CHANGED`, `DEPS_REPORT_CHANGED`, `PUBLISH_BLOCKED`, `AUTH_REQUIRED`, `DETAILS_EXPIRED`, v0.5: `ALREADY_ASKING`, `ALREADY_ASKED`.
 
 ## 5. Approval and hash contract
 
@@ -271,14 +309,15 @@ class Approval(BaseModel):
     approved_at: datetime
     checklist: dict[str, bool]   # read_diff, understands_change, ai_note_ok: all True
     explanation: str | None      # optional "in your own words"; sent in the approve request; stored, never in the PR body
+    ownership: OwnershipAnswers | None   # v0.5 (§2.3): required for new approvals; never in the PR body; not hashed
     pr_title: str; pr_summary: str   # editable; NOT part of either hash
 ```
 
 - **Canonical diff:** `git diff --no-color --no-ext-diff --full-index --binary <base_sha>` of the test diff + fix diff applied together, with paths sorted, LF line endings, and no trailing whitespace changes. `diff_hash = sha256(bytes)`.
 - **Evidence manifest:** canonical JSON (sorted keys, no whitespace) of `{run_id, revision, base_sha, diff_hash, gates, outcome, verify_evidence_ids, baseline_evidence_ids, repro_evidence_ids, supplyguard_report_id, review_id}`. `evidence_hash = sha256(manifest)`.
-- **Approve** is accepted only if the request's `revision`, `diff_hash` and `evidence_hash` equal the server's current values, all checklist items are true, and `publish_blockers` contains nothing except `NOT_APPROVED` / `NOT_SIGNED_IN`. Otherwise → `APPROVAL_STALE`.
+- **Approve** is accepted only if the request's `revision`, `diff_hash` and `evidence_hash` equal the server's current values, all checklist items are true, and `publish_blockers` contains nothing except `NOT_APPROVED` / `NOT_SIGNED_IN` / `NO_MAINTAINER_CONSENT` (v0.5). Otherwise → `APPROVAL_STALE`. v0.5: `ownership` missing or too short → 422.
 - **Voiding:** Revise, **any completed recheck-deps** (it always creates a new `supplyguard_report_id`, whatever the result), or any change to a hashed field → `approval = None` + `approval.voided` event. The user must review and approve the current evidence again; the UI never carries the old checklist over.
-- **Publisher (the only holder of a GitHub write token):** (1) load the approval; (2) fresh clone at `base_sha` in its own workspace, outside the sandbox; (3) apply the stored diff, recompute `diff_hash` and the manifest, compare → `HASH_MISMATCH` refuses; (4) re-check the issue (open, no new linked PR) → otherwise `APPROVAL_STALE` with `ISSUE_CHANGED`; (4a) check that the **latest** SupplyGuard report ID equals the manifest's `supplyguard_report_id`, and that its status isn't inconclusive → otherwise `DEPS_REPORT_CHANGED`; (4b) **upstream check:** `GET /repos/{o}/{r}/compare/{base_sha}...{default_branch}`. If any file in the canonical diff appears in the changed files, or the compare result is truncated (> 300 files), → `UPSTREAM_CHANGED` (permanent blocker; the UI offers Re-run on latest code). Other upstream changes are allowed, and the PR body names `base_sha`. The same checks also run when `approve` is called, so S-05 shows Stale before the user publishes; (5) branch `patchpilot/issue-<number>-<run_id[:8]>`; (6) **idempotency:** look up an existing PR with that head branch first, update it if found; (7) open a **draft** PR whose body includes the AI-assistance note and evidence summary.
+- **Publisher (the only holder of a GitHub write token):** (1) load the approval; (2) fresh clone at `base_sha` in its own workspace, outside the sandbox; (3) apply the stored diff, recompute `diff_hash` and the manifest, compare → `HASH_MISMATCH` refuses; (4) re-check the issue (open, no new linked PR) → otherwise `APPROVAL_STALE` with `ISSUE_CHANGED`; (4a) check that the **latest** SupplyGuard report ID equals the manifest's `supplyguard_report_id`, and that its status isn't inconclusive → otherwise `DEPS_REPORT_CHANGED`; (4-consent, v0.5) `consent` must be set and `NO_MAINTAINER_CONSENT` absent → otherwise `PUBLISH_BLOCKED`; (4b) **upstream check:** `GET /repos/{o}/{r}/compare/{base_sha}...{default_branch}`. If any file in the canonical diff appears in the changed files, or the compare result is truncated (> 300 files), → `UPSTREAM_CHANGED` (permanent blocker; the UI offers Re-run on latest code). Other upstream changes are allowed, and the PR body names `base_sha`. The same checks also run when `approve` is called, so S-05 shows Stale before the user publishes; (5) branch `patchpilot/issue-<number>-<run_id[:8]>`; (6) **idempotency:** look up an existing PR with that head branch first, update it if found; (7) open a **draft** PR whose body includes the AI-assistance note and evidence summary.
 
 ## 6. Access and limits
 
