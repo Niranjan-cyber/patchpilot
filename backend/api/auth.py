@@ -186,8 +186,10 @@ def _consent_state(v, request: Request) -> dict:
 
 
 def _out(v, st: dict) -> dict:
+    ev = st.get("evidence")   # found on GitHub but not recorded yet: the UI offers "Use this consent" (live test e335ce16)
     return {"consent": v.consent.model_dump(mode="json") if v.consent else None, "state": "recorded" if v.consent else st["state"],
-            "replies": st.get("replies", []), "why": st.get("why")}
+            "replies": st.get("replies", []), "why": st.get("why"),
+            "found": ev.model_dump(mode="json", include={"kind", "source_url", "author", "quote"}) if ev and not v.consent else None}
 
 
 @router.get("/api/runs/{run_id}/consent")

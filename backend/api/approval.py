@@ -60,6 +60,15 @@ def hashes(v: RunView, diff: str) -> tuple[str, str]:
     return dh, evidence_hash(m)
 
 
+def summary_prefill(v: RunView) -> str:
+    """What the Review screen pre-fills for the PR's 'Cause and fix': the diagnosis, then the fixer's own summary. The user
+    edits and approves it, so the fixer's words reach the PR only through text the user saw (ownership rule, #83)."""
+    from backend.agents.fix import UNFINISHED
+    cause = (v.diagnosis.hypothesis if v.diagnosis else "") or ""
+    fix = (v.patch.policy_reason or "").strip() if v.patch and v.patch.policy_reason != UNFINISHED else ""
+    return f"{cause}\n\nThe fix: {fix}".strip() if fix else cause
+
+
 def changed_files(diff: str) -> set[str]:
     return {l.split(" b/", 1)[1].strip() for l in diff.splitlines() if l.startswith("diff --git ") and " b/" in l}
 
@@ -139,7 +148,7 @@ def approval_context(run_id: str, request: Request):
     return {"revision": v.revision, "diff": diff, "diff_hash": dh, "evidence_hash": eh, "files": sorted(changed_files(diff)),
             "publish_blockers": v.publish_blockers, "approved": v.approval is not None,
             "pr_title": f"Fix #{v.issue.number}: {v.issue.title}"[:120],
-            "pr_summary": (v.diagnosis.hypothesis if v.diagnosis else "") or "",
+            "pr_summary": summary_prefill(v),
             # v0.5 §2.3: what PatchPilot found, shown as help next to the three own-words questions (never prefilled into them)
             "help": {"cause": v.diagnosis.hypothesis if v.diagnosis else None, "tests": v.repro.test_ids if v.repro else [],
                      "expected_failure": v.repro.expected_failure if v.repro else None},

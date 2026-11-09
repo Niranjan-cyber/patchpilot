@@ -67,12 +67,14 @@ export function Connect() {
 
 type Reply = { url: string; author: string; association: string; quote: string; positive: boolean; declined: boolean };
 type Consent = { consent: { kind: string; source_url?: string | null; author?: string | null; quote?: string | null;
-  attested_by_user?: boolean; override_reason?: string | null } | null; state: string; replies: Reply[]; why?: string | null };
+  attested_by_user?: boolean; override_reason?: string | null } | null; state: string; replies: Reply[]; why?: string | null;
+  found?: { kind: string; source_url?: string | null; author?: string | null; quote?: string | null } | null };
 const STATE: Record<string, string> = {
   none: "No maintainer has said yes yet. Ask them first (above).",
   waiting: "Waiting for a maintainer to reply to your comment. Silence isn't a yes.",
   replied: "A maintainer replied, but not with a clear yes. Read it, and record it below only if it agrees to your fix.",
   declined: "A maintainer declined. Respect that unless something new has changed their mind.",
+  granted: "A maintainer's yes is on the issue. Use it to unlock publishing.",
 };
 const KIND: Record<string, string> = {
   maintainer_reply: "A maintainer replied yes", maintainer_request: "A maintainer asked for a fix",
@@ -119,14 +121,19 @@ function ConsentCard({ run, onChange }: { run: string; onChange: (ok: boolean) =
               <button className="secondary-btn" disabled={busy} onClick={() => send({ attest_comment_url: r.url })}>They agreed: record this reply</button>
             </div>
           ))}
-          <div className="row"><button className="secondary-btn" disabled={busy} onClick={() => send({})}>{busy ? "Checking…" : "Check the issue for a reply"}</button></div>
-          <details>
+          {st.found && <p className="notice">{KIND[st.found.kind] ?? st.found.kind}{st.found.author ? ` (${st.found.author})` : ""}
+            {st.found.quote && <>: "{st.found.quote}"</>}{st.found.source_url && <> <a href={st.found.source_url}>source</a></>}</p>}
+          {/* found consent: one clear action, and no override beside it (the live test used the override by mistake) */}
+          <div className="row">{st.found
+            ? <button disabled={busy} onClick={() => send({})}>{busy ? "Recording…" : "Use this consent"}</button>
+            : <button className="secondary-btn" disabled={busy} onClick={() => send({})}>{busy ? "Checking…" : "Check the issue for a reply"}</button>}</div>
+          {!st.found && <details>
             <summary>Publish without a maintainer's yes</summary>
             <label>Why is it right to open this pull request anyway? (at least 20 characters)
               <textarea rows={2} value={reason} onChange={(e) => setReason(e.target.value)} maxLength={1000} /></label>
             <p className="hint">Your reason goes in the report as an override. It never appears in the pull request as if a maintainer asked.</p>
             <button className="secondary-btn" disabled={busy || reason.trim().length < 20} onClick={() => setConfirm(true)}>Record my reason</button>
-          </details>
+          </details>}
         </>}
       {err && <p className="notice warn">{err.message}</p>}
       <Modal open={confirm} onClose={() => setConfirm(false)} title="Publish without a maintainer's yes?"

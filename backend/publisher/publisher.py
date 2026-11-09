@@ -67,6 +67,15 @@ def _repo_checks(run_id: str) -> tuple[str, list[str]]:
             [f"Not run here: {', '.join(other)}; please check {'them' if len(other) > 1 else 'it'} in CI."] if other else [])
 
 
+COVERAGE_NOTE = "The test designer didn't claim"   # review.py's coverage concern: our own wording, not a maintainer's
+
+
+def _clause(text: str) -> str:
+    """'A CHANGELOG entry is added.' -> 'a CHANGELOG entry is added', for a '; '-joined list (live PR wheelgap#133: '.; ')."""
+    t = text.strip().rstrip(".")
+    return t[:1].lower() + t[1:] if t[:1].isupper() and not t[1:2].isupper() else t
+
+
 def pr_body(v: RunView) -> str:
     """Problem / Cause / Fix / Tests / Limitations / AI as bold labels (#70 item 5). Short on purpose (mcstatus #1238 was
     closed as "too much vibe-coding"): no headings, no agent history; run details stay in the report."""
@@ -88,17 +97,18 @@ def pr_body(v: RunView) -> str:
     lines = [
         f"Fixes #{v.issue.number}", "",
         f"**Problem:** {problem}{asked}", "",
-        f"**Cause:** {a.pr_summary.strip() or '(not given)'}", "",
-        f"**Fix:** changes {', '.join(fix) if fix else '(not recorded)'}.", "",
+        f"**Cause and fix:** {a.pr_summary.strip() or '(not given)'}", "",   # the summary the user edited and approved
+        f"**Changes:** {', '.join(fix) if fix else '(not recorded)'}.", "",
         f"**Tests:** the new regression test {tests} fails 2/2 on the original code (`{v.base_sha[:7]}`) and passes 2/2 "
         f"with the fix in a fresh sandbox.{existing} {checks}", "",
         "**Limitations:** passing tests don't prove the change is bug-free; please review the logic. "
-        + " ".join([*not_run, *([f"The test doesn't claim to check: {'; '.join(uncovered)}."] if uncovered else [])]), "",
+        + " ".join([*not_run, *([f"Not covered by the new tests: {'; '.join(_clause(u) for u in uncovered)}."] if uncovered else [])]), "",
         f"**AI assistance:** _{AI_NOTE}_", "",
         "<details><summary>More detail</summary>", "",
         f"- {deps}",
         *[f"- Reviewer note ({(c.get('level') or c.get('severity') or 'note').replace('_', ' ').lower()}): {c.get('text', '')}"
-          for c in (v.review.concerns if v.review else [])],   # the maintainer can tell a blocker from an accepted tradeoff
+          for c in (v.review.concerns if v.review else [])   # the maintainer can tell a blocker from an accepted tradeoff
+          if not str(c.get("text", "")).startswith(COVERAGE_NOTE)],   # already under Limitations, in plainer words
         f"- Base commit `{v.base_sha}`; PatchPilot run {v.run_id[:8]}, revision {v.revision}.", "",
         "</details>",
     ]

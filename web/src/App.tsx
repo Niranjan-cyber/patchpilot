@@ -56,8 +56,10 @@ function Shell({ children }: { children: React.ReactNode }) {
     const k = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
     window.addEventListener("keydown", k); return () => window.removeEventListener("keydown", k);
   }, []);
+  const signOut = () => fetch("/auth/logout", { method: "POST" }).finally(() => window.location.assign("/"));
   const account = me?.signed_in
-    ? <span className="flex items-center gap-2 font-semibold text-[14px]"><span className="grid place-items-center w-8 h-8 rounded-full bg-lav-100 text-lav-700 text-[13px]" aria-hidden>{(me.login ?? "?")[0].toUpperCase()}</span>{me.login}</span>
+    ? <span className="flex items-center gap-2 font-semibold text-[14px]"><span className="grid place-items-center w-8 h-8 rounded-full bg-lav-100 text-lav-700 text-[13px]" aria-hidden>{(me.login ?? "?")[0].toUpperCase()}</span>{me.login}
+        <button className="secondary-btn !min-h-9 !px-3 text-[13px]" onClick={signOut}>Sign out</button></span>
     : <Link to="/connect" className="button secondary !min-h-10"><Icon name="github" />Sign in with GitHub</Link>;
   return (
     <div className="min-h-dvh flex flex-col">
