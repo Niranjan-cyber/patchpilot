@@ -193,3 +193,16 @@ def test_reap_removes_sandboxes_whose_run_has_no_live_lease(env, monkeypatch):
     monkeypatch.setattr(docker, "rm_volume", lambda *a: None)
     W.reap(c)
     assert removed == [f"pp-{dead.run_id[:8]}-td-1-bbbb"]
+
+
+@pytest.mark.parametrize("reasons,outcome", [(["needs_info"], "FIX_NEEDS_ATTENTION"), (["unclear_type"], "FIX_NEEDS_ATTENTION"),
+                                             (["model_unavailable"], "FIX_NEEDS_ATTENTION"), ([], "VERIFIED_FIX")])
+def test_a_fix_for_an_issue_that_never_says_what_is_right_is_not_ready(env, reasons, outcome):
+    # gitingest-115 (run c25fc546): intake said NEEDS_INFORMATION, the run went ahead, and our own test was the only
+    # definition of "right", so it ended VERIFIED_FIX while the maintainers' test failed (#41 follow-up: cap readiness)
+    from backend.contracts.models import IssueAssessment
+    c, g = env; calls = []; passing(calls)
+    a = IssueAssessment(issue_type="bug", issue_type_source="model", issue_status="open", compatibility_status="supported",
+                        handling_decision="NEEDS_INFORMATION" if reasons else "READY", decision_reasons=reasons)
+    v = db.create_run(c, ISSUE, "sha", assessment=a); drain(c, g)
+    assert db.get_run(c, v.run_id).outcome.value == outcome
