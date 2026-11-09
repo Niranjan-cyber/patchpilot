@@ -18,7 +18,7 @@ sys.path.insert(0, str(ROOT))
 
 from backend import artifacts, db  # noqa: E402
 from backend.eval import official_result, parse_ra  # noqa: E402
-from backend.github.reader import check_issue  # noqa: E402
+from backend.github.reader import GitHubError, check_issue  # noqa: E402
 from backend.sandbox import docker  # noqa: E402
 from backend.sandbox.steps import cname, image, snap  # noqa: E402
 
@@ -52,7 +52,14 @@ def run_case(case: dict, timeout_s: float) -> dict:
     if not case.get("issue_url"):
         return out
     c, t0 = db.connect(), time.monotonic()
-    chk = check_issue(case["issue_url"])
+    for attempt in range(3):   # unattended run: one GitHub timeout (e.g. under memory pressure) must not lose the case
+        try:
+            chk = check_issue(case["issue_url"])
+            break
+        except GitHubError:
+            if attempt == 2:
+                raise
+            time.sleep(60)
     v = db.create_run(c, chk.issue, base_sha=case.get("base_commit") or chk.base_sha or "pending", owner_session_hash="eval")
     out["run_id"] = v.run_id
     while time.monotonic() - t0 < timeout_s:
