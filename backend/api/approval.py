@@ -1,4 +1,6 @@
 """B10: the human gate on the exact diff (contracts §5, screen S-05)."""
+from typing import Literal
+
 from fastapi import APIRouter, Request
 from pydantic import BaseModel, Field
 
@@ -170,6 +172,7 @@ def _void(v: RunView, reason: str) -> None:
 
 class ReviseBody(BaseModel):
     feedback: str = Field(min_length=3, max_length=2000)
+    target: Literal["fix", "test"] = "fix"   # v0.6: "test" rewrites the reproduction test (smart_open-833), then re-fixes
 
 
 @router.post("/api/runs/{run_id}/revise", response_model=RunView)
@@ -183,13 +186,13 @@ def revise(run_id: str, body: ReviseBody, request: Request):
         raise _err(409, "BUDGET_SPENT", NO_BUDGET)
     _void(v, "revise")
     v.revisions.append(RevisionSummary(revision=v.revision, outcome=v.outcome, end_reason=v.end_reason,
-                                       diff_hash=diff_hash(exact_diff(v)), finished_at=v.updated_at))
+                                       diff_hash=diff_hash(exact_diff(v)), finished_at=v.updated_at,
+                                       revise_target=body.target, feedback=body.feedback))
     v.revision += 1
     v.status, v.outcome, v.end_reason, v.readiness = RunStatus.REVISING, None, None, None
     c = db.connect()
     db.save_run(c, v)
     with db.tx(c):
-        db.put_kv(c, f"revise:{run_id}", body.feedback)
         c.execute("INSERT INTO jobs(run_id,kind,state,available_at) VALUES(?,?,?,?)", (run_id, "revise", "queued", db.now().isoformat()))
     return v
 

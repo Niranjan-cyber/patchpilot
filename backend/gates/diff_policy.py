@@ -54,6 +54,23 @@ def is_dep_path(p: str) -> bool:
         (name.endswith(".txt") and "requirements" in PurePosixPath(p).parts)
 
 
+def _new_files(diff: str) -> list[str]:
+    out, path = [], None
+    for line in diff.splitlines():
+        if (h := _header_new_path(line)) is not None:
+            path = h
+        elif line.startswith("new file mode") and path:
+            out.append(path)
+        elif line.startswith(("rename to ", "copy to ")):   # a moved or copied file lands at a new path too
+            out.append(line.split(" to ", 1)[1].strip())
+    return out
+
+
+def _source_file(p: str) -> bool:
+    pp = PurePosixPath(p)
+    return len(pp.parts) > 1 and (pp.suffix in (".py", ".pyi") or pp.name == "py.typed")
+
+
 def g4_result(diff: str, *, evidence_ids: list[str]) -> GateResult:
     fail = lambda r: GateResult(gate="G4", status=CheckStatus.FAILED, reason=r, evidence_ids=evidence_ids)
     paths, parsed_all = diff_paths(diff)
@@ -69,6 +86,11 @@ def g4_result(diff: str, *, evidence_ids: list[str]) -> GateResult:
         return fail("dependency_change")
     if any(PurePosixPath(p).parts[0] == ".github" for p in paths):
         return fail("ci_change")
+    # "source files only": the fixer's scratch files (x.zst.gz, a repro.py at the root) must not ride into the PR.
+    # shortcut: a new file must be Python source inside a folder; a scratch .py inside the package still passes and a
+    # needed data/C file is refused, so upgrade to "the Reviewer lists every new file" if a real fix needs one
+    if not all(_source_file(p) for p in _new_files(diff)):
+        return fail("stray_file")
     if len(_HEADER.findall(diff)) > MAX_FILES:
         return fail("too_many_files")
     changed = sum(1 for line in diff.splitlines()

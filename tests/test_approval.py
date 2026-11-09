@@ -92,6 +92,14 @@ def test_revise_voids_and_queues(ready):
     assert db.connect().execute("SELECT COUNT(*) FROM jobs WHERE kind='revise' AND state='queued'").fetchone()[0] == 1
 
 
+def test_revise_can_target_the_test(ready):
+    b, rid, _ = ready
+    assert b.post(f"/api/runs/{rid}/revise", json={"feedback": "drop the zstd check", "target": "tests"}).status_code == 422
+    v = b.post(f"/api/runs/{rid}/revise", json={"feedback": "drop the zstd check", "target": "test"}).json()
+    assert v["status"] == "revising" and v["revisions"][-1]["revise_target"] == "test"
+    assert v["revisions"][-1]["feedback"] == "drop the zstd check"
+
+
 def test_revise_refused_when_run_budget_spent(ready, monkeypatch):
     """rev 1 of 3e1efde6 ended at once with budget_run: say so up front instead of queueing a revision that can't run."""
     from backend import llm_gateway

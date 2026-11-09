@@ -108,6 +108,7 @@ export type TestIds = string[];
 export type ExpectedFailure = string;
 export type RunsOnBase = CheckStatus[];
 export type EvidenceIds1 = string[];
+export type Uncovered = string[] | null;
 export type Path = string;
 export type Line = number | null;
 export type Locations = Location[];
@@ -167,6 +168,8 @@ export type Revision1 = number;
 export type DiffHash = string | null;
 export type EvidenceIds4 = string[];
 export type FinishedAt1 = string | null;
+export type ReviseTarget = ("fix" | "test") | null;
+export type Feedback = string | null;
 export type Revisions = RevisionSummary[];
 export type RunId1 = string;
 export type Revision2 = number;
@@ -388,6 +391,7 @@ export interface ReproTest {
   expected_failure: ExpectedFailure;
   runs_on_base?: RunsOnBase;
   evidence_ids?: EvidenceIds1;
+  uncovered?: Uncovered;
   [k: string]: unknown;
 }
 /**
@@ -514,6 +518,8 @@ export interface RevisionSummary {
   diff_hash?: DiffHash;
   evidence_ids?: EvidenceIds4;
   finished_at?: FinishedAt1;
+  revise_target?: ReviseTarget;
+  feedback?: Feedback;
   [k: string]: unknown;
 }
 /**

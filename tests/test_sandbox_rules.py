@@ -151,3 +151,29 @@ def test_pyproject_first_test_extra_only_like_g2():
 ])
 def test_pyproject_unknown_is_none(text):
     assert preqs(text) is None
+
+
+def test_no_supported_files_is_named_even_without_a_json_report():   # smart_open-833: exit 3 + plain text was "unavailable"
+    assert map_supplyguard(3, None)[1] == "no_supported_dependency_files"
+
+
+SMART_OPEN_SETUP = """
+import os
+def _get_version(): return '1'
+base_deps = ['wrapt']
+aws_deps = ['boto3']
+zst_deps = ['zstandard']
+all_deps = aws_deps + zst_deps
+tests_require = all_deps + ['pytest', 'moto[server]']
+setup(name='smart_open', install_requires=base_deps, extras_require={'test': tests_require, 'aws': aws_deps})
+"""
+
+
+def test_setup_py_requirements_are_read_without_running_it():   # smart_open-833: deps only in setup.py → G1 inconclusive
+    from backend.sandbox.rules import setup_requirements
+    assert setup_requirements(SMART_OPEN_SETUP, None) == ["wrapt", "boto3", "zstandard", "pytest", "moto[server]"]
+    cfg = "[options]\ninstall_requires =\n    requests>=2\n    click\n[options.extras_require]\ntest =\n    pytest\n"
+    assert setup_requirements(None, cfg) == ["requests>=2", "click", "pytest"]
+    assert setup_requirements("setup(install_requires=get_deps())", None) is None          # not static: unknown, never empty
+    assert setup_requirements("x = 1", None) is None
+    assert setup_requirements("setup(install_requires=open('r').read().split())", None) is None

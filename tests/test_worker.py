@@ -126,6 +126,58 @@ def test_revise_resumes_at_fix_only(env):
     assert db.get_run(c, v.run_id).status.value == "awaiting_approval"
 
 
+def ask(r, target):
+    from backend.contracts.models import RevisionSummary
+    r.revisions.append(RevisionSummary(revision=r.revision, outcome=r.outcome, end_reason=r.end_reason,
+                                       revise_target=target, feedback="the test checks the wrong thing"))
+    r.revision += 1; r.status = r.status.__class__("revising")
+
+
+def test_revise_the_test_reruns_reproduce_and_drops_the_old_test(env):
+    # smart_open-833: the test asserted an unrelated zstd read-back, and Revise could only retry the fix against it
+    from backend.contracts.models import ReproTest
+    c, g = env; calls = []; passing(calls)
+    v = db.create_run(c, ISSUE, "sha"); drain(c, g)
+    calls.clear()
+    r = db.get_run(c, v.run_id)
+    r.repro = ReproTest(test_diff_id="sha256:" + "a" * 64, test_ids=["tests/t.py::old"], expected_failure="x",
+                        runs_on_base=[C.FAILED, C.FAILED], evidence_ids=[])
+    ask(r, "test"); db.save_run(c, r)
+    with db.tx(c):
+        c.execute("INSERT INTO jobs(run_id,kind,state,available_at) VALUES(?,?,?,?)", (v.run_id, "revise", "queued", db.now().isoformat()))
+    drain(c, g)
+    assert calls == [S.REPRODUCE, S.DIAGNOSE, S.FIX, S.VERIFY, S.REVIEW]
+    assert db.get_run(c, v.run_id).repro is None   # the stub step writes no test, so the old one must not survive
+
+
+@pytest.mark.parametrize("target,step,gate,outcome", [("test", S.REPRODUCE, "G3", "CANNOT_REPRODUCE"),
+                                                      ("fix", S.FIX, "G4", "TRIAGE_ONLY")])
+def test_a_failed_revision_never_inherits_the_old_passing_gates(env, target, step, gate, outcome):
+    # the old revision's G5=passed stayed in run.gates, so a revision that failed earlier would still claim a fix
+    c, g = env; calls = []; passing(calls)
+    v = db.create_run(c, ISSUE, "sha"); drain(c, g)
+    nodes.register(step, lambda ctx: GateResult(gate=gate, status=C.FAILED, reason="no"))
+    r = db.get_run(c, v.run_id); ask(r, target); db.save_run(c, r)
+    with db.tx(c):
+        c.execute("INSERT INTO jobs(run_id,kind,state,available_at) VALUES(?,?,?,?)", (v.run_id, "revise", "queued", db.now().isoformat()))
+    drain(c, g)
+    r = db.get_run(c, v.run_id)
+    assert r.outcome.value == outcome and r.gates["G5"] == C.NOT_RUN and r.status.value == "finished"
+    assert r.patch is None and r.verify is None and r.review is None   # nothing from the old revision speaks for this one
+    assert S.VERIFY not in r.steps and S.REVIEW not in r.steps          # their old "passed" rows are gone, never shown
+
+
+def test_a_crash_during_revise_setup_resumes_the_revision_not_the_whole_run(env):
+    c, g = env; calls = []; passing(calls)
+    v = db.create_run(c, ISSUE, "sha"); drain(c, g)
+    r = db.get_run(c, v.run_id); ask(r, "test"); db.save_run(c, r)
+    with db.tx(c):   # a leased revise job whose worker died before the graph was moved
+        c.execute("INSERT INTO jobs(run_id,kind,state,available_at,lease_expires_at,attempt) VALUES(?,?,?,?,?,1)",
+                  (v.run_id, "revise", "running", db.now().isoformat(), (db.now() - timedelta(seconds=1)).isoformat()))
+    calls.clear(); drain(c, g)
+    assert calls == [S.REPRODUCE, S.DIAGNOSE, S.FIX, S.VERIFY, S.REVIEW]
+
+
 def test_reap_removes_sandboxes_whose_run_has_no_live_lease(env, monkeypatch):
     # a worker restart mid-step left agent containers running for an hour (runs 8, 9), eating the host's memory
     from backend.sandbox import docker
@@ -141,3 +193,16 @@ def test_reap_removes_sandboxes_whose_run_has_no_live_lease(env, monkeypatch):
     monkeypatch.setattr(docker, "rm_volume", lambda *a: None)
     W.reap(c)
     assert removed == [f"pp-{dead.run_id[:8]}-td-1-bbbb"]
+
+
+@pytest.mark.parametrize("reasons,outcome", [(["needs_info"], "FIX_NEEDS_ATTENTION"), (["unclear_type"], "FIX_NEEDS_ATTENTION"),
+                                             (["model_unavailable"], "FIX_NEEDS_ATTENTION"), ([], "VERIFIED_FIX")])
+def test_a_fix_for_an_issue_that_never_says_what_is_right_is_not_ready(env, reasons, outcome):
+    # gitingest-115 (run c25fc546): intake said NEEDS_INFORMATION, the run went ahead, and our own test was the only
+    # definition of "right", so it ended VERIFIED_FIX while the maintainers' test failed (#41 follow-up: cap readiness)
+    from backend.contracts.models import IssueAssessment
+    c, g = env; calls = []; passing(calls)
+    a = IssueAssessment(issue_type="bug", issue_type_source="model", issue_status="open", compatibility_status="supported",
+                        handling_decision="NEEDS_INFORMATION" if reasons else "READY", decision_reasons=reasons)
+    v = db.create_run(c, ISSUE, "sha", assessment=a); drain(c, g)
+    assert db.get_run(c, v.run_id).outcome.value == outcome

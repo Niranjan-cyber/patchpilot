@@ -47,7 +47,9 @@ def render(v: RunView, narrative: str | None = None) -> str:
               *(["- Partial: some results couldn't be read."] if b.partial else []), ""]
     if v.repro:
         L += ["## Reproduction", f"- Test: {', '.join(f'`{t}`' for t in v.repro.test_ids)}", f"- Expected failure: {v.repro.expected_failure}",
-              f"- On the original code: {', '.join(WORD[s] for s in v.repro.runs_on_base) or 'not run'}", ""]
+              f"- On the original code: {', '.join(WORD[s] for s in v.repro.runs_on_base) or 'not run'}",
+              "- Covers what the issue expects: " + ("not checked" if v.repro.uncovered is None else "the test designer says it checks every stated condition (its own claim, not checked by code)"
+                  if not v.repro.uncovered else "**no**, it leaves out: " + "; ".join(v.repro.uncovered)), ""]
     if v.diagnosis:
         L += ["## Likely cause (hypothesis)", v.diagnosis.hypothesis, *[f"- `{l.path}`" + (f" line {l.line}" if l.line else "") for l in v.diagnosis.locations],
               *(["", "Codebase tour:"] + [f"- `{t.path}`: {t.why}" for t in v.diagnosis.tour] if v.diagnosis.tour else []), ""]
@@ -63,6 +65,7 @@ def render(v: RunView, narrative: str | None = None) -> str:
         L += ["## Explanation", narrative, ""]
     blockers = [b.value for b in v.publish_blockers]
     L += existing_work_section(v.run_id)
+    L += repo_checks_section(v.run_id)
     o = v.approval.ownership if v.approval else None   # contracts v0.5 §2.3; never in the PR body
     if o:
         L += ["## The contributor's explanation (own words)", f"- What was broken: {o.what_was_broken}",
@@ -113,4 +116,29 @@ def existing_work_section(run_id: str) -> list[str]:
     if again:
         out += lines(again, "Re-checked before publishing")
         out += [f"  - New since the start: {'; '.join(again['new'])}." if again.get("new") else "  - Nothing new since the start."]
+    return [*out, ""]
+
+
+def repo_checks_section(run_id: str) -> list[str]:
+    """#70 item 3: one line per tool with its command and exit code. Missing evidence says "not checked", never passed."""
+    import json
+    from backend import db
+    try:
+        raw = db.get_kv(db.connect(), f"repo_checks:{run_id}")
+    except Exception:
+        raw = None
+    res = json.loads(raw) if raw else None
+    if not res or res.get("checks") is None:
+        return ["## Repository checks", "- Not checked: the repo's own linters and type checkers didn't run for this change.", ""]
+    if not res["checks"]:
+        why = {"no_python_files": "no Python files changed", "diff_did_not_apply": "the change didn't apply in the check sandbox",
+               "sandbox_failed": "the check sandbox failed", "only_deleted_files": "the change only deletes Python files"
+               }.get(res.get("reason"), "the repo configures none we can run")
+        return ["## Repository checks", f"- Not checked: {why}.", ""]
+    out = ["## Repository checks", "| Tool | Result | Exit code | Command | Notes |", "|---|---|---|---|---|"]
+    cell = lambda s: str(s).replace("|", "\\|")   # a pipe inside a cell would split the table row
+    for c in res["checks"]:
+        cmd = f"`{cell(c['command'])}`" if c.get("command") else "-"
+        notes = c.get("note", "") + ("; " + "; ".join(c["new"][:3]) if c.get("new") else "")
+        out.append(f"| {cell(c['tool'])} | {c['status']} | {c['exit_code'] if c.get('exit_code') is not None else '-'} | {cmd} | {cell(notes)} |")
     return [*out, ""]

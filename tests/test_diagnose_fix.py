@@ -103,6 +103,47 @@ def test_fix_rejects_test_edit_then_accepts_source_fix(run):
     assert [p["reason"] for t, p in events if t == "attempt.retry"] == ["edits_tests"]
 
 
+@pytest.mark.parametrize("target,seen", [("fix", True), ("test", False)])
+def test_fixer_gets_revise_feedback_only_when_it_was_about_the_fix(run, target, seen):
+    ctx, mp, ev, events = run
+    from backend.contracts.models import RevisionSummary
+    ctx.run.revision = 1
+    ctx.run.revisions = [RevisionSummary(revision=0, outcome=None, end_reason=None, revise_target=target, feedback="keep the public name")]
+    prompts = []
+    mp.setattr(F.docker, "exec_", _fix_exec([SRC]))
+    mp.setattr(F.loop, "run", lambda p, **k: (prompts.append(p), ({"summary": "s"}, []))[1])
+    F.fix(ctx)
+    assert ("keep the public name" in prompts[0]) is seen
+
+
+def test_an_edit_made_before_the_step_limit_is_judged_not_thrown_away(run):
+    # smart_open-833 (runs ba3c0fe0, 9b05ceb0): 7 attempts edited source, hit the step limit before PATCHPILOT_DONE,
+    # and were discarded as no_fix_written. The gates decide whether a diff is a fix, not the model's DONE line.
+    ctx, mp, ev, events = run
+    mp.setattr(F.docker, "exec_", _fix_exec([SRC]))
+    mp.setattr(F.loop, "run", lambda *a, **k: (None, []))
+    r = F.fix(ctx)
+    assert r.gate == "G4" and r.status == CheckStatus.PASSED
+    p = db.get_run(db.connect(), ctx.run_id).patch
+    assert artifacts.get(p.fix_diff_id).decode() == SRC and p.policy_reason == F.UNFINISHED
+
+
+@pytest.mark.parametrize("done", [{}, "fixed", ["x"]])
+def test_any_done_line_counts_as_finished_and_never_crashes(run, done):
+    ctx, mp, ev, events = run
+    mp.setattr(F.docker, "exec_", _fix_exec([SRC]))
+    mp.setattr(F.loop, "run", lambda *a, **k: (done, []))
+    assert F.fix(ctx).status == CheckStatus.PASSED
+    assert db.get_run(db.connect(), ctx.run_id).patch.policy_reason is None   # finished, just no summary
+
+
+def test_no_edit_at_the_step_limit_is_still_no_fix(run):
+    ctx, mp, ev, events = run
+    mp.setattr(F.docker, "exec_", _fix_exec(["", "", "", ""]))
+    mp.setattr(F.loop, "run", lambda *a, **k: (None, []))
+    assert F.fix(ctx).reason == "no_fix_written"
+
+
 def test_fix_gives_up_after_all_attempts_with_g4_failed(run):
     ctx, mp, ev, events = run
     mp.setattr(F.docker, "exec_", _fix_exec([TEST_EDIT] * 4))
@@ -192,3 +233,10 @@ def test_locations_are_still_validated_against_the_source():
     deep = _res([])
     deep["locations"] = [{"path": "../../etc/passwd", "line": 1}]
     assert check_diagnosis(deep, {"ev1"}, _lines) == "unknown_file"
+
+
+def test_done_with_nothing_on_disk_still_gets_the_empty_diff_advice(run):
+    ctx, mp, ev, events = run
+    mp.setattr(F.docker, "exec_", _fix_exec(["", "", "", ""]))
+    mp.setattr(F.loop, "run", lambda *a, **k: ({"summary": "s"}, []))
+    assert F.fix(ctx).reason == "empty_diff"

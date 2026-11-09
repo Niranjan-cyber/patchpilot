@@ -54,6 +54,45 @@ def test_added_silent_except_lowers_readiness_even_when_the_llm_sees_nothing(ctx
     assert r.lowers_readiness is True and any("except TypeError:" in x["text"] for x in r.concerns)
 
 
+@pytest.mark.parametrize("uncovered,lowers", [(["A mixed-case owner/repo resolves"], True), ([], False), (None, False)])
+def test_a_test_that_leaves_out_an_expected_behaviour_lowers_readiness(ctx, uncovered, lowers):
+    from backend.contracts.models import ReproTest
+    c, mp = ctx
+    v = db.get_run(db.connect(), c.run_id)
+    v.repro = ReproTest(test_diff_id=v.patch.test_diff_id, test_ids=["t"], expected_failure="x", uncovered=uncovered)
+    db.save_run(db.connect(), v)
+    mp.setattr(RV, "complete", lambda *a, **k: '{"concerns": []}')
+    RV.review(c)
+    r = db.get_run(db.connect(), c.run_id).review
+    assert r.lowers_readiness is lowers
+    assert any("mixed-case owner/repo" in x["text"] for x in r.concerns) is lowers
+
+
+def test_reviewer_checks_the_test_against_what_the_issue_expects(ctx):   # gitingest-115, smart_open-833
+    from backend.contracts.models import IssueAssessment
+    c, mp = ctx
+    v = db.get_run(db.connect(), c.run_id)
+    v.assessment = IssueAssessment(issue_type="bug", issue_type_source="model", issue_status="open", compatibility_status="supported",
+                                   handling_decision="READY", acceptance_conditions=["The URL field is case-insensitive"])
+    db.save_run(db.connect(), v)
+    seen = {}
+    mp.setattr(RV, "complete", lambda msgs, **k: seen.setdefault("p", msgs[0]["content"]) and '{"concerns": []}')
+    RV.review(c)
+    assert "The URL field is case-insensitive" in seen["p"]
+    assert "doesn't ask for" in seen["p"] and "only the reporter's example" in seen["p"]
+
+
+def test_an_unfinished_fixer_edit_can_never_be_ready(ctx):   # a half-done multi-file edit must not reach VERIFIED_FIX
+    from backend.agents.fix import UNFINISHED
+    c, mp = ctx
+    v = db.get_run(db.connect(), c.run_id)
+    v.patch = v.patch.model_copy(update={"policy_reason": UNFINISHED}); db.save_run(db.connect(), v)
+    mp.setattr(RV, "complete", lambda *a, **k: '{"concerns": []}')
+    RV.review(c)
+    r = db.get_run(db.connect(), c.run_id).review
+    assert r.lowers_readiness is True and any("before saying its change was finished" in x["text"] for x in r.concerns)
+
+
 def test_reviewer_sees_what_the_issue_asks_for(ctx):   # tinycalc #2: the requested change was flagged as a risk
     c, mp = ctx
     v = db.get_run(db.connect(), c.run_id)

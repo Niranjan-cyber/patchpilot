@@ -108,6 +108,55 @@ def test_reproduce_passes_g3_on_two_real_failures(node):
     assert db.get_run(db.connect(), ctx.run_id).repro.runs_on_base == [CheckStatus.FAILED, CheckStatus.FAILED]
 
 
+GITINGEST = ["The URL field is case-insensitive", "A mixed-case owner/repo resolves to the same repository"]
+
+
+def with_conditions(ctx, conds):
+    from backend.contracts.models import IssueAssessment
+    ctx.run.assessment = IssueAssessment(issue_type="bug", issue_type_source="model", issue_status="open", compatibility_status="supported",
+                                         handling_decision="READY", acceptance_conditions=conds)
+    db.save_run(db.connect(), ctx.run)
+
+
+@pytest.mark.parametrize("covers,uncovered", [([1], [GITINGEST[1]]), ([1, 2], []), ("all", [GITINGEST[0], GITINGEST[1]]),
+                                              ([2, 7, "x", True], [GITINGEST[0]]), (["1", 2.0], [])])
+def test_reproduce_records_which_expected_behaviours_the_test_leaves_out(node, covers, uncovered):
+    # gitingest-115: the test checked only the reporter's 'Https://' example, not the case-insensitive URL the issue asks for
+    ctx, mp = node
+    with_conditions(ctx, GITINGEST)
+    prompts = []
+    mp.setattr(R.loop, "run", lambda p, **k: (prompts.append(p), ({"test_ids": ["tests/test_patchpilot_issue_1.py::t"],
+                                                                     "expected_failure": "x", "covers": covers}, []))[1])
+    mp.setattr(R, "_check_run", lambda rid, d, t: FAIL_OUT)
+    R.reproduce(ctx)
+    assert "1. The URL field is case-insensitive" in prompts[0] and "2. A mixed-case owner/repo" in prompts[0]
+    assert db.get_run(db.connect(), ctx.run_id).repro.uncovered == uncovered   # only valid numbers count; the rest is uncovered
+
+
+def test_reproduce_without_acceptance_conditions_records_coverage_as_not_checked(node):
+    ctx, mp = node
+    mp.setattr(R.loop, "run", lambda *a, **k: ({"test_ids": ["tests/test_patchpilot_issue_1.py::t"], "expected_failure": "x"}, []))
+    mp.setattr(R, "_check_run", lambda rid, d, t: FAIL_OUT)
+    R.reproduce(ctx)
+    assert db.get_run(db.connect(), ctx.run_id).repro.uncovered is None   # unknown, never "covers everything"
+
+
+def test_revise_the_test_tells_the_test_designer_why_and_shows_the_old_test(node):
+    from backend import artifacts
+    ctx, _ = node
+    c = db.connect()
+    assert "asked to change" not in R.task_prompt(ctx, 1, None)        # a first run has no feedback
+    from backend.contracts.models import RevisionSummary
+    ask = RevisionSummary(revision=0, outcome=None, end_reason=None, revise_target="test",
+                          feedback="drop the zstd read-back, it fails for another reason")
+    ctx.run.revision, ctx.run.revisions = 1, [ask]
+    db.put_kv(c, f"revise_old_test:{ctx.run_id}", artifacts.put("def test_old(): assert zstd_roundtrip()"))
+    p = R.task_prompt(ctx, 1, None)
+    assert "drop the zstd read-back" in p and "def test_old" in p
+    ask.revise_target = "fix"                                             # feedback about the fix is not for the test designer
+    assert "drop the zstd read-back" not in R.task_prompt(ctx, 1, None)
+
+
 def test_reproduce_retries_then_fails_on_import_error(node):
     ctx, mp = node
     calls = []

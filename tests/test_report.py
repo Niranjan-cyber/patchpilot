@@ -45,3 +45,15 @@ def test_unfinished_dependency_scan_is_never_reported_as_none_or_zero():   # #29
     v.supplyguard = SGReport(report_id="sha256:" + "0" * 64, status=CheckStatus.PASSED)
     t = render(v)
     assert "Suspicious packages: none" in t and "Known vulnerabilities: 0 " in t   # a finished clean scan still says so
+
+
+@pytest.mark.parametrize("uncovered,line", [(None, "Covers what the issue expects: not checked"),
+                                            ([], "Covers what the issue expects: the test designer says it checks every stated condition (its own claim"),
+                                            (["owner/repo is lowercased"], "Covers what the issue expects: **no**, it leaves out: owner/repo is lowercased")])
+def test_report_says_whether_the_test_covers_what_the_issue_expects(uncovered, line):   # gitingest-115
+    import json
+    from pathlib import Path
+    from backend.report import render
+    v = RunView.model_validate(json.loads(Path("fixtures/runs/verified_fix/state.json").read_text(encoding="utf-8")))
+    v.repro.uncovered = uncovered
+    assert line in render(v)
