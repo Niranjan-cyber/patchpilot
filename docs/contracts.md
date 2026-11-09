@@ -286,7 +286,7 @@ data: {"v":1,"run_id":"…","seq":42,"ts":"2026-11-11T10:42:07Z","type":"step.fi
 | POST | `/api/runs/{id}/rerun` | new run on the latest default-branch commit (counts against limits) |
 | POST | `/api/runs/{id}/publish` | requires an account + valid approval (with `ownership`, v0.5) + consent (§2.2); idempotent |
 | GET / POST | `/api/runs/{id}/ask-maintainer` | v0.5 (#68): the default ask comment and its state / `{body}` posts it once (needs an account and a current approval) |
-| GET / POST | `/api/runs/{id}/consent` | v0.5: `{}` re-reads the issue for consent; `{attest_comment_url}` records a maintainer reply the user confirms; `{override_reason}` (≥ 20 chars) records a `user_override`. GET reads the state and records nothing. Both return `{consent, state: recorded|granted|replied|waiting|declined|none, replies[], why}` |
+| GET / POST | `/api/runs/{id}/consent` | v0.5: `{}` re-reads the issue for consent; `{attest_comment_url}` records a maintainer reply the user confirms; `{override_reason}` (≥ 20 chars) records a `user_override`. GET reads the state and records nothing. Both return `{consent, state: recorded / granted / replied / waiting / declined / none, replies[], why}` |
 | POST | `/api/runs/{id}/recheck-deps` | reruns SupplyGuard; **always voids the approval** (new report ID); may clear `DEPS_INCONCLUSIVE` |
 | POST | `/api/runs/{id}/false-positive` | `{note}` → team review queue; the run stays BLOCKED |
 | DELETE | `/api/runs/{id}/access` | "Forget this run" for this browser |
