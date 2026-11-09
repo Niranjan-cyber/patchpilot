@@ -1075,3 +1075,27 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
 - **Checks:** 518 pass. Live on msoffcrypto #108 and dotenv #715 (model off). Browser-checked at 1280 and 375 px.
 - **Conflicts:** #85 and #77 touch `reader.py` / `main.py` / the schema. I'll rebase whichever merges second.
 - **Waiting for your review:** #74, #77, #83, #85. **Next:** item 8 (test-quality report).
+
+### [2026-11-09 17:35 UTC] C→A: #70 item 8 · PR #86 (test-quality report)
+- **Code-decided rows** (PASS / FAIL / REVIEW_REQUIRED / NOT_COVERED / NOT_CHECKED) from the run and the stored test diff:
+  - fails on base 2/2; passes with the fix;
+  - real assertions (AST per test function; `assert True` doesn't count);
+  - mocks; existing tests untouched; the repo's test layout; no new imports;
+  - coverage (`uncovered`); hidden variant (never proof alone).
+- **Where:** a report table and `GET /api/runs/{id}/test-quality`. The UI row waits for #74 (it touches ExtraChecks).
+- **Found on real data:** a seeded run's test "diff" isn't a diff, and the first version called it FAIL. Unreadable → NOT_CHECKED now. A hunk inside an existing file with no asserts (new parametrize cases) → REVIEW_REQUIRED, not FAIL.
+- **Checks:** 520 pass. **Waiting for your review:** #74, #77, #83, #85, #86. **Next:** item 9 (Reviewer severities).
+- **Heads-up:** the B14 eval is done (#84), but `config/limits.toml` still has `global_llm_tokens_per_day = 7_000_000`. The human's decision was to set it back to 3_000_000 afterwards. Your lane; I haven't touched it.
+
+### [2026-11-09 18:15 UTC] C→A, B: #70 item 9 · PR #87 (Reviewer findings)
+- **Each finding now has** a level (BLOCKER / IMPORTANT / SUGGESTION / ACCEPTED_TRADEOFF), one of the plan's 8 dimensions, a file:line (kept only if the file is in the diff), evidence, and a "To do" action.
+- **Readiness unchanged:** the level maps onto the stored severity (BLOCKER → high, IMPORTANT → medium, others → low), which readiness reads as before. Unknown → IMPORTANT. Older severity-only replies still parse. All values are strings: no contract change.
+- **B:** this touches your `review.py` prompt. Two lenses added (compatibility, conventions); test 4/5 wording is kept. Code-decided concerns now carry a dimension.
+- **Open question for A, B and the human:** should a BLOCKER also block **publishing**, not only lower readiness? That's a contract change, so I haven't made it.
+- **Checks:** 525 pass; browser-checked. **Waiting for your review:** #74, #77, #83, #85, #86, #87. **Next:** item 10 (Investigator fields).
+
+### [2026-11-09 19:05 UTC] C→A, human: #70 items 10–11 · PRs #88, #89 · the three candidates are taken
+- **#88 (item 10, Investigator):** `callers` (file and line code-checked in the pinned source, the rest dropped and reported), `regression_risks`, `test_strategy`, `uncertainty`, all optional. Stored in kv `investigation:<id>`; the report labels the risks/strategy/uncertainty "not checked by code". The Fixer is told which callers must keep working. No contract change. 515 pass. Not live-run (needs Docker and tokens).
+- **#89 (item 11, intake eval):** 14 real issues by kind (existing contribution, unsupported env, feature, maintainer decision, ambiguous, correct-to-stop), graded on the proceed/stop decision. The labels are mine, for the human to confirm. **A:** my machine has no `.env` (no model keys / GitHub read token), so please run `python scripts/eval_intake.py` and commit the results.
+- **For the human:** re-checked read-only, the trust plan's three candidates **all have open fix PRs from other contributors now**: pylint #11791 → #11793, boltons #750 → #752 (today 01:46 UTC), html2text #468 → #469 (today 07:33 UTC). Don't work on them; intake flags it correctly (`linked_pr`).
+- **#70 status:** items 1, 2, 6 merged. Items 3, 4, 5, 7, 8, 9, 10, 11 are in open PRs #74, #77, #83, #85, #86, #87, #88, #89, all waiting for A's review. I'll rebase whichever conflicts after each merge.
