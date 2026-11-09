@@ -12,6 +12,20 @@ def _token(c, rid: str) -> str | None:
     return tokens.decrypt(row[0]) if row and row[0] else None
 
 
+SIGN_IN_AGAIN = "Your GitHub sign-in has expired or was revoked. Sign in with GitHub again, then try once more."
+
+
+def _github_refused(e: Exception) -> str | None:
+    """A message the user can act on when GitHub refused the token itself; None for other errors (live run e335ce16:
+    a 401 on GET /user was shown as "HTTPStatusError. Try again", and trying again can never work)."""
+    code = getattr(getattr(e, "response", None), "status_code", None)
+    if code == 401:
+        return SIGN_IN_AGAIN
+    if code == 403:
+        return "GitHub refused this with your sign-in (403). Check you granted PatchPilot access, then sign in again."
+    return None
+
+
 def run_ask(job: dict) -> None:
     """'Ask the maintainer first': post the user's comment on the issue. Result in kv ask:<run_id> for the UI."""
     import json
@@ -24,7 +38,7 @@ def run_ask(job: dict) -> None:
     except PublishRefused as e:
         out = {"error": str(e)}
     except Exception as e:   # nothing is claimed as posted
-        out = {"error": f"The comment wasn't posted: {type(e).__name__}. Try again."}
+        out = {"error": _github_refused(e) or f"The comment wasn't posted: {type(e).__name__}. Try again."}
     finally:
         token = None
     with db.tx(c):
@@ -57,8 +71,9 @@ def run_publish(job: dict) -> None:
         print(f"publish {rid[:8]} failed: {type(e).__name__} {list(getattr(e, 'cmd', []))[3:5]} {redact(err)[-600:]}", flush=True)
         v.status = RunStatus.AWAITING_APPROVAL
         db.save_run(c, v)
-        emit(status="failed", pr_url=None, compare_url=None, error_code="GITHUB_UNAVAILABLE",
-             message=f"Nothing was published: {type(e).__name__}. Try again.")
+        why = _github_refused(e)
+        emit(status="failed", pr_url=None, compare_url=None, error_code="AUTH_REQUIRED" if why else "GITHUB_UNAVAILABLE",
+             message=f"Nothing was published. {why}" if why else f"Nothing was published: {type(e).__name__}. Try again.")
     finally:
         token = None
         with db.tx(c):
