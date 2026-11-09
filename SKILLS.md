@@ -14,6 +14,8 @@ Installed 30 Oct 2026, project scope, copied into `.claude/skills/` (Claude Code
 | security-best-practices | openai/skills @49f948f (has FastAPI + React references) | cookies, OAuth, the publisher and redaction are the attack surface | writing auth, publisher, logging; before the demo | the security pass finds no high issues |
 | frontend-design | anthropics/skills @ca45fc4 | presentation is 15% of judging; beginners need clear screens | building S-01…S-08 | screens look intentional, not default |
 | write-pr-description | warpdotdev/common-skills @8792394 | team PRs (4 lanes) and PatchPilot's own PR body | opening a team PR; designing the generated PR template | reviewers get the why plus the evidence |
+| taste | leonxlnx/taste-skill @12af471 (SKILL.md + references + library only; no scripts) | the 2026-11-09 redesign: app-screen rules, no AI-dashboard tells | any UI screen, before building | Playwright screenshots at 1440/390 pass its app-screen critique |
+| impeccable | pbakaus/impeccable @5af4319 (SKILL.md + reference only; no launcher binary) | Operate-mode craft floor: states, contrast, focus, browser surfaces | any UI edit (read reference/craft-floor.md first) | states, focus and contrast checked on the render |
 
 **Already on this machine, not installed again:** Playwright MCP (browser checks), built-in `/security-review`, `/code-review`, `run`; user-level planning skills (prototype-build-planner, skill-conductor, hackathon-demo-submission).
 

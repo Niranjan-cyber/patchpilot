@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { api, ApiError } from "./api";
+import { StatusIcon } from "./components";
 
 type Suggestion = { number: number; title: string; html_url: string; score: number; signals: string[]; reasons: string[];
   effort: "small" | "medium" | "large"; comments: number; linked_pr: boolean | null };
@@ -12,7 +13,8 @@ const SIGNAL: [keyof Result["repo_signals"], string][] = [
   ["python", "Python project"], ["tests_found", "Has tests"], ["recipe_known", "Install recipe found"],
   ["deps_checkable", "Dependencies can be checked"],
 ];
-const mark = (v: boolean | null) => (v === null ? "?" : v ? "✓" : "✗");
+// drawn icons, not glyphs; unknown is its own mark, never a pass
+const mark = (v: boolean | null) => <StatusIcon s={v === null ? "inconclusive" : v ? "passed" : "failed"} size={12} />;
 const UNSUPPORTED = {
   not_python: "PatchPilot can only run Python projects today, so there's nothing to suggest here.",
   no_tests: "We couldn't find tests in this repository, so we couldn't verify any fix.",
