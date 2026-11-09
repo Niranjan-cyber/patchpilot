@@ -62,6 +62,7 @@ def render(v: RunView, narrative: str | None = None) -> str:
     if narrative:
         L += ["## Explanation", narrative, ""]
     blockers = [b.value for b in v.publish_blockers]
+    L += repo_checks_section(v.run_id)
     o = v.approval.ownership if v.approval else None   # contracts v0.5 §2.3; never in the PR body
     if o:
         L += ["## The contributor's explanation (own words)", f"- What was broken: {o.what_was_broken}",
@@ -80,3 +81,26 @@ def render(v: RunView, narrative: str | None = None) -> str:
             if any(s == CheckStatus.INCONCLUSIVE for s in v.gates.values())
             or (v.supplyguard and v.supplyguard.status == CheckStatus.INCONCLUSIVE) else [])]
     return "\n".join(L) + "\n"
+
+
+def repo_checks_section(run_id: str) -> list[str]:
+    """#70 item 3: one line per tool with its command and exit code. Missing evidence says "not checked", never passed."""
+    import json
+    from backend import db
+    try:
+        raw = db.get_kv(db.connect(), f"repo_checks:{run_id}")
+    except Exception:
+        raw = None
+    res = json.loads(raw) if raw else None
+    if not res or res.get("checks") is None:
+        return ["## Repository checks", "- Not checked: the repo's own linters and type checkers didn't run for this change.", ""]
+    if not res["checks"]:
+        why = {"no_python_files": "no Python files changed", "diff_did_not_apply": "the change didn't apply in the check sandbox",
+               "sandbox_failed": "the check sandbox failed"}.get(res.get("reason"), "the repo configures none we can run")
+        return ["## Repository checks", f"- Not checked: {why}.", ""]
+    out = ["## Repository checks", "| Tool | Result | Exit code | Command | Notes |", "|---|---|---|---|---|"]
+    for c in res["checks"]:
+        cmd = f"`{c['command']}`" if c.get("command") else "-"
+        notes = c.get("note", "") + ("; " + "; ".join(c["new"][:3]) if c.get("new") else "")
+        out.append(f"| {c['tool']} | {c['status']} | {c['exit_code'] if c.get('exit_code') is not None else '-'} | {cmd} | {notes.replace('|', '/')} |")
+    return [*out, ""]
