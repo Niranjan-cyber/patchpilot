@@ -123,3 +123,17 @@ def test_a_maintainers_earlier_no_beats_an_invite_label():
     assert K2.read(issue, [no], asked_url=None, me=None)["state"] == "declined"
     later_yes = {**no, "body": "Changed my mind: PRs welcome.", "id": 9}
     assert K2.read(issue, [no, later_yes], asked_url=None, me=None)["state"] == "granted"   # the latest word wins
+
+
+def test_found_consent_is_offered_until_it_is_recorded(api):
+    # live test e335ce16: the page said "granted" but nothing was recorded until an unrelated-looking button was pressed
+    from backend.contracts.models import ConsentEvidence
+    from backend.github import consent as K3
+    b, rid, mp = api
+    label = {"state": "granted", "replies": [], "evidence": ConsentEvidence(
+        kind="maintainer_request", source_url="https://github.com/o/r/issues/1", quote="label: help wanted", recorded_at=db.now())}
+    mp.setattr(K3, "check", lambda *a, **k: label)
+    st = b.get(f"/api/runs/{rid}/consent").json()
+    assert st["state"] == "granted" and st["consent"] is None and st["found"]["quote"] == "label: help wanted"
+    out = b.post(f"/api/runs/{rid}/consent", json={}).json()
+    assert out["consent"]["kind"] == "maintainer_request" and out["found"] is None and out["state"] == "recorded"

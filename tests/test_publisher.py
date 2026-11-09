@@ -73,10 +73,10 @@ def test_refused_pr_falls_back_to_compare_link(run):
 def test_body_has_labels_evidence_and_ai_note(run):
     body = P.pr_body(run)
     # #70 item 5: bold labels in this order, no headings (mcstatus #1238: the long body read as vibe-coding)
-    labels = ["**Problem:**", "**Cause:**", "**Fix:**", "**Tests:**", "**Limitations:**", "**AI assistance:**", "<details>"]
+    labels = ["**Problem:**", "**Cause and fix:**", "**Changes:**", "**Tests:**", "**Limitations:**", "**AI assistance:**", "<details>"]
     assert [body.index(x) for x in labels] == sorted(body.index(x) for x in labels) and "## " not in body
-    assert "Fixes #7" in body and "**Problem:** bug" in body and "**Cause:** Raises now." in body
-    assert "**Fix:** changes `src/a.py` (+1 −1)." in body   # counted from the fix diff, not the test diff
+    assert "Fixes #7" in body and "**Problem:** bug" in body and "**Cause and fix:** Raises now." in body
+    assert "**Changes:** `src/a.py` (+1 −1)." in body   # counted from the fix diff, not the test diff
     assert "fails 2/2 on the original code" in body and P.AI_NOTE in body
     assert "2 existing tests passed before" in body and "1 were already failing" in body
     assert "own linters and type checkers were not checked" in body   # no rows stored: never implied as passed
@@ -93,7 +93,7 @@ def test_body_names_the_repo_checks_that_ran_and_did_not(run):
     body = P.pr_body(run)
     assert "run on the changed files: ruff check (no new problems), mypy (new problems)." in body
     assert "Not run here: flake8, pre-commit: codespell; please check them in CI." in body
-    assert "The test doesn't claim to check: works for uppercase schemes." in body
+    assert "Not covered by the new tests: works for uppercase schemes." in body
 
 
 @pytest.mark.parametrize("kind", ["user_override", "contributing_invites"])
@@ -238,3 +238,29 @@ def test_an_expired_github_sign_in_says_sign_in_again_not_try_again(run, monkeyp
         assert p["error_code"] == "AUTH_REQUIRED"
         msg = p["message"]
     assert "sign in" in msg.lower() and "HTTPStatusError" not in msg
+
+
+
+def test_body_reads_like_a_contributor_wrote_it(run):
+    # live PR wheelgap#133: "The test designer didn't claim…" leaked into a public PR, and "helper.; A CHANGELOG…" read badly
+    run.repro.uncovered = ["The same rule as `recheck_lock()` is used.", "A CHANGELOG entry is added."]
+    from backend.contracts.models import ReviewResult
+    run.review = ReviewResult(lowers_readiness=True, concerns=[{"severity": "medium", "level": "IMPORTANT", "text": "The test designer didn't claim its test checks 2 of "
+                            "the things the issue expects, so passing it may not prove the bug is fixed. Not claimed: x"},
+                           {"severity": "low", "level": "SUGGESTION", "text": "The note assertion is weak."}])
+    body = P.pr_body(run)
+    assert "test designer" not in body and "The note assertion is weak." in body
+    assert "Not covered by the new tests: the same rule as `recheck_lock()` is used; a CHANGELOG entry is added." in body
+    assert ".;" not in body and ".." not in body
+
+
+def test_the_summary_you_approve_is_prefilled_with_the_cause_and_the_fix(run, monkeypatch):
+    # the fixer's summary reaches the PR only through the summary the user sees and edits in Review (ownership rule)
+    from backend.api import approval as A
+    from backend.contracts.models import Diagnosis
+    run.diagnosis = Diagnosis(hypothesis="divide returns 0.", locations=[], evidence_ids=[])
+    run.patch.policy_reason = "raise ZeroDivisionError when b is 0"
+    assert A.summary_prefill(run) == "divide returns 0.\n\nThe fix: raise ZeroDivisionError when b is 0"
+    from backend.agents.fix import UNFINISHED
+    run.patch.policy_reason = UNFINISHED   # not a description of the change: never prefilled as one
+    assert A.summary_prefill(run) == "divide returns 0."
