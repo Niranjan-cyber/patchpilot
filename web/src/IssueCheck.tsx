@@ -2,7 +2,48 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { api, ApiError } from "./api";
 import type { IssueCheck as Check, RunView } from "./contracts";
-import { AssessmentCard, Loading, Status } from "./components";
+import { AssessmentCard, Loading, Status, StatusIcon } from "./components";
+
+// #70 item 7: one row per dimension; they explain the decision above, there is no overall score
+type Dim = { dimension: string; outcome: "ok" | "concern" | "blocker" | "unknown"; explanation: string;
+  evidence: { source: string; text: string; url?: string }[]; missing: string[] };
+const DIM: Record<string, string> = {
+  problem_clarity: "Is it a bug?", expected_behavior: "Expected behaviour", reproducibility: "Can it be reproduced?",
+  technical_scope: "How big is the change?", repo_compatibility: "Can PatchPilot set up the project?", testability: "Can a fix be tested?",
+  maintainer_intent: "Do the maintainers want a fix?", existing_work: "Is someone already on it?", system_support: "Is it within what PatchPilot handles?",
+};
+// amber for "check this", never green for unknown (DESIGN.md)
+const OUTCOME = { ok: ["passed", "Looks fine"], concern: ["inconclusive", "Check this"], blocker: ["failed", "Stops a fix"],
+  unknown: ["not_run", "Unknown"] } as const;
+const SOURCE: Record<string, string> = { reporter: "Reporter", maintainer: "Maintainer", contributor: "Another commenter",
+  repository: "Repository", patchpilot: "PatchPilot (may be wrong)" };
+
+function Suitability({ dims }: { dims?: Dim[] | null }) {
+  if (!dims?.length) return null;
+  return (
+    <details className="card suitability">
+      <summary>How we judged it, one question at a time</summary>
+      <p className="hint">Each line says whose words or which check it comes from. A maintainer decision is only ever a maintainer's own words.</p>
+      <ul>
+        {dims.map((d) => {
+          const [cls, word] = OUTCOME[d.outcome];
+          return (
+            <li key={d.dimension}>
+              <span className={`status status-${cls}`}><StatusIcon s={cls} size={12} />{word}</span> <strong>{DIM[d.dimension] ?? d.dimension}</strong>
+              <p>{d.explanation}</p>
+              {(d.evidence.length > 0 || d.missing.length > 0) && (
+                <ul className="hint">
+                  {d.evidence.map((e, i) => <li key={i}>{SOURCE[e.source] ?? e.source}: {e.url ? <a href={e.url}>{e.text}</a> : e.text}</li>)}
+                  {d.missing.map((m, i) => <li key={`m${i}`}>Missing: {m}</li>)}
+                </ul>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </details>
+  );
+}
 
 const CHECKS: Record<string, string> = {
   open: "The issue is open", public: "The repository is public", python: "It's a Python project",
@@ -84,6 +125,7 @@ export default function IssueCheck() {
       </div>
 
       <AssessmentCard a={a} />
+      <Suitability dims={chk.suitability as Dim[] | null | undefined} />
 
       {chk.policy?.ai_policy === "forbidden" && (
         <p className="notice warn">This repository's contribution rules don't accept AI-assisted pull requests. You can still run PatchPilot and keep the report, but publishing will be turned off. (Our reading of {chk.policy.source_evidence_ids?.join(", ")}.)</p>

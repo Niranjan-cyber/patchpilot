@@ -1,6 +1,7 @@
 """REVIEW node (B09): the Reviewer looks for special-casing and scope creep. It can only LOWER readiness.
 G6: the report is the deterministic template (backend/report.py), so every status matches the recorded results."""
 import json
+import math
 import re
 
 from backend import artifacts, db
@@ -43,23 +44,33 @@ DIMENSIONS = {"correctness", "regression_risk", "scope", "test_quality", "conven
               "evidence_quality"}
 
 
-def finding(c: dict, paths: set[str] | None = None) -> dict:
+def _line(x) -> int | None:   # models write 7, "7" or 7.0; a bool, NaN or 1e999 is no line (A's review of #87)
+    if isinstance(x, bool):
+        return None
+    if isinstance(x, str) and x.strip().isdigit():
+        return int(x.strip())
+    if isinstance(x, int) or (isinstance(x, float) and math.isfinite(x)):
+        return int(x) if x > 0 else None
+    return None
+
+
+def finding(c: dict, paths: set[str] | None = None, *, code_decided: bool = False) -> dict:
     """One concern with level + severity, and the optional fields only when they hold up. All values are strings
     (ReviewResult.concerns is dict[str, str]). A location must name a file in the diff: a made-up path is dropped."""
-    level = str(c.get("level") or "").upper()
-    sev = c.get("severity") if c.get("severity") in SEVERITY_LEVEL else None
+    level = re.sub(r"[\s-]+", "_", str(c.get("level") or "").strip().upper())   # "Accepted tradeoff" = ACCEPTED_TRADEOFF
+    sev = c.get("severity") if isinstance(c.get("severity"), str) and c["severity"] in SEVERITY_LEVEL else None
     if level not in LEVEL_SEVERITY:   # unknown or missing level: from the severity, else IMPORTANT (never a silent pass)
         level = SEVERITY_LEVEL.get(sev or "", "IMPORTANT")
-    out = {"severity": LEVEL_SEVERITY[level], "level": level,
-           "text": str(c.get("text", ""))[:300]}
+    out = {"severity": LEVEL_SEVERITY[level], "level": level,   # code-decided text is ours (lint lists its problems): not cut to 300
+           "text": str(c.get("text", ""))[:1000 if code_decided else 300]}
     if (d := str(c.get("dimension") or "")) in DIMENSIONS:
         out["dimension"] = d
-    f = str(c.get("file") or "").strip().lstrip("./").removeprefix("a/").removeprefix("b/")
+    raw = str(c.get("file") or c.get("path") or "").strip().removeprefix("./")   # removeprefix: .flake8 stays .flake8
+    f = next((x for x in (raw, raw.removeprefix("a/"), raw.removeprefix("b/")) if paths is None or x in paths), "") if raw else ""
     if c.get("location") and not f:   # already checked (normalizing twice keeps it)
         out["location"] = str(c["location"])
-    elif f and (paths is None or f in paths):
-        line = c.get("line")
-        out["location"] = f + (f":{int(line)}" if isinstance(line, (int, float)) and int(line) > 0 else "")
+    elif f:
+        out["location"] = f + (f":{n}" if (n := _line(c.get("line"))) else "")
     for k in ("evidence", "action"):
         if str(c.get(k) or "").strip():
             out[k] = str(c[k]).strip()[:300]
@@ -124,7 +135,7 @@ def review(ctx: StepContext) -> GateResult:
                                                                     for i in (run.patch.test_diff_id, run.patch.fix_diff_id)]))]
     except Exception as e:   # never fails the review; say it wasn't checked
         ctx.emit("step.progress", "review", message=f"The repo's linters weren't run ({type(e).__name__}).")
-    concerns = [finding(c) for c in concerns]   # code-decided concerns get their level from severity
+    concerns = [c if "level" in c else finding(c, code_decided=True) for c in concerns]   # code-decided: level from severity
     run.review = ReviewResult(concerns=concerns, lowers_readiness=any(c["severity"] in ("high", "medium") for c in concerns))
     db.save_run(db.connect(), run)
     ev = artifacts.put(render(run))

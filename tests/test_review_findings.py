@@ -21,6 +21,9 @@ FIX = "diff --git a/pkg/core.py b/pkg/core.py\n--- a/pkg/core.py\n+++ b/pkg/core
     ({"severity": "low", "text": "t"}, "SUGGESTION", "low"),
     ({"level": "CRITICAL", "text": "t"}, "IMPORTANT", "medium"),                   # unknown level: never a silent pass
     ({"text": "t"}, "IMPORTANT", "medium"),
+    ({"level": " Accepted tradeoff ", "text": "t"}, "ACCEPTED_TRADEOFF", "low"),   # A's review of #87: spaces/hyphens/case
+    ({"level": "accepted-tradeoff", "text": "t"}, "ACCEPTED_TRADEOFF", "low"),
+    ({"severity": ["high"], "text": "t"}, "IMPORTANT", "medium"),                # unhashable: no crash, no silent pass
 ])
 def test_levels_map_onto_the_stored_severity(raw, level, severity):
     f = RV.finding(raw)
@@ -79,3 +82,25 @@ def test_report_lists_level_dimension_location_and_action(ctx):
     RV.review(c)
     text = render(db.get_run(db.connect(), c.run_id))
     assert "- **IMPORTANT** (compatibility, `pkg/core.py:1`): renames a public function. To do: Keep the old name as an alias." in text
+
+
+
+@pytest.mark.parametrize("line, loc", [(float("nan"), "pkg/core.py"), (1e999, "pkg/core.py"), (True, "pkg/core.py"),
+                                       ("42", "pkg/core.py:42"), (7, "pkg/core.py:7")])
+def test_odd_line_numbers_never_throw_the_review_away(line, loc):   # A's review of #87
+    assert RV.finding({"level": "IMPORTANT", "text": "t", "file": "pkg/core.py", "line": line}, {"pkg/core.py"})["location"] == loc
+
+
+def test_dotfile_paths_survive_and_code_decided_concerns_keep_their_length_and_file():
+    assert RV.finding({"text": "t", "file": "./.flake8"}, {".flake8"})["location"] == ".flake8"
+    long = {"severity": "medium", "text": "The repo's ruff reports 3 new problems: " + "x.py: F401 unused import; " * 20}
+    assert len(RV.finding(long, code_decided=True)["text"]) > 300   # the lint evidence (mcstatus #1238) isn't cut to 300
+    from backend.gates.diff_policy import swallowed_excepts
+    bare = "diff --git a/pkg/core.py b/pkg/core.py\n--- a/pkg/core.py\n+++ b/pkg/core.py\n@@ -1 +1,4 @@\n+try:\n+    f()\n+except:\n+    pass\n"
+    assert RV.finding(swallowed_excepts(bare)[0], code_decided=True)["location"] == "pkg/core.py"
+
+
+def test_report_findings_stay_on_one_line():
+    from backend.report import _finding
+    out = _finding({"level": "IMPORTANT", "text": "Why?", "evidence": "try:\n    x()\nexcept: pass", "action": "fix\nit"})
+    assert "\n" not in out and "?." not in out
