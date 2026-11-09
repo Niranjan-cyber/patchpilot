@@ -2,7 +2,7 @@ import pytest
 
 from backend import artifacts
 from backend.api import approval
-from backend.contracts.models import (Approval, CheckStatus, ConsentEvidence, IssueSpec, Outcome, Owner, Patch, PublishBlocker, ReproTest,
+from backend.contracts.models import (Approval, CheckStatus, ConsentEvidence, OwnershipAnswers, IssueSpec, Outcome, Owner, Patch, PublishBlocker, ReproTest,
                                       RunStatus, RunView, SGReport, TestRun, Verification)
 from backend.publisher import publisher as P
 
@@ -23,7 +23,9 @@ def run(monkeypatch):
                 supplyguard=SGReport(report_id="sha256:" + "1" * 64, status=CheckStatus.PASSED))
     dh, eh = approval.hashes(v, approval.exact_diff(v))
     v.approval = Approval(run_id=v.run_id, revision=0, diff_hash=dh, evidence_hash=eh, approved_by=Owner(session_id_hash="s"),
-                          approved_at=t, checklist={}, pr_title="Fix #7: bug", pr_summary="Raises now.")
+                          approved_at=t, checklist={}, pr_title="Fix #7: bug", pr_summary="Raises now.",
+                          ownership=OwnershipAnswers(what_was_broken="x = 1 was wrong for this case", why_this_fix="Setting x = 2 fixes the case",
+                                                     what_the_test_proves="It fails before and passes after"))
     v.consent = ConsentEvidence(kind="maintainer_reply", source_url="https://github.com/up/proj/issues/7#issuecomment-2",
                                 author="maint", author_association="OWNER", quote="Yes please", recorded_at=t)
     return v
@@ -156,3 +158,12 @@ def test_override_is_never_written_into_the_pr_body(run):
     run.consent = ConsentEvidence(kind="user_override", override_reason="The maintainer asked me on Discord to send it.",
                                   recorded_at=run.created_at)
     assert "Discord" not in P.pr_body(run) and "maintainer asked" not in P.pr_body(run).lower()
+
+
+def test_old_approval_without_answers_cannot_publish_and_answers_stay_out_of_the_pr(run):
+    assert "fails before and passes after" not in P.pr_body(run)   # stored with the approval and the report only
+    run.approval.ownership = None
+    gh = FakeGH()
+    with pytest.raises(P.PublishRefused) as e:
+        P.publish(run, gh, "main")
+    assert e.value.code == "APPROVAL_STALE" and gh.calls == []

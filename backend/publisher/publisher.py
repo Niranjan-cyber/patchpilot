@@ -81,6 +81,7 @@ def compare_url(upstream: str, base_branch: str, owner: str, branch: str, title:
             f"&title={quote(title)}&body={quote(body[:6000])}")
 
 
+REAPPROVE = "Approve the change again and answer the three short questions in your own words (now required)."
 NO_CONSENT = "No maintainer consent is recorded yet. Ask on the issue and record their reply, or type why you're publishing anyway."
 
 
@@ -89,6 +90,8 @@ def preflight_checks(v: RunView, *, need_consent: bool = True) -> str:
     need_consent=False only for the ask comment, which is how consent is obtained (contracts v0.5 §2.2)."""
     if v.approval is None or v.approval.revision != v.revision:
         raise PublishRefused("APPROVAL_STALE", "Approve the current version of the change before publishing.")
+    if v.approval.ownership is None:   # approvals from before v0.5 (§2.3)
+        raise PublishRefused("APPROVAL_STALE", REAPPROVE)
     diff = exact_diff(v)
     if (v.approval.diff_hash, v.approval.evidence_hash) != hashes(v, diff):
         raise PublishRefused("HASH_MISMATCH", "The change or its evidence changed after you approved it, so we stopped.")

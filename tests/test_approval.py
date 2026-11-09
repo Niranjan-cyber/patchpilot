@@ -11,6 +11,7 @@ URL = "https://github.com/o/r/issues/1"
 FIX = "diff --git a/src/a.py b/src/a.py\n--- a/src/a.py\n+++ b/src/a.py\n@@ -1 +1 @@\n-x = 1\n+x = 2\n"
 TEST = "diff --git a/tests/test_a.py b/tests/test_a.py\n--- a/tests/test_a.py\n+++ b/tests/test_a.py\n@@ -0,0 +1 @@\n+def test(): pass\n"
 OK = {"read_diff": True, "understands_change": True, "ai_note_ok": True}
+OWN = {"what_was_broken": "Division by zero returned None silently.", "why_this_fix": "It now raises ZeroDivisionError like the docs say.", "what_the_test_proves": "The new test fails on the old code and passes now."}
 
 
 @pytest.fixture
@@ -34,7 +35,7 @@ def ready(tmp_path, monkeypatch):
 
 def body(ctx, **kw):
     return {"revision": ctx["revision"], "diff_hash": ctx["diff_hash"], "evidence_hash": ctx["evidence_hash"],
-            "checklist": OK, "explanation": "it raises now", "pr_title": "t", "pr_summary": "s", **kw}
+            "checklist": OK, "explanation": "it raises now", "ownership": OWN, "pr_title": "t", "pr_summary": "s", **kw}
 
 
 def test_approve_records_exact_hashes(ready):
@@ -116,3 +117,17 @@ def test_diff_download_is_owner_only(ready):
     r = b.get(f"/api/runs/{rid}/diff.patch")
     assert r.status_code == 200 and "attachment" in r.headers["content-disposition"] and "+x = 2" in r.text
     assert TestClient(main.app, base_url="https://testserver").get(f"/api/runs/{rid}/diff.patch").status_code == 404
+
+
+def test_ownership_answers_are_required_but_never_judged(ready):
+    # contracts v0.5 §2.3 (human decision 2026-11-09): three answers, a minimum length only
+    b, rid, _ = ready
+    ctx = b.get(f"/api/runs/{rid}/approval").json()
+    r = b.post(f"/api/runs/{rid}/approve", json=body(ctx, ownership=None))
+    assert r.status_code == 422 and r.json()["code"] == "OWNERSHIP_REQUIRED"
+    assert b.post(f"/api/runs/{rid}/approve", json=body(ctx, ownership={**OWN, "why_this_fix": "short"})).status_code == 422
+    odd = {**OWN, "why_this_fix": "I am honestly not sure, the AI did it."}   # an imperfect answer is still accepted
+    v = b.post(f"/api/runs/{rid}/approve", json=body(ctx, ownership=odd)).json()
+    assert v["approval"]["ownership"]["why_this_fix"] == odd["why_this_fix"]
+    from backend.report import render
+    assert "I am honestly not sure" in render(db.get_run(db.connect(), rid))

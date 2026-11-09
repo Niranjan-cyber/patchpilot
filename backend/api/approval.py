@@ -86,6 +86,9 @@ def approval_context(run_id: str, request: Request):
             "publish_blockers": v.publish_blockers, "approved": v.approval is not None,
             "pr_title": f"Fix #{v.issue.number}: {v.issue.title}"[:120],
             "pr_summary": (v.diagnosis.hypothesis if v.diagnosis else "") or "",
+            # v0.5 §2.3: what PatchPilot found, shown as help next to the three own-words questions (never prefilled into them)
+            "help": {"cause": v.diagnosis.hypothesis if v.diagnosis else None, "tests": v.repro.test_ids if v.repro else [],
+                     "expected_failure": v.repro.expected_failure if v.repro else None},
             "revise_blocked": None if budget_left(run_id) else NO_BUDGET}
 
 
@@ -97,6 +100,8 @@ def approve(run_id: str, body: ApproveRequest, request: Request, accept_issue_ch
         raise _err(409, "APPROVAL_STALE", "This run isn't waiting for approval any more. Reload to see its current state.")
     if not all(body.checklist.get(k) for k in CHECKLIST):
         raise _err(422, "CHECKLIST_INCOMPLETE", "Tick all three boxes to approve.")
+    if body.ownership is None:   # contracts v0.5 §2.3: required; only the length is checked, never the content
+        raise _err(422, "OWNERSHIP_REQUIRED", "Answer the three short questions in your own words before approving.")
     diff = exact_diff(v)
     if (body.revision, body.diff_hash, body.evidence_hash) != (v.revision, *hashes(v, diff)):
         raise _err(409, "APPROVAL_STALE", "The change or its evidence changed since you opened it. Please review it again.")
@@ -116,7 +121,7 @@ def approve(run_id: str, body: ApproveRequest, request: Request, accept_issue_ch
                    if code == "UPSTREAM_CHANGED" else "The issue changed since the run (closed or a new linked pull request).")
     v.approval = Approval(run_id=run_id, revision=v.revision, diff_hash=body.diff_hash, evidence_hash=body.evidence_hash,
                           approved_by=Owner(session_id_hash=session.current(request)), approved_at=db.now(),
-                          checklist=body.checklist, explanation=body.explanation, pr_title=body.pr_title, pr_summary=body.pr_summary)
+                          checklist=body.checklist, explanation=body.explanation, ownership=body.ownership, pr_title=body.pr_title, pr_summary=body.pr_summary)
     v.publish_blockers = [b for b in v.publish_blockers if b != PublishBlocker.NOT_APPROVED]
     db.save_run(db.connect(), v)
     db.emit(db.connect(), run_id, "approval.recorded", None, v.revision, diff_hash=body.diff_hash)

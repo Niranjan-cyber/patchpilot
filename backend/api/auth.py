@@ -101,6 +101,9 @@ def publish(run_id: str, request: Request):
         raise _err(401, "AUTH_REQUIRED", "Connect GitHub to publish. Until then you can download the diff and report.")
     if v.status not in (RunStatus.AWAITING_APPROVAL, RunStatus.PUBLISHED) or v.approval is None:
         raise _err(409, "APPROVAL_STALE", "Approve the current version of the change first.")
+    if v.approval.ownership is None:   # v0.5 §2.3: approvals from before the three answers were required
+        from backend.publisher.publisher import REAPPROVE
+        raise _err(409, "APPROVAL_STALE", REAPPROVE)
     if v.consent is None:   # v0.5 §2.2: enforced here and again by the publisher
         from backend.publisher.publisher import NO_CONSENT
         raise _err(409, "PUBLISH_BLOCKED", NO_CONSENT)
