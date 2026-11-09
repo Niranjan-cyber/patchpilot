@@ -66,7 +66,7 @@
   {
    "id": "pytest-10364",
    "url": "https://github.com/pytest-dev/pytest/issues/10364",
-   "kind": "unsupported environment (Windows only, flaky)",
+   "kind": "Windows-only flaky test; our sandbox is Linux, so a human decides (Windows only, flaky)",
    "expected": [
     "HUMAN_DECISION",
     "NEEDS_INFORMATION"
@@ -75,7 +75,7 @@
   {
    "id": "pytest-10843",
    "url": "https://github.com/pytest-dev/pytest/issues/10843",
-   "kind": "unsupported environment (Windows, flaky)",
+   "kind": "Windows-only flaky test; our sandbox is Linux, so a human decides (Windows, flaky)",
    "expected": [
     "HUMAN_DECISION",
     "NEEDS_INFORMATION"
@@ -105,8 +105,7 @@
    "kind": "correct to stop (our own PR was closed unasked)",
    "expected": [
     "ALREADY_ADDRESSED",
-    "HUMAN_DECISION",
-    "READY"
+    "HUMAN_DECISION"
    ]
   },
   {
