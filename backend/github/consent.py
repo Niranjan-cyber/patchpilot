@@ -56,7 +56,7 @@ def read(issue: dict, comments: list, *, asked_url: str | None, me: str | None, 
     now, asked = db.now(), comment_id(asked_url)
     if issue.get("state") == "closed" and issue.get("state_reason") == "not_planned":
         return {"state": "declined", "evidence": None, "replies": [], "why": "The issue was closed as not planned."}
-    replies, request = [], None
+    replies, request, last_no = [], None, False
     for c in comments if isinstance(comments, list) else []:
         if not isinstance(c, dict) or c.get("author_association") not in MAINTAINER:
             continue
@@ -65,13 +65,14 @@ def read(issue: dict, comments: list, *, asked_url: str | None, me: str | None, 
             continue   # the user's own words are never consent
         text = _clean(c.get("body") or "")
         pos, dec = bool(POSITIVE.search(text)), bool(DECLINE.search(text))
+        last_no = dec   # the latest maintainer word wins, before or after our ask
         if asked and isinstance(c.get("id"), int) and c["id"] > asked:
             replies.append({"url": c.get("html_url"), "author": login, "association": c.get("author_association"),
                             "quote": _quote(text), "positive": pos and not dec, "declined": dec})
         elif REQUEST.search(text) and not dec and request is None:
             request = ConsentEvidence(kind="maintainer_request", source_url=c.get("html_url"), author=login,
                                       author_association=c.get("author_association"), quote=_quote(text), recorded_at=now)
-    if replies and replies[-1]["declined"]:   # the latest maintainer word wins
+    if last_no:   # found fixing #85: an earlier "won't fix" plus a "help wanted" label used to read as granted
         return {"state": "declined", "evidence": None, "replies": replies, "why": "A maintainer declined."}
     if (yes := next((r for r in reversed(replies) if r["positive"]), None)):
         return {"state": "granted", "replies": replies, "evidence": ConsentEvidence(

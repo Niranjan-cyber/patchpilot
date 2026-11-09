@@ -91,7 +91,7 @@ export default function Review() {
       </ol>
       <div className="card form">
         <label>Pull request title<input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={120} /></label>
-        <label>Summary for maintainers<textarea rows={3} value={summary} onChange={(e) => setSummary(e.target.value)} /></label>
+        <label>Cause, in a sentence or two (shown in the pull request)<textarea rows={3} value={summary} onChange={(e) => setSummary(e.target.value)} /></label>
         <fieldset>
           <legend>Before you approve</legend>
           {BOXES.map(([k, label]) => (

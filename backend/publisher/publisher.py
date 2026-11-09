@@ -7,6 +7,7 @@ import tempfile
 from dataclasses import dataclass
 from urllib.parse import quote
 
+from backend import artifacts
 from backend.api import approval
 from backend.api.approval import exact_diff, hashes
 from backend.contracts.models import PublishBlocker, PullRequestRef, RunView
@@ -30,30 +31,77 @@ def branch_name(v: RunView) -> str:
     return f"patchpilot/issue-{v.issue.number}-{v.run_id[:8]}"
 
 
+def _changed(diff: str) -> list[str]:
+    """`path` (+added −removed) per file, counted from the diff itself."""
+    files: dict[str, list[int]] = {}
+    cur, hunk = None, False
+    for line in diff.splitlines():
+        if line.startswith("diff --git "):   # same path rule as approval.changed_files (the Review screen's list)
+            cur, hunk = (line.split(" b/", 1)[1].strip() if " b/" in line else None), False
+            if cur:
+                files[cur] = [0, 0]
+        elif line.startswith("@@"):
+            hunk = True
+        elif cur and hunk and line[:1] in "+-":   # inside a hunk, so "----" or "+++x" are content, not headers
+            files[cur][line[0] == "-"] += 1
+    return [f"`{p}` (+{a} −{d})" for p, (a, d) in files.items()]
+
+
+def _repo_checks(run_id: str) -> tuple[str, list[str]]:
+    """(Tests sentence, limitation lines) from kv repo_checks:<run_id> (#70 item 3). Missing = "not checked", never passed."""
+    import json
+    from backend import db
+    try:
+        raw = db.get_kv(db.connect(), f"repo_checks:{run_id}")
+        rows = (json.loads(raw) if raw else {}).get("checks")
+        if not (isinstance(rows, list) and all(isinstance(c, dict) and isinstance(c.get("tool"), str)
+                                               and isinstance(c.get("status"), str) for c in rows)):
+            rows = None   # a malformed record is "not checked", never a crash in the middle of publishing
+    except Exception:
+        rows = None
+    if not rows:
+        return "The repository's own linters and type checkers were not checked.", []
+    ran = [f"{c['tool']} ({'no new problems' if c['status'] == 'PASS' else 'new problems'})" for c in rows if c["status"] in ("PASS", "FAIL")]
+    other = [c["tool"] for c in rows if c["status"] not in ("PASS", "FAIL")]
+    return (f"Repository checks run on the changed files: {', '.join(ran) or 'none'}.",
+            [f"Not run here: {', '.join(other)}; please check {'them' if len(other) > 1 else 'it'} in CI."] if other else [])
+
+
 def pr_body(v: RunView) -> str:
+    """Problem / Cause / Fix / Tests / Limitations / AI as bold labels (#70 item 5). Short on purpose (mcstatus #1238 was
+    closed as "too much vibe-coding"): no headings, no agent history; run details stay in the report."""
     a, base = v.approval, v.baseline
-    tests = ", ".join(f"`{t}`" for t in (v.repro.test_ids if v.repro else []))
+    tests = ", ".join(f"`{t}`" for t in (v.repro.test_ids if v.repro else [])) or "(not recorded)"
+    problem = v.issue.title.strip()   # the reporter's words, which the user approved in the PR title; never model text
+    fix = _changed(artifacts.get(v.patch.fix_diff_id).decode("utf-8", "replace")) if v.patch and artifacts.get(v.patch.fix_diff_id) else []
+    checks, not_run = _repo_checks(v.run_id)
+    existing = ((f" {len(base.pass_set)} existing tests passed before and still pass."
+                 + (f" {len(base.fail_set)} were already failing before this change." if base.fail_set else "")) if base else "")
     sg = v.supplyguard
     deps = ("Dependency check (SupplyGuard): no known-malicious packages; "
             f"{sum(1 for f in sg.findings if f.get('type') == 'vulnerability')} known vulnerabilities listed."
             if sg and sg.status.value == "passed" else "Dependency check: see the PatchPilot report.")
-    concerns = [c.get("text", "") for c in (v.review.concerns if v.review else [])]
-    # short on purpose (mcstatus #1238 was closed as "too much vibe-coding"): summary + disclosure up front, evidence folded
+    uncovered = v.repro.uncovered if v.repro else None
+    # only a maintainer's own words count as "asked for"; an override or CONTRIBUTING is never claimed as a request
+    asked = (f" A maintainer agreed to a pull request [on the issue]({v.consent.source_url})."
+             if v.consent and v.consent.kind in ("maintainer_reply", "maintainer_request") and v.consent.source_url else "")
     lines = [
         f"Fixes #{v.issue.number}", "",
-        a.pr_summary.strip() or "(no summary)", "",
-        f"_{AI_NOTE}_", "",
-        "<details><summary>How this was checked</summary>", "",
-        f"- New regression test {tests} **fails 2/2 on the original code** (`{v.base_sha[:7]}`) and **passes 2/2 after the fix in a fresh sandbox**.",
-        (f"- {len(base.pass_set)} existing tests passed before and still pass."
-         + (f" {len(base.fail_set)} were already failing before this change (unrelated)." if base.fail_set else "")) if base else "- Existing tests: not recorded.",
+        f"**Problem:** {problem}{asked}", "",
+        f"**Cause:** {a.pr_summary.strip() or '(not given)'}", "",
+        f"**Fix:** changes {', '.join(fix) if fix else '(not recorded)'}.", "",
+        f"**Tests:** the new regression test {tests} fails 2/2 on the original code (`{v.base_sha[:7]}`) and passes 2/2 "
+        f"with the fix in a fresh sandbox.{existing} {checks}", "",
+        "**Limitations:** passing tests don't prove the change is bug-free; please review the logic. "
+        + " ".join([*not_run, *([f"The test doesn't claim to check: {'; '.join(uncovered)}."] if uncovered else [])]), "",
+        f"**AI assistance:** _{AI_NOTE}_", "",
+        "<details><summary>More detail</summary>", "",
         f"- {deps}",
-        "- Passing tests don't prove the change is bug-free; please review the logic.",
-        *[f"- Reviewer note: {c}" for c in concerns],
+        *[f"- Reviewer note: {c.get('text', '')}" for c in (v.review.concerns if v.review else [])],
         f"- Base commit `{v.base_sha}`; PatchPilot run {v.run_id[:8]}, revision {v.revision}.", "",
         "</details>",
     ]
-    return "\n".join(lines)
+    return "\n".join(line.rstrip() for line in lines)
 
 
 ASK_NOTE = "I used PatchPilot, an AI-assisted bug-fix tool, and reviewed the change myself before asking."
