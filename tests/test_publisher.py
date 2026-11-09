@@ -68,6 +68,9 @@ def test_body_has_evidence_and_ai_note(run):
     body = P.pr_body(run)
     assert "Fixes #7" in body and "fails 2/2 on the original code" in body and P.AI_NOTE in body
     assert "2 existing tests passed before" in body and "1 were already failing" in body
+    # evidence folded below the summary and the AI note (mcstatus #1238: the long body read as vibe-coding)
+    assert body.index(P.AI_NOTE) < body.index("<details>") < body.index("fails 2/2") < body.index("</details>")
+    assert "## " not in body
 
 
 @pytest.mark.parametrize("mutate,code", [
