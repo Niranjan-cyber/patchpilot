@@ -36,7 +36,7 @@ test("invalid diagnosis twice: TRIAGE_ONLY, diagnosis unavailable, never a green
   await page.goto(`${BASE}/runs/${runTriage}`);
   await expect(page.getByText(/Diagnosis unavailable/)).toBeVisible();
   await expect(page.locator(".badge")).toHaveText("Unable to verify a fix");
-  await expect(page.locator(".step-failed")).toContainText("Diagnose");
+  await expect(page.locator(".stage.s-failed")).toContainText("Diagnose");   // stage navigator (2026-11-09 redesign)
   await page.getByText(/Show details \(2 rejected attempts\)/).click();
   await expect(page.locator(".attempts li").first()).toContainText("cited evidence that doesn't exist");
   await page.screenshot({ path: "docs/build-plan/evidence/B07/b07-triage.png", fullPage: true });
