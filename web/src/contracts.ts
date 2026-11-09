@@ -160,7 +160,8 @@ export type PublishBlocker =
   | "deps_inconclusive"
   | "issue_changed"
   | "not_approved"
-  | "not_signed_in";
+  | "not_signed_in"
+  | "no_maintainer_consent";
 export type PublishBlockers = PublishBlocker[];
 export type Revision1 = number;
 export type DiffHash = string | null;
@@ -175,8 +176,19 @@ export type SessionIdHash = string | null;
 export type AccountId = number | null;
 export type ApprovedAt = string;
 export type Explanation = string | null;
+export type WhatWasBroken = string;
+export type WhyThisFix = string;
+export type WhatTheTestProves = string;
 export type PrTitle = string;
 export type PrSummary = string;
+export type Kind = "maintainer_reply" | "maintainer_request" | "contributing_invites" | "user_override";
+export type SourceUrl = string | null;
+export type Author = string | null;
+export type AuthorAssociation = string | null;
+export type Quote = string | null;
+export type AttestedByUser = boolean;
+export type OverrideReason = string | null;
+export type RecordedAt = string;
 export type Url = string | null;
 export type Number1 = number | null;
 export type HeadBranch = string;
@@ -281,6 +293,7 @@ export interface RunView {
   publish_blockers?: PublishBlockers;
   revisions?: Revisions;
   approval?: Approval | null;
+  consent?: ConsentEvidence | null;
   pr?: PullRequestRef | null;
   details_expired_at?: DetailsExpiredAt;
   created_at: CreatedAt;
@@ -513,6 +526,7 @@ export interface Approval {
   approved_at: ApprovedAt;
   checklist: Checklist;
   explanation?: Explanation;
+  ownership?: OwnershipAnswers | null;
   pr_title: PrTitle;
   pr_summary: PrSummary;
   [k: string]: unknown;
@@ -528,6 +542,35 @@ export interface Owner {
 }
 export interface Checklist {
   [k: string]: boolean;
+}
+/**
+ * v0.5 (#70, human decision 2026-11-09): required before publishing. A minimum length only; content is never judged.
+ *
+ * This interface was referenced by `Contracts`'s JSON-Schema
+ * via the `definition` "OwnershipAnswers".
+ */
+export interface OwnershipAnswers {
+  what_was_broken: WhatWasBroken;
+  why_this_fix: WhyThisFix;
+  what_the_test_proves: WhatTheTestProves;
+  [k: string]: unknown;
+}
+/**
+ * v0.5 (#70): why publishing is allowed. Silence, an open issue, no assignee or no PR is never consent.
+ *
+ * This interface was referenced by `Contracts`'s JSON-Schema
+ * via the `definition` "ConsentEvidence".
+ */
+export interface ConsentEvidence {
+  kind: Kind;
+  source_url?: SourceUrl;
+  author?: Author;
+  author_association?: AuthorAssociation;
+  quote?: Quote;
+  attested_by_user?: AttestedByUser;
+  override_reason?: OverrideReason;
+  recorded_at: RecordedAt;
+  [k: string]: unknown;
 }
 /**
  * This interface was referenced by `Contracts`'s JSON-Schema
@@ -570,6 +613,7 @@ export interface ApproveRequest {
   evidence_hash: EvidenceHash1;
   checklist: Checklist1;
   explanation?: Explanation1;
+  ownership?: OwnershipAnswers | null;
   pr_title: PrTitle1;
   pr_summary: PrSummary1;
   [k: string]: unknown;

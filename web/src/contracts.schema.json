@@ -76,6 +76,17 @@
      "default": null,
      "title": "Explanation"
     },
+    "ownership": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/OwnershipAnswers"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
     "pr_title": {
      "title": "Pr Title",
      "type": "string"
@@ -132,6 +143,17 @@
      ],
      "default": null,
      "title": "Explanation"
+    },
+    "ownership": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/OwnershipAnswers"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
     },
     "pr_title": {
      "title": "Pr Title",
@@ -202,6 +224,99 @@
    ],
    "title": "CheckStatus",
    "type": "string"
+  },
+  "ConsentEvidence": {
+   "description": "v0.5 (#70): why publishing is allowed. Silence, an open issue, no assignee or no PR is never consent.",
+   "properties": {
+    "kind": {
+     "enum": [
+      "maintainer_reply",
+      "maintainer_request",
+      "contributing_invites",
+      "user_override"
+     ],
+     "title": "Kind",
+     "type": "string"
+    },
+    "source_url": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Source Url"
+    },
+    "author": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Author"
+    },
+    "author_association": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Author Association"
+    },
+    "quote": {
+     "anyOf": [
+      {
+       "maxLength": 300,
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Quote"
+    },
+    "attested_by_user": {
+     "default": false,
+     "title": "Attested By User",
+     "type": "boolean"
+    },
+    "override_reason": {
+     "anyOf": [
+      {
+       "maxLength": 1000,
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Override Reason"
+    },
+    "recorded_at": {
+     "format": "date-time",
+     "title": "Recorded At",
+     "type": "string"
+    }
+   },
+   "required": [
+    "kind",
+    "recorded_at"
+   ],
+   "title": "ConsentEvidence",
+   "type": "object"
   },
   "Diagnosis": {
    "properties": {
@@ -788,6 +903,36 @@
    "title": "Owner",
    "type": "object"
   },
+  "OwnershipAnswers": {
+   "description": "v0.5 (#70, human decision 2026-11-09): required before publishing. A minimum length only; content is never judged.",
+   "properties": {
+    "what_was_broken": {
+     "maxLength": 1000,
+     "minLength": 20,
+     "title": "What Was Broken",
+     "type": "string"
+    },
+    "why_this_fix": {
+     "maxLength": 1000,
+     "minLength": 20,
+     "title": "Why This Fix",
+     "type": "string"
+    },
+    "what_the_test_proves": {
+     "maxLength": 1000,
+     "minLength": 20,
+     "title": "What The Test Proves",
+     "type": "string"
+    }
+   },
+   "required": [
+    "what_was_broken",
+    "why_this_fix",
+    "what_the_test_proves"
+   ],
+   "title": "OwnershipAnswers",
+   "type": "object"
+  },
   "Patch": {
    "properties": {
     "fix_diff_id": {
@@ -880,7 +1025,8 @@
     "deps_inconclusive",
     "issue_changed",
     "not_approved",
-    "not_signed_in"
+    "not_signed_in",
+    "no_maintainer_consent"
    ],
    "title": "PublishBlocker",
    "type": "string"
@@ -1377,6 +1523,17 @@
      "anyOf": [
       {
        "$ref": "#/$defs/Approval"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "consent": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/ConsentEvidence"
       },
       {
        "type": "null"
