@@ -11,7 +11,7 @@ from backend.contracts.models import CheckStatus, RunView
 
 MOCK = re.compile(r"\b(?:mock\.|Mock\(|MagicMock\(|AsyncMock\(|patch\(|patch\.object\(|mocker\.|monkeypatch\.setattr)")
 ASSERT_CALL = re.compile(r"^(?:assert\w*|fail\w*)$")    # unittest's self.assertEqual / failUnless, and pytest.fail
-RAISES = {"raises", "warns", "approx", "assertRaises", "assertRaisesRegex", "assertWarns", "assertLogs"}
+RAISES = {"raises", "warns", "assertRaises", "assertRaisesRegex", "assertWarns", "assertLogs"}
 
 
 def _files(diff: str) -> dict[str, dict]:
@@ -41,8 +41,8 @@ def _checks(fn) -> tuple[int, int]:
     real = vacuous = 0
     for n in ast.walk(fn):
         if isinstance(n, ast.Assert):
-            if isinstance(n.test, ast.Constant) and n.test.value:
-                vacuous += 1
+            if (isinstance(n.test, ast.Constant) and n.test.value) or (isinstance(n.test, ast.Tuple) and n.test.elts):
+                vacuous += 1   # `assert True`, and `assert (x, "msg")`: a non-empty tuple is always true
             else:
                 real += 1
         elif isinstance(n, ast.Call):
@@ -76,8 +76,9 @@ def report(v: RunView) -> list[dict]:
     base = v.repro.runs_on_base if v.repro else []
     if not base:
         rows.append(_row("fails_on_base", "NOT_CHECKED", "the test wasn't run on the original code"))
-    elif len(base) >= 2 and all(s == CheckStatus.FAILED for s in base):
-        rows.append(_row("fails_on_base", "PASS", f"failed {len(base)}/{len(base)} times on the original code"))
+    elif all(s == CheckStatus.FAILED for s in base):
+        rows.append(_row("fails_on_base", "PASS" if len(base) >= 2 else "REVIEW_REQUIRED",
+                         f"failed {len(base)}/{len(base)} times on the original code" + ("" if len(base) >= 2 else "; one run isn't enough to rule out flakiness")))
     else:
         rows.append(_row("fails_on_base", "FAIL", "didn't fail every time on the original code: " + ", ".join(s.value for s in base)))
     runs = v.verify.new_test_runs if v.verify else []
@@ -85,8 +86,9 @@ def report(v: RunView) -> list[dict]:
         rows.append(_row("passes_with_fix", "NOT_CHECKED", "not run with the fix"))
     else:
         ok = all(s == CheckStatus.PASSED for s in runs)
-        rows.append(_row("passes_with_fix", "PASS" if ok else "FAIL",
-                         f"passed {sum(s == CheckStatus.PASSED for s in runs)}/{len(runs)} times with the fix in a fresh sandbox"))
+        rows.append(_row("passes_with_fix", ("PASS" if len(runs) >= 2 else "REVIEW_REQUIRED") if ok else "FAIL",
+                         f"passed {sum(s == CheckStatus.PASSED for s in runs)}/{len(runs)} times with the fix in a fresh sandbox"
+                         + ("" if not ok or len(runs) >= 2 else "; one run isn't enough to rule out flakiness")))
 
     raw = artifacts.get(v.repro.test_diff_id) if v.repro else None
     files = _files(raw.decode("utf-8", "replace")) if raw else None
@@ -97,7 +99,7 @@ def report(v: RunView) -> list[dict]:
         src = {p: "\n".join(f["added"]) for p, f in files.items()}
         parsed = {p: _tests(s) for p, s in src.items()}
         fns = [fn for t in parsed.values() if t for fn in t]
-        if any(t is None for t in parsed.values()) or not fns:
+        if not fns:
             # an edit inside an existing file: count assert lines in what was added instead of reading the functions
             n = sum(len(re.findall(r"(?m)^\s*(?:assert\b|self\.assert|with pytest\.raises)", s)) for s in src.values())
             # zero isn't a FAIL here: new parametrize cases reuse the asserts in the unchanged test body
@@ -110,6 +112,9 @@ def report(v: RunView) -> list[dict]:
             vac = sum(x for _, x in per.values())
             if empty:
                 rows.append(_row("assertions", "FAIL", f"no real check in: {', '.join(empty)}" + (f" ({vac} always-true asserts)" if vac else "")))
+            elif any(t is None for t in parsed.values()):   # whole functions graded; the rest is a hunk inside an existing file
+                rows.append(_row("assertions", "REVIEW_REQUIRED", f"every new test function checks something; "
+                                 f"{', '.join(p for p, t in parsed.items() if t is None)} changes an existing file, so check it by eye"))
             else:
                 rows.append(_row("assertions", "PASS", f"every new test function checks something ({sum(r for r, _ in per.values())} checks in {len(per)} "
                                  f"function{'s' if len(per) != 1 else ''})" + (f"; {vac} always-true asserts too" if vac else "")))
@@ -125,27 +130,31 @@ def report(v: RunView) -> list[dict]:
         mine = {p.rsplit("/", 1)[0] if "/" in p else "" for p in files}
         if not dirs:
             rows.append(_row("test_location", "NOT_CHECKED", "no existing test locations recorded"))
-        elif mine <= dirs or all(any(m == d or m.startswith(d + "/") or d.startswith(m + "/") for d in dirs) for m in mine):
+        elif all(any(m == d or m.startswith(d + "/") for d in dirs) for m in mine):   # a parent (src/) isn't a test folder
             rows.append(_row("test_location", "PASS", f"in the repo's existing test folders ({', '.join(sorted(mine)) or 'root'})"))
         else:
             rows.append(_row("test_location", "REVIEW_REQUIRED", f"{', '.join(sorted(mine)) or 'root'} isn't one of the repo's test folders"))
         own = {p.split("/")[0] for p in files} | {p.split("/")[1] for p in files if p.startswith("src/") and p.count("/") > 1}
         own |= {t.split("/")[0] for t in (v.baseline.pass_set if v.baseline else [])}
         names = set().union(*map(_imports, src.values())) if src else set()
+        own |= _first_party(v)
         extra = sorted(n for n in names if n not in sys.stdlib_module_names and n not in {"pytest", "conftest"} and n not in own
-                       and not n.startswith("_") and n not in _first_party(v))
+                       and not n.startswith("_"))
         rows.append(_row("new_imports", "REVIEW_REQUIRED" if extra else "PASS",
                          f"imports {', '.join(extra)}: make sure the repo already depends on {'them' if len(extra) > 1 else 'it'}" if extra
                          else "only the standard library, pytest and the project's own code"))
 
     u = v.repro.uncovered if v.repro else None
-    rows.append(_row("covers_issue", "NOT_CHECKED" if u is None else "NOT_COVERED" if u else "PASS",
+    # A's review of #86: "covers everything" is the test designer's claim, so it's never a code-decided PASS
+    rows.append(_row("covers_issue", "NOT_CHECKED" if u is None else "NOT_COVERED" if u else "REVIEW_REQUIRED",
                      "not checked" if u is None else "leaves out: " + "; ".join(u) if u
-                     else "the test designer says it checks every stated condition (its own claim)"))
+                     else "the test designer says it checks every stated condition (its own claim, not checked by code)"))
     hv = v.verify.hidden_variant if v.verify else None
-    rows.append(_row("hidden_variant", {CheckStatus.PASSED: "PASS", CheckStatus.FAILED: "FAIL"}.get(hv, "NOT_CHECKED"),
+    rows.append(_row("hidden_variant", {CheckStatus.PASSED: "PASS", CheckStatus.FAILED: "FAIL",
+                                        CheckStatus.INCONCLUSIVE: "REVIEW_REQUIRED"}.get(hv, "NOT_CHECKED"),
                      ("the fix also passes a variant of the test it never saw" if hv == CheckStatus.PASSED else
-                      "the fix fails a variant of the test it never saw" if hv == CheckStatus.FAILED else "not run")
+                      "the fix fails a variant of the test it never saw" if hv == CheckStatus.FAILED else
+                      "it ran, but the result was inconclusive" if hv == CheckStatus.INCONCLUSIVE else "not run")
                      + "; a variant alone doesn't prove the fix is right"))
     return rows
 
@@ -154,7 +163,7 @@ def _first_party(v: RunView) -> set[str]:
     """Top-level names the fix touches: the package under test is never a new dependency."""
     raw = artifacts.get(v.patch.fix_diff_id) if v.patch else None
     paths = _files(raw.decode("utf-8", "replace")) if raw else {}
-    return {p.split("/")[1] if p.startswith("src/") and p.count("/") > 1 else p.split("/")[0].removesuffix(".py") for p in paths}
+    return {(p.split("/")[1] if p.startswith("src/") else p.split("/")[0]).removesuffix(".py") for p in paths}   # src/calc.py too
 
 
 LABEL = {"fails_on_base": "Fails on the original code", "passes_with_fix": "Passes with the fix", "assertions": "Real assertions",

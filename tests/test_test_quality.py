@@ -40,7 +40,8 @@ def test_a_good_test_passes_every_row():
     r = rows(run())
     assert {k: s for k, (s, _) in r.items()} == {
         "fails_on_base": "PASS", "passes_with_fix": "PASS", "assertions": "PASS", "mocks": "PASS", "existing_tests": "PASS",
-        "test_location": "PASS", "new_imports": "PASS", "covers_issue": "PASS", "hidden_variant": "PASS"}
+        "test_location": "PASS", "new_imports": "PASS", "covers_issue": "REVIEW_REQUIRED", "hidden_variant": "PASS"}
+    assert "its own claim, not checked by code" in r["covers_issue"][1]   # A's review of #86: a model's claim is never PASS
     assert "2 checks in 2 functions" in r["assertions"][1]   # pytest.raises counts as a check
     assert "doesn't prove the fix is right" in r["hidden_variant"][1]
 
@@ -96,3 +97,32 @@ def test_report_table_and_api(tmp_path, monkeypatch):
     monkeypatch.setattr(main, "_is_real", lambda rid: True)
     got = TestClient(main.app, base_url="https://testserver").get("/api/runs/" + "r" * 32 + "/test-quality").json()
     assert got["reason"] is None and len(got["checks"]) == 9
+
+
+
+@pytest.mark.parametrize("body, status", [
+    ("from pytest import approx\ndef test_x():\n    compute() == approx(2.0)\n", "FAIL"),     # no assert: checks nothing
+    ("def test_x():\n    assert (f() == 1, 'msg')\n", "FAIL"),                              # a tuple is always true
+])
+def test_a_check_that_can_never_fail_is_not_a_check(body, status):   # A's review of #86
+    assert rows(run(NEW("tests/test_issue_1.py", body)))["assertions"][0] == status
+
+
+def test_an_empty_new_test_fails_even_next_to_a_hunk_we_read_line_by_line():
+    hunk = ("diff --git a/tests/test_old.py b/tests/test_old.py\n--- a/tests/test_old.py\n+++ b/tests/test_old.py\n@@ -3,0 +4 @@\n"
+            "+    assert g() == 1\n")
+    assert rows(run(NEW("tests/test_issue_1.py", "def test_x():\n    run_it()\n") + hunk))["assertions"][0] == "FAIL"
+
+
+def test_one_run_is_not_enough_and_an_inconclusive_variant_says_so():
+    r = rows(run(base=(S.FAILED,), runs=(S.PASSED,), hv=S.INCONCLUSIVE))
+    assert r["fails_on_base"][0] == "REVIEW_REQUIRED" and r["passes_with_fix"][0] == "REVIEW_REQUIRED"
+    assert r["hidden_variant"][0] == "REVIEW_REQUIRED" and "inconclusive" in r["hidden_variant"][1]
+
+
+def test_a_parent_of_the_test_folder_is_not_a_test_folder_and_src_modules_are_first_party():
+    body = "from calc import div\n\n\ndef test_x():\n    assert div(1, 1) == 1\n"
+    v = run(NEW("src/test_issue_1.py", body), baseline=("src/pkg/tests/test_old.py::t",))
+    v.patch.fix_diff_id = artifacts.put(FIX.replace("src/calc/core.py", "src/calc.py"))
+    r = rows(v)
+    assert r["test_location"][0] == "REVIEW_REQUIRED" and r["new_imports"][0] == "PASS"
