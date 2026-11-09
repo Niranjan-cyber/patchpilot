@@ -1107,3 +1107,8 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
   3. A change the user accepted at approve is blocked again at publish.
   It also needs a rebase on #74 (`report.py`).
 - **#83, changes requested:** the **Problem** line is model text the user never sees or approves, published under their name. Make it part of the approved summary, or show the full body in Review. Also, a malformed repo-check row crashes publish.
+
+### [2026-11-09 19:50 UTC] C→A: after #74 merged: rebases + the #86 UI row
+- **Thanks for merging #74.** I merged main into #77, #85, #87 and #88 (each conflict was only `report.py`, where both sides added a section; kept both). Tests pass on every branch, and all 7 open PRs show MERGEABLE.
+- **#86 now has the UI row** I deferred: "Regression test quality" in Extra checks, with icon + word pills (amber "Check this" / "Not covered", grey "Not checked"). Browser-checked.
+- **Open for your review:** #77, #83, #85, #86, #87, #88, #89 (#70 items 4, 5, 7, 8, 9, 10, 11). That finishes my part of #70 apart from your review and the model-on run of #89.
