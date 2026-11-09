@@ -74,7 +74,7 @@ def _words(text: str) -> set[str]:
     return {w for w in re.findall(r"[a-z][a-z0-9_]+", (text or "").lower()) if len(w) >= 4 and w not in _STOP}
 
 
-def mentioning_open_prs(pulls: list, repo: str, num: int, title: str) -> list[int]:
+def mentioning_open_prs(pulls: list, repo: str, num: int, title: str, *, title_words: bool = True) -> list[int]:
     """Open PRs that likely fix this issue without a timeline cross-reference (A's P1, 2026-11-08: python-dotenv #715,
     jmespath #381). A hit is only the overridable linked_pr warning ("lookups can be wrong"), never a block.
     shortcut: the newest 100 open PRs and a 2-shared-title-words rule; upgrade to the search API if it misses real cases."""
@@ -84,7 +84,7 @@ def mentioning_open_prs(pulls: list, repo: str, num: int, title: str) -> list[in
         if not isinstance(p, dict) or not isinstance(p.get("number"), int):
             continue
         text = f"{p.get('title') or ''}\n{p.get('body') or ''}"
-        if ref.search(text) or len(want & _words(p.get("title") or "")) >= 2:
+        if ref.search(text) or (title_words and len(want & _words(p.get("title") or "")) >= 2):
             out.append(p["number"])
     return sorted(out)
 
@@ -248,7 +248,8 @@ def check_issue(url: str, *, extract_model: bool = True) -> IssueCheck:
                base_sha=(head or {}).get("sha"), forbids_ai=policy.ai_policy == "forbidden")
     warnings += [w for w in new_warnings(a) if w not in warnings]
     now = datetime.now(timezone.utc)
-    hit = set(mentioning_open_prs(closed, repo, num, title)) if isinstance(closed, list) else set()
+    # a merged PR hard-blocks publishing, so only a real reference counts, never the 2-title-words guess
+    hit = set(mentioning_open_prs(closed, repo, num, title, title_words=False)) if isinstance(closed, list) else set()
     work = {"checked_at": now.isoformat(),
             "sources": {k: "checked" if ok else "failed" for k, ok in (("timeline", isinstance(timeline, list)),
                         ("open_prs", isinstance(pulls, list)), ("comments", comments is not None), ("closed_prs", isinstance(closed, list)))},

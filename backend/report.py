@@ -99,7 +99,7 @@ def existing_work_section(run_id: str) -> list[str]:
         return json.loads(raw) if raw else None
     start, again = get("existing_work"), get("existing_work_recheck")
     if not start and not again:
-        return ["## Existing work", "- Not checked for this run.", ""]
+        return ["## Existing work", "- Not re-checked for this run. G0 checked assignees, claims and linked PRs when it started (see Checks).", ""]
     names = {"timeline": "issue timeline", "open_prs": "open pull requests", "comments": "issue comments", "closed_prs": "recently closed pull requests"}
     def lines(w, when):
         srcs = ", ".join(f"{names.get(k, k)} ({'read' if st == 'checked' else 'could not be read'})" for k, st in w.get("sources", {}).items())
