@@ -1,7 +1,8 @@
 import { test, expect } from "@playwright/test";
-// Live GitHub reads: defaults to the team demo repo (override with EXPLORE_REPO).
+// Live GitHub reads (override with EXPLORE_REPO). Not tinycalc: all its issues have our PRs, so Explore is rightly empty there.
+// shortcut: depends on pallets/click having open issues without PRs; pick another busy repo if it ever shows empty.
 const BASE = process.env.BASE_URL ?? "http://localhost:8000";
-const REPO = process.env.EXPLORE_REPO ?? "https://github.com/Niranjan-cyber/tinycalc";
+const REPO = process.env.EXPLORE_REPO ?? "https://github.com/pallets/click";
 
 test("a Python repo shows 3-5 suggestions with reasons, effort labelled Estimate, and repo checks", async ({ page }) => {
   await page.goto(`${BASE}/explore`);

@@ -21,6 +21,7 @@ test("separate counts; PatchPilot and GitHub in separate columns", async ({ page
   await expect(stat(page, "pull requests opened")).toHaveText("2");
   await expect(stat(page, "merged on GitHub")).toHaveText("1");
   await expect(page.locator(".progresstable")).toContainText("Merged");
+  await expect(page.locator(".progresstable")).toContainText("Closed without merging");
   await expect(page.locator(".progresstable")).toContainText("No pull request");
   await page.screenshot({ path: "docs/build-plan/evidence/B16/b16-progress.png", fullPage: true });
 });
