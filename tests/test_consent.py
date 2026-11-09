@@ -103,3 +103,13 @@ def test_api_override_needs_a_real_reason_and_github_errors_record_nothing(api):
     assert out["consent"]["kind"] == "user_override"
     from backend.report import render
     assert "Override by the user" in render(db.get_run(db.connect(), rid))
+
+
+def test_attest_is_refused_after_a_later_decline_and_blank_override_is_refused(api):
+    b, rid, mp = api
+    replies = [cm(101, "Hmm, let me look at the diff first."), cm(102, "No thanks, we won't fix this.")]
+    mp.setattr(K, "check", lambda repo, n, asked_url, me: K.read(ISSUE, replies, asked_url=asked_url, me=me))
+    r = b.post(f"/api/runs/{rid}/consent", json={"attest_comment_url": replies[0]["html_url"]})
+    assert r.status_code == 409 and r.json()["code"] == "NOT_CONSENT"
+    assert b.post(f"/api/runs/{rid}/consent", json={"override_reason": " " * 25}).status_code == 422
+    assert db.get_run(db.connect(), rid).consent is None

@@ -208,13 +208,15 @@ def record_consent(run_id: str, body: ConsentBody, request: Request):
     if v.status not in (RunStatus.AWAITING_APPROVAL, RunStatus.PUBLISHED):
         raise _err(409, "APPROVAL_STALE", "This run isn't waiting to be published.")
     st = {"state": "recorded"}
+    if body.override_reason is not None and len(body.override_reason.strip()) < 20:   # spaces aren't a reason
+        raise _err(422, "OVERRIDE_REASON_REQUIRED", "Type at least 20 characters saying why you're publishing without a maintainer's yes.")
     if body.override_reason:
         ev = ConsentEvidence(kind="user_override", override_reason=body.override_reason.strip(), recorded_at=db.now())
     else:
         st = _consent_state(v, request)
         if body.attest_comment_url:
             r = next((r for r in st["replies"] if r["url"] == body.attest_comment_url), None)
-            if not r or r["declined"]:
+            if not r or r["declined"] or st["state"] == "declined":   # §2.2: after a decline only a typed override counts
                 raise _err(409, "NOT_CONSENT", "That isn't a maintainer's reply to your question (or it declined). "
                                                "You can still publish with a typed reason.")
             ev = ConsentEvidence(kind="maintainer_reply", source_url=r["url"], author=r["author"], author_association=r["association"],
