@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { motion } from "motion/react";
 import { api, ApiError, useRun } from "./api";
 import { Loading } from "./components";
 import { DiffView } from "./DiffView";
@@ -61,6 +62,8 @@ export default function Review() {
   const hard = ctx.publish_blockers.filter((b) => !["not_approved", "not_signed_in", "issue_changed", "no_maintainer_consent"].includes(b));
   const allTicked = BOXES.every(([k]) => boxes[k]);
   const answered = QUESTIONS.every(([k]) => (answers[k] ?? "").trim().length >= MIN);
+  const ready = BOXES.filter(([k]) => boxes[k]).length + QUESTIONS.filter(([k]) => (answers[k] ?? "").trim().length >= MIN).length;
+  const total = BOXES.length + QUESTIONS.length;
   const approve = async () => {
     const r = await post(`/api/runs/${id}/approve`, { revision: ctx.revision, diff_hash: ctx.diff_hash, evidence_hash: ctx.evidence_hash,
       checklist: boxes, explanation: null,
@@ -115,7 +118,13 @@ export default function Review() {
             </details>
           )}
         </fieldset>
-        <div className="row">
+        <div className="grid gap-2" aria-live="polite">
+          <div className="flex justify-between text-[13.5px]"><span className="font-semibold">{ready === total ? "Ready to approve" : "Before you can approve"}</span><span className="text-muted">{ready} of {total} done</span></div>
+          <div className="h-2.5 rounded-full bg-soft overflow-hidden">
+            <motion.div className={`h-full rounded-full ${ready === total ? "bg-mint-500" : "bg-peach-300"}`} animate={{ width: `${(ready / total) * 100}%` }} transition={{ type: "spring", stiffness: 200, damping: 24 }} />
+          </div>
+        </div>
+        <div className="row !mt-0">
           <button onClick={approve} disabled={!allTicked || !answered || !!busy || hard.length > 0}>{busy ?? "Approve this change"}</button>
           <button className="secondary-btn" onClick={() => post(`/api/runs/${id}/keep-report`).then(() => nav(`/runs/${id}`))}>Keep the report only</button>
         </div>

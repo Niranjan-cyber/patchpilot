@@ -1,5 +1,7 @@
-import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { AnimatePresence, motion } from "motion/react";
 import { Icon } from "./components";
+import { spring } from "./motion";
 
 /* Toasts: one quiet confirmation at a time, bottom right, 2.4 s. */
 const ToastCtx = createContext<(msg: string) => void>(() => {});
@@ -15,7 +17,12 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     <ToastCtx.Provider value={push}>
       {children}
       <div className="toasts" role="status" aria-live="polite">
-        {items.map((t) => <div key={t.id} className="toast"><Icon name="check" />{t.msg}</div>)}
+        <AnimatePresence>
+          {items.map((t) => (
+            <motion.div key={t.id} className="toast" layout initial={{ opacity: 0, y: 16, scale: 0.9 }} animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, x: 30, transition: { duration: 0.2 } }} transition={spring}><Icon name="check" />{t.msg}</motion.div>
+          ))}
+        </AnimatePresence>
       </div>
     </ToastCtx.Provider>
   );
@@ -71,22 +78,4 @@ export function Drawer({ open, onClose, title, children }: { open: boolean; onCl
       <div className="drawer-body">{children}</div>
     </dialog>
   );
-}
-
-/** Slides an indicator to the element matching `selector` inside the container (nav pill, tab ink). */
-export function useIndicator<T extends HTMLElement>(selector: string, deps: unknown[], axis: "x" | "y") {
-  const box = useRef<T>(null);
-  const [style, setStyle] = useState<React.CSSProperties>({ opacity: 0 });
-  useLayoutEffect(() => {
-    const measure = () => {
-      const el = box.current?.querySelector<HTMLElement>(selector);
-      if (!el) { setStyle({ opacity: 0 }); return; }
-      setStyle(axis === "y" ? { transform: `translateY(${el.offsetTop}px)`, opacity: 1 }
-        : { transform: `translateX(${el.offsetLeft}px)`, width: el.offsetWidth, opacity: 1 });
-    };
-    measure();
-    window.addEventListener("resize", measure); return () => window.removeEventListener("resize", measure);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, deps);
-  return { box, style };
 }
