@@ -8,9 +8,10 @@ import time
 from datetime import timedelta
 
 from backend import db
-from backend.contracts.models import RunStatus
+from backend.contracts.models import CheckStatus, RunStatus, StepId
 import backend.sandbox.steps  # noqa: F401  registers PREFLIGHT/SETUP/BASELINE
 from backend.worker.graph import build
+from backend.worker.nodes import GATE_OF, ORDER
 
 try:
     import backend.agents  # noqa: F401  role B registers REPRODUCE..REVIEW
@@ -58,9 +59,8 @@ def run_job(graph, job: dict) -> None:
         db.emit(c, rid, "run.resumed", None, run.revision, from_step=(graph.get_state(cfg).next or ["?"])[0])
         run.status, run.pause = RunStatus.RUNNING, None; db.save_run(c, run)
         return _finish_job(c, job, graph, cfg)
-    if job["kind"] == "revise" and not job["resumed"]:
-        db.emit(c, rid, "run.resumed", None, run.revision, from_step="fix")
-        graph.update_state(cfg, {"end_reason": None, "gates": {"G4": "not_run", "G5": "not_run", "G6": "not_run"}}, as_node="diagnose")
+    if job["kind"] == "revise" and not graph.get_state(cfg).next:   # not yet set up (also after a crash mid-setup)
+        _start_revision(c, graph, cfg, run)
         return _finish_job(c, job, graph, cfg)
     if job["resumed"]:
         snap = graph.get_state(cfg)
@@ -73,6 +73,28 @@ def run_job(graph, job: dict) -> None:
         db.emit(c, rid, "run.started", None, run.revision, from_step="preflight")
     run = db.get_run(c, rid); run.status = RunStatus.RUNNING; db.save_run(c, run)
     _finish_job(c, job, graph, cfg)
+
+
+FIELD = {StepId.REPRODUCE: "repro", StepId.DIAGNOSE: "diagnosis", StepId.FIX: "patch", StepId.VERIFY: "verify",
+         StepId.REVIEW: "review"}
+
+
+def _start_revision(c, graph, cfg, run) -> None:
+    """v0.6: re-run from FIX, or from REPRODUCE when the user rejected the test. Everything from that step on is
+    forgotten first (results, step states, gates), so nothing the old revision proved can speak for the new one."""
+    target = run.revisions[-1].revise_target if run.revisions else None
+    redo = ORDER[ORDER.index(StepId.REPRODUCE if target == "test" else StepId.FIX):]
+    if target == "test" and run.repro:
+        db.put_kv(c, f"revise_old_test:{run.run_id}", run.repro.test_diff_id)
+    for st in redo:
+        if st in FIELD:
+            setattr(run, FIELD[st], None)
+        run.steps.pop(st, None)
+    gates = {GATE_OF[st]: CheckStatus.NOT_RUN for st in redo if st in GATE_OF}
+    run.gates.update(gates); db.save_run(c, run)   # finish() reads run.gates, so an old G5 pass must go here too
+    db.emit(c, run.run_id, "run.resumed", None, run.revision, from_step=redo[0].value)
+    graph.update_state(cfg, {"end_reason": None, "gates": {g: v.value for g, v in gates.items()}},
+                       as_node=ORDER[ORDER.index(redo[0]) - 1].value)
 
 
 def _finish_job(c, job, graph, cfg):

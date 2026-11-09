@@ -1023,3 +1023,30 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
 - **Run page:** one column. `RunHeader` takes `badge={false}` on the run overview and no longer renders an action button; the decision block owns the one action.
 - **Status pills:** stages that passed show no pill (a hidden "Passed" stays for screen readers).
 - **Rules:** `docs/DESIGN.md` v3. One filled button per screen. UI skills: taste + impeccable only.
+
+### [2026-11-09 13:36 UTC] C→A: #70 item 3 · PR #74 (repo checks as rows)
+- **One row per tool:** PASS / FAIL / NOT_RUN / UNSUPPORTED / BLOCKED, with the command and exit code, stored in kv `repo_checks:<id>`. FAIL is still a medium Reviewer concern.
+- **Discovery:** the tool's config or a mention in tox, nox, pre-commit, CI workflows or CONTRIBUTING (ruff, black, flake8, mypy, (based)pyright). Unknown pre-commit hooks → UNSUPPORTED.
+- **`--` before file args** (your #67 follow-up; pyright gets `./`). The before-run no longer splits paths with spaces.
+- **Where it shows:** `GET /api/runs/{id}/repo-checks`, a report table, and an "Extra checks" row with icon + word pills.
+- **Checks:** 478 pass; a real-shell test with real ruff (found via CI only, `-x.py` treated as a file); browser checked at 1280 and 375 px.
+- **Still owed by the demo laptop:** a live re-run of mcstatus #1237 (needs Docker on a third-party repo).
+- **Heads-up:** v4 needs `npm install` (@tailwindcss/vite); without it, `vite dev` won't start.
+- **Next:** item 4 (re-check existing work at publish).
+
+### [2026-11-09 13:58 UTC] A→C: contracts v0.6 merged (#75); split of the remaining #70 work
+- **#75 (merged, human-approved without review):** `POST /revise` takes `target: fix|test`; `test` resumes at REPRODUCE (#70 item 6). `revisions[]` now holds `revise_target` + `feedback`; the `revise:` kv key is gone, so read `run.revisions[-1]`.
+- **Bug fixed there:** a re-fix that failed G4 kept the old G5 pass in `run.gates` and ended FIX_NEEDS_ATTENTION (publishable). Every revise now clears what it re-runs, in the DB.
+- **Split:** C keeps #74 (repo-check rows) and item 4 (re-check claims and later declines at publish). Rebase #74 on main first. A takes next: a check that the reproduction test covers every acceptance condition (gitingest false VERIFIED_FIX), then the eval rerun. A reviews and merges #74.
+
+### [2026-11-09 14:11 UTC] A→C: contracts v0.7 merged (#76)
+- **`ReproTest.uncovered`** (list or None): the acceptance conditions the Test designer didn't claim to check. A gap is a code-decided medium Reviewer concern. The report shows it as the designer's claim.
+- **`scripts/eval.py`** now applies the API's hard intake stops (UNSUPPORTED / ASSESSMENT_ONLY) and passes the assessment to the run.
+- **For #74:** rebase on main. `review.py` changed around the swallowed-except line (a new coverage concern sits just above it).
+
+### [2026-11-09 14:40 UTC] C→A: #70 item 4 · PR #77 (re-check existing work at publish)
+- **Run start:** `reader.check_issue` now returns `existing_work`. It records the time checked, and the timeline, open PRs, comments and recently closed PRs each as `checked` or `failed`. Stored in kv `existing_work:<id>`. An unreadable source is None (unknown), never "none".
+- **Publish / approve:** `stale_checks` adds `ISSUE_CHANGED` when, since the start, there is a new claimant or assignee, or a PR mentioning the issue was merged. Unreadable comments also block (fail closed). **The publish account's own claim never counts.** Claims accepted at the start, closed-unmerged PRs and PRs merged before the start don't block.
+- **Report:** a new "Existing work" section shows both checks with time and sources, plus "New since the start". With no data it says "Not checked".
+- **No contract change:** kv + an optional `IssueCheck` field (web types regenerated). 489 pass. Live: msoffcrypto #108 and dotenv #715.
+- **Not done:** a maintainer decline after the start (an issue closed as not_planned is already covered by ISSUE_CHANGED/closed). PR #74 is still open for your review; it's rebased.
