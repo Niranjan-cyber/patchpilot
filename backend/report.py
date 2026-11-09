@@ -60,7 +60,8 @@ def render(v: RunView, narrative: str | None = None) -> str:
         L += ["## Verification in a fresh sandbox", f"- New test after the fix: {', '.join(WORD[s] for s in v.verify.new_test_runs) or 'not run'}",
               f"- Regressions: {', '.join(v.verify.regressions) or 'none'}", ""]
     if v.review and v.review.concerns:
-        L += ["## Reviewer concerns", *[f"- [{c.get('severity', '?')}] {c.get('text', '')}" for c in v.review.concerns], ""]
+        # #70 item 9: level (BLOCKER / IMPORTANT / SUGGESTION / ACCEPTED_TRADEOFF), dimension, file:line, what to do
+        L += ["## Reviewer findings", *map(_finding, v.review.concerns), ""]
     if narrative:
         L += ["## Explanation", narrative, ""]
     blockers = [b.value for b in v.publish_blockers]
@@ -82,3 +83,11 @@ def render(v: RunView, narrative: str | None = None) -> str:
             if any(s == CheckStatus.INCONCLUSIVE for s in v.gates.values())
             or (v.supplyguard and v.supplyguard.status == CheckStatus.INCONCLUSIVE) else [])]
     return "\n".join(L) + "\n"
+
+
+def _finding(c: dict) -> str:
+    """One Reviewer finding: level, (dimension, `file:line`), what's wrong, what to do, the evidence it rests on."""
+    where = [x for x in (c.get("dimension", "").replace("_", " "), f"`{c['location']}`" if c.get("location") else "") if x]
+    return (f"- **{c.get('level') or c.get('severity', '?')}**" + (f" ({', '.join(where)})" if where else "")
+            + f": {c.get('text', '').rstrip('.')}." + (f" To do: {c['action']}" if c.get("action") else "")
+            + (f" Evidence: {c['evidence']}" if c.get("evidence") else ""))

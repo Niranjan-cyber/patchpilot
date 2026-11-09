@@ -109,9 +109,12 @@ export function StageNavigator({ run }: { run: RunView }) {
 }
 
 const SEV: Record<string, string> = { high: "High concern", medium: "Medium concern", low: "Low concern" };
-/** The independent reviewer's concerns. High and medium lower readiness (contracts §1.1 G6); none is a pass by itself. */
+// #70 item 9: the Reviewer's level; older runs only have a severity
+const LEVEL: Record<string, string> = { BLOCKER: "Blocker", IMPORTANT: "Important", SUGGESTION: "Suggestion", ACCEPTED_TRADEOFF: "Accepted trade-off" };
+type Finding = { severity?: string; level?: string; text?: string; dimension?: string; location?: string; action?: string; evidence?: string };
+/** The independent reviewer's concerns. Blockers and important ones lower readiness (contracts §1.1 G6); none is a pass by itself. */
 export function Findings({ run }: { run: RunView }) {
-  const review = run.review as { concerns?: { severity?: string; text?: string; file?: string; line?: number }[] } | null | undefined;
+  const review = run.review as { concerns?: Finding[] } | null | undefined;
   const reviewStep = (run.steps as Record<string, Step> | undefined)?.review?.status;
   return (
     <section aria-labelledby="findings-h">
@@ -122,8 +125,11 @@ export function Findings({ run }: { run: RunView }) {
         : !review.concerns?.length ? <p className="lane-empty">The reviewer raised no concerns. That isn't proof the change is right; read the diff.</p>
         : <div className="findings">{review.concerns.map((c, i) => (
           <div key={i} className={`finding sev-${c.severity ?? "low"}`}><div>
-            <div className="finding-head"><span className="sev">{SEV[c.severity ?? ""] ?? "Concern"}</span>{c.file && <code>{c.file}{c.line ? `:${c.line}` : ""}</code>}</div>
+            <div className="finding-head"><span className="sev">{LEVEL[c.level ?? ""] ?? SEV[c.severity ?? ""] ?? "Concern"}</span>
+              {c.dimension && <span className="hint">{c.dimension.replaceAll("_", " ")}</span>}{c.location && <code>{c.location}</code>}</div>
             <p>{c.text}</p>
+            {c.action && <p><strong>To do:</strong> {c.action}</p>}
+            {c.evidence && <p className="hint">Evidence: <code>{c.evidence}</code></p>}
           </div></div>))}</div>}
     </section>
   );
