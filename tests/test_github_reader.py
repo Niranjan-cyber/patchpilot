@@ -132,3 +132,12 @@ def test_a_comment_claim_raises_the_assigned_warning(monkeypatch):
     monkeypatch.setattr("backend.github.assess.extract", lambda **k: None)
     chk = R.check_issue("https://github.com/o/r/issues/1")
     assert "assigned" in chk.warnings and chk.issue.checks["unassigned"] == C.FAILED
+
+
+def test_unreadable_comments_leave_the_claim_check_inconclusive(monkeypatch):
+    import backend.github.reader as R
+    canned = {"/repos/o/r/issues/1": {"state": "open", "title": "t", "body": "b", "assignees": [], "labels": [], "comments": 3},
+              "/repos/o/r": {"language": "Python", "default_branch": "main"}}   # comments fetch fails -> None
+    monkeypatch.setattr(R, "_get", lambda h, path, required=True: canned.get(path))
+    monkeypatch.setattr("backend.github.assess.extract", lambda **k: None)
+    assert R.check_issue("https://github.com/o/r/issues/1").issue.checks["unassigned"] == C.INCONCLUSIVE

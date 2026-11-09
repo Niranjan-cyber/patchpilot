@@ -217,8 +217,8 @@ def check_issue(url: str, *, extract_model: bool = True) -> IssueCheck:
         "public": CheckStatus.PASSED,
         "python": lookup(python, root is not None or meta.get("language") is not None),
         "tests_found": lookup(tests, root is not None and (tests or deep is not None)),
-        # an open claim in the comments counts like an assignee; unreadable comments leave it to the assignee field
-        "unassigned": lookup(not issue.get("assignees") and not claimed_by(comments), True),
+        # an open claim in the comments counts like an assignee; unreadable comments = unknown, unless someone is assigned
+        "unassigned": lookup(not issue.get("assignees") and not claimed_by(comments), bool(issue.get("assignees")) or comments is not None),
         "no_linked_pr": lookup(not linked, linked is not None),
     }
     for code, key in (("closed", "open"), ("assigned", "unassigned"), ("linked_pr", "no_linked_pr")):
