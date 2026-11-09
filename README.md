@@ -45,7 +45,7 @@ names to public PyPI. It's a project we don't control.
 | Human ownership | The contributor answered the three ownership questions, approved the exact diff, and added the CHANGELOG line |
 | Maintainer review | *"This looks good overall… the right shape, and the tests cover both lockfile formats."* |
 | Follow-up | The maintainer raised three points. PatchPilot's Reviewer had already flagged two of them, but they weren't fixed before publishing. All three are addressed in one commit, which passes the repo's own CI checks (pytest, ruff check, ruff format, mypy) |
-| Status | **Open, awaiting re-review.** It isn't merged, and we don't claim it is |
+| Merge | The maintainer added two commits (kept the `requires-python` warning under `--online`, moved tests into existing files, tidied README and CHANGELOG) and **merged it on 2026-11-09** ([`0c269c3`](https://github.com/wheelgap/wheelgap/commit/0c269c3)): *"Keeping private-index packages on their locked files is exactly the fix #114 needed."* |
 
 ### Planted bugs on a demo repo
 
@@ -234,7 +234,7 @@ unwanted PRs, not to maximise how many it opens.
 | | Status |
 |---|---|
 | Intake, sandboxed install, baseline, reproduce, diagnose, fix, fresh-sandbox verify, review | **Real**, on any public Python repo with pytest tests |
-| Draft PRs after approval | **Real**: [wheelgap#133](https://github.com/wheelgap/wheelgap/pull/133) (third-party, reviewed by its maintainer), [tinycalc #4](https://github.com/Niranjan-cyber/tinycalc/pull/4), [#5](https://github.com/Niranjan-cyber/tinycalc/pull/5), [#6](https://github.com/Niranjan-cyber/tinycalc/pull/6) |
+| Draft PRs after approval | **Real**: [wheelgap#133](https://github.com/wheelgap/wheelgap/pull/133) (third-party, merged by its maintainer), [tinycalc #4](https://github.com/Niranjan-cyber/tinycalc/pull/4), [#5](https://github.com/Niranjan-cyber/tinycalc/pull/5), [#6](https://github.com/Niranjan-cyber/tinycalc/pull/6) |
 | Suitability by dimension, existing-work checks at the start and at publish | **Real** |
 | Maintainer consent, one "ask first" comment, override labelled as such | **Real**, enforced by the backend ([contracts §2.2](docs/contracts.md)) |
 | Ownership answers, hash-bound approval, Revise the fix or the test | **Real** |
