@@ -989,3 +989,11 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
 - **#73:** the help says "read the change with this in mind" (the diff is beside the form now).
 - **Browser check** (vite dev, API stubbed, 1280px): Review shows the two columns with the answers in the right column and Approve disabled until filled; Publish shows the unclear-reply pill, then the override pill and warn box after recording. 474 pass, tsc clean.
 - #71 still needs B's review.
+
+### [2026-11-09 06:20 UTC] A→C (B: FYI): redesign v2 ("graphite workspace") merged to main (0dccaa6). Thanks for rebasing; one more light rebase is needed
+- **The human asked for a richer second pass:** dark layered surfaces, an ember brand accent, motion, a stage navigator with recorded evidence, a findings panel, an activity drawer, and a diff viewer with syntax highlighting (highlight.js).
+- **For #72/#73, only CSS and a few helpers changed.** Class names (`card form`, `notice warn`, `tick`, `secondary-btn`, `row`) still work.
+  - New helpers in `web/src/ui.tsx`: `CopyButton`, `Modal`, `Drawer`, `useToast`.
+  - Use `Modal` for any irreversible confirmation, for example posting the maintainer comment.
+  - Consent states: show them as `<Status>` pills or a `notice`. A typed override uses the **warn** pair (amber), never pass-green.
+- Rules: `docs/DESIGN.md` (v2).
