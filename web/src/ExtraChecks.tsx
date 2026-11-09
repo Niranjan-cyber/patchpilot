@@ -1,19 +1,18 @@
 import { useEffect, useState } from "react";
 import { api } from "./api";
 import type { RunView } from "./contracts";
-import { StatusIcon } from "./components";
+import { Status } from "./components";
 
 // #70 item 3: the repo's own checks, one row per tool. A check that didn't run is never shown as passed.
 type Check = { tool: string; status: "PASS" | "FAIL" | "NOT_RUN" | "UNSUPPORTED" | "BLOCKED"; command: string | null;
   exit_code: number | null; new: string[]; note: string };
 type RepoChecks = { checks: Check[] | null; files: string[]; reason: string | null };
-const CHECK: Record<Check["status"], [string, string]> = {
-  PASS: ["passed", "Passed"], FAIL: ["failed", "Failed"], BLOCKED: ["inconclusive", "Blocked"],
-  NOT_RUN: ["not_run", "Not run"], UNSUPPORTED: ["not_run", "Not supported"],
-};
+// BLOCKED means we don't know (amber), not a failure; the row's note says which kind of "not run"
+const CHECK = { PASS: "passed", FAIL: "failed", BLOCKED: "inconclusive", NOT_RUN: "not_run", UNSUPPORTED: "not_run" } as const;
 const NOCHECK: Record<string, string> = {
   not_run_yet: "Not run yet.", sample_run: "Not run: sample run.", no_python_files: "Not run: no Python files changed.",
   diff_did_not_apply: "Not run: the change didn't apply in the check sandbox.", sandbox_failed: "Not run: the check sandbox failed.",
+  only_deleted_files: "Not run: the change only deletes Python files.",
 };
 
 type Bisect = { status: "found" | "not_run" | "inconclusive" | "pending"; reason: string; first_bad?: string | null;
@@ -68,18 +67,19 @@ export default function ExtraChecks({ run }: { run: RunView }) {
         <div>
           <strong>The repository's own checks</strong>
           {!rc && <p>Loading…</p>}
-          {rc && !rc.checks?.length && <p>{rc.checks ? "None we can run: the repo configures no linter or type checker we support." : NOCHECK[rc.reason ?? ""] ?? "Status unavailable."}</p>}
+          {/* a stored reason (sandbox failed, diff didn't apply) wins over "none configured": a failure is never shown as empty */}
+          {rc && !rc.checks?.length && <p>{rc.reason ? NOCHECK[rc.reason] ?? `Not run: ${rc.reason}.`
+            : rc.checks ? "None we can run: the repo configures no linter or type checker we support." : "Status unavailable."}</p>}
           {!!rc?.checks?.length && (
             <ul className="repo-checks">
               {rc.checks.map((c) => {
-                const [cls, word] = CHECK[c.status];
                 return (
                   <li key={c.tool}>
-                    <span className={`status status-${cls}`}><StatusIcon s={cls} size={12} />{word}</span> <strong>{c.tool}</strong>: {c.note}
+                    <Status s={CHECK[c.status]} /> <strong>{c.tool}</strong>: {c.note}
                     {(c.command || c.new.length > 0) && (
                       <details><summary>Details</summary>
                         {c.command && <p><code>{c.command}</code> exited {c.exit_code ?? "without a code"}</p>}
-                        {c.new.length > 0 && <ul>{c.new.slice(0, 10).map((n) => <li key={n}><code>{n}</code></li>)}</ul>}
+                        {c.new.length > 0 && <ul>{c.new.slice(0, 10).map((n, i) => <li key={i}><code>{n}</code></li>)}</ul>}
                       </details>
                     )}
                   </li>

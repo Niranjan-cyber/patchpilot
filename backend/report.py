@@ -98,11 +98,13 @@ def repo_checks_section(run_id: str) -> list[str]:
         return ["## Repository checks", "- Not checked: the repo's own linters and type checkers didn't run for this change.", ""]
     if not res["checks"]:
         why = {"no_python_files": "no Python files changed", "diff_did_not_apply": "the change didn't apply in the check sandbox",
-               "sandbox_failed": "the check sandbox failed"}.get(res.get("reason"), "the repo configures none we can run")
+               "sandbox_failed": "the check sandbox failed", "only_deleted_files": "the change only deletes Python files"
+               }.get(res.get("reason"), "the repo configures none we can run")
         return ["## Repository checks", f"- Not checked: {why}.", ""]
     out = ["## Repository checks", "| Tool | Result | Exit code | Command | Notes |", "|---|---|---|---|---|"]
+    cell = lambda s: str(s).replace("|", "\\|")   # a pipe inside a cell would split the table row
     for c in res["checks"]:
-        cmd = f"`{c['command']}`" if c.get("command") else "-"
+        cmd = f"`{cell(c['command'])}`" if c.get("command") else "-"
         notes = c.get("note", "") + ("; " + "; ".join(c["new"][:3]) if c.get("new") else "")
-        out.append(f"| {c['tool']} | {c['status']} | {c['exit_code'] if c.get('exit_code') is not None else '-'} | {cmd} | {notes.replace('|', '/')} |")
+        out.append(f"| {cell(c['tool'])} | {c['status']} | {c['exit_code'] if c.get('exit_code') is not None else '-'} | {cmd} | {cell(notes)} |")
     return [*out, ""]

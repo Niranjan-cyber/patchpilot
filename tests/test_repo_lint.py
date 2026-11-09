@@ -3,6 +3,7 @@ One row per tool: PASS / FAIL / NOT_RUN / UNSUPPORTED / BLOCKED, with the comman
 import json
 import shutil
 import subprocess
+import sys
 
 import pytest
 
@@ -95,7 +96,47 @@ def test_nothing_claimed_when_not_run(sandbox):
     assert json.loads(db.get_kv(db.connect(), "repo_checks:" + "r" * 32))["reason"] == "no_python_files"
 
 
-@pytest.mark.skipif(not shutil.which("sh") or subprocess.run(["python", "-m", "ruff", "--version"], capture_output=True).returncode != 0,
+def test_a_later_attempt_that_raises_never_shows_the_earlier_rows(sandbox):
+    # A #74 review, item 2: attempt 1 stored PASS rows; attempt 2's sandbox raises (review.py swallows it)
+    key = "repo_checks:" + "r" * 32
+    db.put_kv(db.connect(), key, json.dumps({"checks": [{"tool": "ruff check", "status": "PASS"}], "files": ["a.py"], "reason": None}))
+    def boom(*a, **k):
+        raise RuntimeError("docker died")
+    sandbox.setattr(L.docker, "run", boom)
+    with pytest.raises(RuntimeError):
+        L.review_concerns("r" * 32, "", DIFF("a.py"))
+    assert json.loads(db.get_kv(db.connect(), key)) == {"checks": [], "files": ["a.py"], "reason": "sandbox_failed"}
+
+
+def test_a_timeout_marks_every_tool_that_never_started():
+    # A #74 review, item 3: the plan lists ruff + mypy; the run stopped inside ruff check, so mypy never started
+    after = ("@@PP_PLAN ruff check\n@@PP_PLAN ruff format\n@@PP_PLAN mypy\n@@PP_MISSING black\n@@PP_TOOL ruff check|python -m ruff check\n"
+             "[stopped: hit the time limit (300 s) before this finished]\n")
+    got = {r["tool"]: (r["status"], r["note"]) for r in L.rows("", after)}
+    assert got["ruff check"][0] == "BLOCKED" and got["black"][0] == "NOT_RUN"
+    assert got["ruff format"] == got["mypy"] == ("BLOCKED", "timed out before it ran")
+
+
+def test_the_concern_counts_every_new_problem_not_the_stored_twenty(sandbox):
+    after = "@@PP_TOOL mypy|m\n" + "".join(f"a.py:{i}: error: e{i}\n" for i in range(25)) + "@@PP_EXIT 1\n"
+    sandbox.setattr(L.docker, "run", lambda *a, **k: Result(0, "@@PP_AFTER\n" + after))
+    [c] = L.review_concerns("r" * 32, "", DIFF("a.py"))
+    assert "reports 25 new problems" in c["text"]
+
+
+@pytest.mark.skipif(not shutil.which("sh"), reason="needs sh")
+def test_contributing_counts_commands_not_prose(tmp_path):
+    # A #74 review, item 5: "black-box tests" / "we dropped flake8" must not run a linter; a command line in a code block does
+    (tmp_path / "CONTRIBUTING.md").write_text("We write black-box tests. We dropped flake8 last year.\n"
+                                             "```\n$ python -m mypy src\n```\nOr run `ruff check .` before pushing.\n")
+    probe = "".join(f"said '{t}' && echo {t[-7:] if 'pyright' in t else t}\n" for t in ("black", "flake8", "mypy", "ruff", "(based)?pyright"))
+    out = subprocess.run([shutil.which("sh"), "-c", L.TOOLS + "\n" + probe], cwd=tmp_path, capture_output=True, text=True).stdout
+    assert out.split() == ["mypy", "ruff"]
+    plan = subprocess.run([shutil.which("sh"), "-c", L.TOOLS + "\nPLAN=1; lint a.py"], cwd=tmp_path, capture_output=True, text=True).stdout
+    assert L.SEP not in plan and L.MISSING not in plan   # the plan pass only lists; it runs and reports nothing
+
+
+@pytest.mark.skipif(not shutil.which("sh") or subprocess.run([sys.executable, "-m", "ruff", "--version"], capture_output=True).returncode != 0,
                     reason="needs sh and ruff")
 def test_the_real_shell_finds_ruff_through_ci_and_runs_it_with_dashdash(tmp_path):
     # ruff is configured nowhere but the CI workflow: discovery must still find it; "-x.py" must stay a file, not an option
