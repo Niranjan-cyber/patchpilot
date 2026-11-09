@@ -87,7 +87,7 @@ When a revision's analysis ends, for whatever `EndReason`, take the **first** ro
 - **`end_reason = user_stopped` always adds `RUN_STOPPED`**, so a stopped run is never publishable, even if G5 had passed (row 4 → FIX_NEEDS_ATTENTION, report-only).
 - `outcome`, `end_reason` and `readiness` describe the **latest revision**. Earlier revisions are kept in `revisions[]` (§2).
 
-**Readiness** (UI badge): VERIFIED_FIX → "Ready for human review" · FIX_NEEDS_ATTENTION → "Needs attention" · TRIAGE_ONLY → "Unable to verify a fix" · STOPPED → "Stopped, report so far" · ASSESSMENT_ONLY → "Assessment only: no fix attempted" · the rest → "Unable to verify". Readiness is capped at FIX_NEEDS_ATTENTION when `supplyguard.status == INCONCLUSIVE`, the baseline is partial, or the Reviewer lowers it.
+**Readiness** (UI badge): VERIFIED_FIX → "Ready for human review" · FIX_NEEDS_ATTENTION → "Needs attention" · TRIAGE_ONLY → "Unable to verify a fix" · STOPPED → "Stopped, report so far" · ASSESSMENT_ONLY → "Assessment only: no fix attempted" · the rest → "Unable to verify". Readiness is capped at FIX_NEEDS_ATTENTION when `supplyguard.status == INCONCLUSIVE`, the baseline is partial, the run went ahead after `unclear_type`, `needs_info` or `model_unavailable` (the #41 follow-up; gitingest-115: our test was the only definition of "right"), or the Reviewer lowers it.
 
 ## 1.3 Run status transitions
 
