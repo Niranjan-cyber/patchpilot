@@ -6,7 +6,16 @@ import { DiffView } from "./DiffView";
 import { RunHeader } from "./RunNav";
 
 type Ctx = { revision: number; diff: string; diff_hash: string; evidence_hash: string; files: string[];
-  publish_blockers: string[]; approved: boolean; pr_title: string; pr_summary: string; revise_blocked?: string | null };
+  publish_blockers: string[]; approved: boolean; pr_title: string; pr_summary: string; revise_blocked?: string | null;
+  help?: { cause: string | null; tests: string[]; expected_failure: string | null } };
+
+// contracts v0.5 §2.3: required, 20+ characters each; never judged, never in the pull request
+const QUESTIONS = [
+  ["what_was_broken", "What was broken?", "e.g. Dividing by zero returned None instead of raising an error."],
+  ["why_this_fix", "Why does this change fix it?", "e.g. It now checks for zero first and raises ZeroDivisionError, as the docs say."],
+  ["what_the_test_proves", "What does the new test prove?", "e.g. It fails on the old code and passes with the fix, so the bug can't come back unnoticed."],
+] as const;
+const MIN = 20;
 
 const BOXES = [
   ["read_diff", "I read every change below"],
@@ -30,7 +39,7 @@ export default function Review() {
   const [boxes, setBoxes] = useState<Record<string, boolean>>({});
   const [title, setTitle] = useState("");
   const [summary, setSummary] = useState("");
-  const [explain, setExplain] = useState("");
+  const [answers, setAnswers] = useState<Record<string, string>>({});
   const [feedback, setFeedback] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
 
@@ -51,9 +60,11 @@ export default function Review() {
 
   const hard = ctx.publish_blockers.filter((b) => !["not_approved", "not_signed_in", "issue_changed", "no_maintainer_consent"].includes(b));
   const allTicked = BOXES.every(([k]) => boxes[k]);
+  const answered = QUESTIONS.every(([k]) => (answers[k] ?? "").trim().length >= MIN);
   const approve = async () => {
     const r = await post(`/api/runs/${id}/approve`, { revision: ctx.revision, diff_hash: ctx.diff_hash, evidence_hash: ctx.evidence_hash,
-      checklist: boxes, explanation: explain || null, pr_title: title, pr_summary: summary }, "Checking nothing changed upstream…");
+      checklist: boxes, explanation: null,
+      ownership: Object.fromEntries(QUESTIONS.map(([k]) => [k, (answers[k] ?? "").trim()])), pr_title: title, pr_summary: summary }, "Checking nothing changed upstream…");
     if (r) nav(`/connect?run=${id}`);
     else load();
   };
@@ -84,9 +95,28 @@ export default function Review() {
             <label key={k} className="tick"><input type="checkbox" checked={!!boxes[k]} onChange={(e) => setBoxes({ ...boxes, [k]: e.target.checked })} /> {label}</label>
           ))}
         </fieldset>
-        <label>In your own words, what does this change do? (optional)<textarea rows={2} value={explain} onChange={(e) => setExplain(e.target.value)} maxLength={2000} /></label>
+        <fieldset>
+          <legend>In your own words (required)</legend>
+          <p className="hint">Maintainers may ask you about this change, so make sure you can explain it. A rough answer is fine. These stay in your report, not in the pull request.</p>
+          {QUESTIONS.map(([k, q, eg]) => (
+            <label key={k}>{q}
+              <textarea rows={2} value={answers[k] ?? ""} placeholder={eg} maxLength={1000}
+                onChange={(e) => setAnswers({ ...answers, [k]: e.target.value })} />
+              {(answers[k] ?? "").trim().length < MIN && <span className="hint">At least {MIN} characters ({(answers[k] ?? "").trim().length} so far).</span>}
+            </label>
+          ))}
+          {ctx.help && (ctx.help.cause || ctx.help.tests.length > 0) && (
+            <details>
+              <summary>Not sure? What PatchPilot found</summary>
+              {ctx.help.cause && <p><strong>Likely cause:</strong> {ctx.help.cause}</p>}
+              {ctx.help.tests.length > 0 && <p><strong>New test:</strong> {ctx.help.tests.map((t) => <code key={t}>{t}</code>)}
+                {ctx.help.expected_failure && <> fails on the original code with: {ctx.help.expected_failure}</>}</p>}
+              <p className="hint">Read the change with this in mind, then answer in your own words.</p>
+            </details>
+          )}
+        </fieldset>
         <div className="row">
-          <button onClick={approve} disabled={!allTicked || !!busy || hard.length > 0}>{busy ?? "Approve this change"}</button>
+          <button onClick={approve} disabled={!allTicked || !answered || !!busy || hard.length > 0}>{busy ?? "Approve this change"}</button>
           <button className="secondary-btn" onClick={() => post(`/api/runs/${id}/keep-report`).then(() => nav(`/runs/${id}`))}>Keep the report only</button>
         </div>
         {err && <p className="notice warn">{err.message}</p>}

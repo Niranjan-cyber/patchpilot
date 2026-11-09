@@ -62,6 +62,10 @@ def render(v: RunView, narrative: str | None = None) -> str:
     if narrative:
         L += ["## Explanation", narrative, ""]
     blockers = [b.value for b in v.publish_blockers]
+    o = v.approval.ownership if v.approval else None   # contracts v0.5 §2.3; never in the PR body
+    if o:
+        L += ["## The contributor's explanation (own words)", f"- What was broken: {o.what_was_broken}",
+              f"- Why this fix: {o.why_this_fix}", f"- What the new test proves: {o.what_the_test_proves}", ""]
     k = v.consent
     L += ["## Maintainer consent", "- Not recorded: no maintainer has agreed yet, so publishing is blocked." if k is None else
           f"- Override by the user (no maintainer consent): {k.override_reason}" if k.kind == "user_override" else
