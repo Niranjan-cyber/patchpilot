@@ -250,7 +250,9 @@ Reply with ONE JSON object and nothing else:
  "problem_summary": one sentence or null,
  "expected_behavior": what the reporter says should happen, or null,
  "actual_behavior": what the reporter says happens instead, or null,
- "acceptance_conditions": [short checkable statements a fix must satisfy, only ones the issue states],
+ "acceptance_conditions": [short checkable statements a fix must satisfy, only ones the issue states. State the behaviour
+   the title and text ask for, not only the reporter's example: for a title "URL field isn't case insensitive" with the
+   example "Https://...", write "the URL is handled case-insensitively" and add the example as its own condition],
  "reproduction_information": the code/steps that trigger it, quoted briefly, or null}
 Rules: a bug or regression reports existing behaviour that is wrong; a request for new behaviour is a feature or enhancement.
 Use "unknown" when the issue doesn't make it clear. Never invent details the issue doesn't contain; use null instead.""" % (list(TYPES),)
@@ -297,7 +299,8 @@ def extract(*, url: str, updated_at: str | None, title: str, body: str, labels: 
     from backend import db
     from backend.config import limits
     from backend import llm_gateway
-    key = f"{url}@{updated_at}"
+    import hashlib   # the prompt's hash is in the key, so a prompt fix isn't answered from the old prompt's cache
+    key = f"{url}@{updated_at}#{hashlib.sha256(EXTRACT_PROMPT.encode()).hexdigest()[:8]}"
     c = db.connect(); c.execute(_CACHE)
     if updated_at and (hit := c.execute("SELECT json FROM assess_cache WHERE key=?", (key,)).fetchone()):
         return json.loads(hit[0])
