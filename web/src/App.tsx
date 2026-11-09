@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { Link, NavLink, Route, Routes, useNavigate, useParams } from "react-router-dom";
+import { Link, NavLink, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import { api, SHOWCASE, useRun } from "./api";
-import { AssessmentCard, LiveStatus, Loading, ProofPanel, ReadinessBadge, SampleBadge, Stepper, VerdictNote } from "./components";
+import { AssessmentCard, Icon, LiveStatus, Loading, Mark, ProofPanel, RunDetails, SampleBadge, Stepper, VerdictNote } from "./components";
 import IssueCheck from "./IssueCheck";
 import Review from "./Review";
 import { Connect, PrOpened } from "./Publish";
@@ -11,35 +11,60 @@ import { AttemptHistory, DiagnosisCard } from "./Diagnosis";
 import AskPanel from "./Ask";
 import { GuidedPauseNotice, PauseToggles } from "./Pauses";
 import ExtraChecks from "./ExtraChecks";
+import { RunHeader } from "./RunNav";
 import Explore from "./Explore";
+
+const NAV = [
+  { to: "/", label: "New run", icon: "plus", end: true },
+  { to: "/my-runs", label: "My runs", icon: "list" },
+  { to: "/explore", label: "Explore a repo", icon: "search" },
+  { to: "/eval", label: "Accuracy", icon: "gauge" },
+] as const;
 
 function Shell({ children }: { children: React.ReactNode }) {
   const [me, setMe] = useState<{ signed_in: boolean; login: string | null } | null>(null);
+  const [open, setOpen] = useState(false);
+  const loc = useLocation();
   useEffect(() => { api<{ signed_in: boolean; login: string | null }>("/api/me").then(setMe).catch(() => setMe(null)); }, []);
+  useEffect(() => setOpen(false), [loc.pathname]);
+  useEffect(() => {   // Escape closes the phone menu
+    const k = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    window.addEventListener("keydown", k); return () => window.removeEventListener("keydown", k);
+  }, []);
   return (
-    <>
-      <div className="demo-banner">{SHOWCASE ? "Showcase: real recorded runs, read-only. New runs need the live app on our demo machine." : "Running on a demo machine. Runs may stop if it goes offline."}</div>
-      <header className="top">
-        <Link to="/" className="brand">PatchPilot</Link>
-        <nav>
-          <NavLink to="/">New run</NavLink>
-          <NavLink to="/explore">Explore a repo</NavLink>
-          <NavLink to="/my-runs">My runs</NavLink>
-          <NavLink to="/eval">Accuracy</NavLink>
-          {me?.signed_in ? <span className="hint">Signed in as {me.login}</span> : <NavLink to="/connect">Sign in with GitHub</NavLink>}
-        </nav>
-      </header>
-      <main>{children}</main>
-    </>
+    <div className={`app${open ? " nav-open" : ""}`}>
+      <div className="mobile-bar">
+        <Link to="/" className="brand"><Mark size={20} />PatchPilot</Link>
+        <button className="secondary" aria-expanded={open} aria-controls="sidebar" onClick={() => setOpen(!open)}>
+          <Icon name={open ? "x" : "menu"} />{open ? "Close" : "Menu"}
+        </button>
+      </div>
+      <nav className="sidebar" id="sidebar" aria-label="Main">
+        <Link to="/" className="brand"><Mark />PatchPilot</Link>
+        <ul className="navlist">
+          {NAV.map((n) => <li key={n.to}><NavLink to={n.to} end={"end" in n}><Icon name={n.icon} />{n.label}</NavLink></li>)}
+        </ul>
+        <div className="side-foot">
+          {me?.signed_in ? (
+            <div className="account"><span className="avatar" aria-hidden>{(me.login ?? "?")[0].toUpperCase()}</span>Signed in as {me.login}</div>
+          ) : (
+            <ul className="navlist"><li><NavLink to="/connect"><Icon name="github" />Sign in with GitHub</NavLink></li></ul>
+          )}
+          <p className="host-note">{SHOWCASE ? "Showcase: recorded runs, read-only." : "Runs on a demo machine and may stop if it goes offline."}</p>
+        </div>
+      </nav>
+      <div className="sheet"><main>{children}</main></div>
+    </div>
   );
 }
 
 // A real, planted bug in the team's demo repo: one click shows the whole flow on an issue PatchPilot is known to fix.
 const TRY = "https://github.com/Niranjan-cyber/tinycalc/issues/1";
 const HOW = [
-  ["Paste an issue", "Any public GitHub issue on a Python project with tests."],
-  ["Watch the proof", "We reproduce the bug in a locked-down sandbox, fix it, and run the same test before and after."],
-  ["Approve a draft pull request", "You read the exact change. Nothing is published until you say so."],
+  ["search", "Check the issue", "Is it a clear bug, in a Python project with tests, that nobody is already fixing?"],
+  ["x", "Reproduce it", "A new test must fail twice on the original code, in a sandbox with no network."],
+  ["check", "Fix and prove it", "The same test must pass twice after the fix, and existing tests must still pass, in a fresh sandbox."],
+  ["file", "You review and decide", "Read the exact change. Nothing reaches GitHub until you approve it."],
 ] as const;
 
 function Start() {
@@ -52,42 +77,37 @@ function Start() {
   return (
     <section className="start">
       <div className="hero">
-        <h1>Turn a GitHub issue into a tested fix.</h1>
-        <p className="lede">We reproduce the bug in a sandbox, test a fix, and show you the proof. You decide whether to open a pull request.</p>
+        <h1>New run</h1>
+        <p className="lede">Paste a GitHub issue. PatchPilot reproduces the bug, tests a fix, and shows you the proof before anything is published.</p>
         <form onSubmit={(e) => { e.preventDefault(); check(url); }} className="paste">
           <label htmlFor="issue">GitHub issue link</label>
           <div className="paste-row">
-            <input id="issue" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://github.com/owner/repo/issues/123" required />
+            <input id="issue" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://github.com/owner/repo/issues/123" required aria-describedby="issue-hint" />
             <button type="submit">Check issue</button>
           </div>
-          <p className="hint">Works today on public Python projects with tests. Other projects get a report, not a fix.</p>
-          <p className="try">New here? <button type="button" className="linkbtn" onClick={() => check(TRY)}>Try it on a real bug</button>
-            <span className="hint"> tinycalc #1: divide(x, 0) returns 0 instead of raising</span></p>
+          <p className="hint" id="issue-hint">Public Python projects with pytest tests. Other projects get an assessment, not a fix.</p>
+          <p className="try">No issue in mind? <button type="button" className="linkbtn" onClick={() => check(TRY)}>Try tinycalc #1</button>: divide(x, 0) returns 0 instead of raising.</p>
         </form>
-        <ol className="how" aria-label="How a run works">
-          {HOW.map(([t, d]) => <li key={t}><strong>{t}</strong><span>{d}</span></li>)}
-        </ol>
       </div>
-      <section className="preview" aria-label="What a finished run shows you">
-        <div>
-          <h2>Every fix comes with proof</h2>
-          <p className="hint">The same new test, run twice on the original code and twice on the fix, each time in a fresh sandbox. From a real run on tinycalc #1.</p>
-        </div>
-        <div className="mini-proof" aria-hidden>
-          <span className="run run-failed">Run 1: Failed</span><span className="run run-failed">Run 2: Failed</span>
-          <span className="mini-arrow">➜</span>
-          <span className="run run-passed">Run 1: Passed</span><span className="run run-passed">Run 2: Passed</span>
-        </div>
-      </section>
-      {!!mine.items?.length && (
-        <div className="samples"><h2>Your recent runs</h2><RunList items={mine.items.slice(0, 5)} /></div>
-      )}
+      <div className="start-grid">
+        <section aria-labelledby="recent">
+          <div className="section-head"><h2 id="recent">Your recent runs</h2>{!!mine.items?.length && <Link to="/my-runs">View all</Link>}</div>
+          {mine.items?.length ? <RunList items={mine.items.slice(0, 5)} />
+            : <p className="verdict-note">No runs yet in this browser. Runs you start appear here, and they keep going if you close the page.</p>}
+        </section>
+        <section aria-labelledby="how">
+          <h2 id="how">What a run does</h2>
+          <ol className="how">
+            {HOW.map(([, t, d]) => <li key={t}><strong>{t}</strong><span>{d}</span></li>)}
+          </ol>
+        </section>
+      </div>
       {fixtures.length > 0 && (
-        <div className="samples">
-          <h2>Sample runs <SampleBadge /></h2>
+        <section className="samples" aria-labelledby="samples">
+          <h2 id="samples" className="with-badge">Sample runs <SampleBadge /></h2>
           <p className="hint">Recorded examples of every way a run can end, including the ones that don't produce a fix.</p>
           <ul className="sample-grid">{fixtures.map((f) => <li key={f}><Link to={`/runs/${f}`}>{f[0].toUpperCase() + f.slice(1).replaceAll("_", " ")}</Link></li>)}</ul>
-        </div>
+        </section>
       )}
     </section>
   );
@@ -100,49 +120,42 @@ function Run() {
   if (!run) return <Loading label="Loading the run…" />;
   const done = !!run.outcome;
   const real = /^[0-9a-f-]{36}$/.test(id);
-  const next = run.status === "awaiting_approval" || !!run.pr;
   const assessed = run.outcome === "ASSESSMENT_ONLY";   // nothing ran: the assessment is the whole report
   return (
     <section className="run-page">
-      <div className="chapter verdict">
-        <div className="run-head">
-          <div>
-            <p className="issue-ref"><a href={run.issue.html_url}>{run.issue.repo} #{run.issue.number}</a> {!real && <SampleBadge />}</p>
-            <h1>{run.issue.title}</h1>
-          </div>
-          <ReadinessBadge run={run} />
-        </div>
-        {done ? <><ProofPanel run={run} /><VerdictNote run={run} /></> : <LiveStatus run={run} />}
-        {assessed && <AssessmentCard a={run.assessment} />}
-      </div>
-      <GuidedPauseNotice run={run} />
-      {run.status === "paused" && run.pause?.reason !== "guided_pause" && (
-        <p className="notice warn">
-          {run.pause?.resume_at ? `Paused: free AI capacity resumes around ${new Date(run.pause.resume_at).toLocaleTimeString()}.`
-            : "Paused until free AI capacity is available. We'll stop and keep your report if that takes over 2 hours."}
-        </p>
-      )}
-      {run.supplyguard?.status === "inconclusive" && (
-        <p className="notice warn">We couldn't fully check this project's dependencies, so publishing is turned off.</p>
-      )}
-      {done && <ExtraChecks run={run} />}
+      <RunHeader run={run} id={id} />
       <div className="run-grid">
-        {assessed ? <div /> : <Stepper run={run} />}
-        <aside className="side">
-          {next && (
-            <div className="card next-card">
-              <h2>Your next step</h2>
-              {run.status === "awaiting_approval" && !run.approval && <p>Read the exact change and decide. Nothing is published until you approve.</p>}
-              {run.status === "awaiting_approval" && <Link className="button" to={`/runs/${id}/review`}>Review and approve</Link>}
-              {run.status === "awaiting_approval" && run.approval && <Link className="button" to={`/connect?run=${id}`}>Publish draft pull request</Link>}
-              {run.pr && <Link className="button" to={`/runs/${id}/pr`}>See the pull request</Link>}
-            </div>
+        <div className="run-main">
+          <GuidedPauseNotice run={run} />
+          {run.status === "paused" && run.pause?.reason !== "guided_pause" && (
+            <p className="notice warn">
+              {run.pause?.resume_at ? `Paused: free AI capacity resumes around ${new Date(run.pause.resume_at).toLocaleTimeString()}.`
+                : "Paused until free AI capacity is available. We'll stop and keep your report if that takes over 2 hours."}
+            </p>
           )}
+          {run.supplyguard?.status === "inconclusive" && (
+            <p className="notice warn">We couldn't fully check this project's dependencies, so publishing is turned off.</p>
+          )}
+          <section className="chapter verdict" aria-labelledby="proof-h">
+            <div className="section-head"><h2 id="proof-h">{done ? "Proof" : "Progress"}</h2></div>
+            {done ? <div className="stack"><ProofPanel run={run} /><VerdictNote run={run} /></div> : <LiveStatus run={run} />}
+          </section>
+          {assessed && <AssessmentCard a={run.assessment} />}
+          {!assessed && (
+            <section aria-labelledby="steps-h">
+              <div className="section-head"><h2 id="steps-h">Steps</h2><span className="hint">Each status is recorded by code, not by the AI</span></div>
+              <Stepper run={run} />
+            </section>
+          )}
+          {done && <ExtraChecks run={run} />}
+        </div>
+        <aside className="side" aria-label="About this run">
           <DiagnosisCard run={run} />
+          <RunDetails run={run} />
           <AttemptHistory events={events} />
           <AskPanel run={run} />
           <PauseToggles run={run} />
-          {done && <a className="button secondary" href={`/api/runs/${id}/report.md`}>Download report</a>}
+          {done && <a className="button secondary" href={`/api/runs/${id}/report.md`}><Icon name="file" />Download report</a>}
           {!done && <p className="hint">Runs usually take 4–15 minutes. You can leave this page; the run keeps going.</p>}
           {!done && real && (
             <button className="danger-btn" onClick={() => api(`/api/runs/${id}/stop`, { method: "POST" }).catch(() => null)}>

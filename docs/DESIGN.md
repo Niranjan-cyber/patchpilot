@@ -1,45 +1,55 @@
-# PatchPilot visual design system
+# PatchPilot design system
 
-Dark, technical, warm. High-contrast typography with a restrained orange signal. The same system as the pitch deck.
-**Core rule:** near-black surfaces, warm off-white text, orange for actions and proof states.
+Redesigned on 2026-11-09 (human request), using the Taste (app-screens) and Impeccable (Operate mode) skills in `.claude/skills/`.
+It replaces the warm-dark deck look of 2026-10-30, which is in git history. It is implemented in `web/src/index.css` (tokens at the top) and `web/src/components.tsx`.
 
-The human chose this system on 2026-10-30. It replaces the earlier black / white / green analysis (see git history).
-It is implemented in `web/src/index.css`.
+**The rule: evidence over decoration.** Colour goes on data and status, never on chrome. PatchPilot is a work tool: people check issues, read proof and diffs, and decide. It isn't a landing page.
 
-## Colour tokens
-| Token | Hex | Use |
+## Direction
+- **Style:** Taste `framed-sheet`. A labelled sidebar sits on a light neutral frame (`--ground`), and the page is a white sheet inset 8px with a 1px edge and no shadow.
+- **Theme:** light only. The work is reading code, evidence and diffs, and the PR lands on GitHub, which is light by default. One theme done well beats two half done.
+- **Face:**
+  - the deck's orange appears only on the product mark, the *running* state and the focus ring;
+  - primary actions are near-black;
+  - the signature element is the **proof ledger**: the same regression test, 2 runs on the original code and 2 after the fix in a fresh sandbox, plus the existing-test count.
+
+## Tokens
+| Role | Token | Value |
 |---|---|---|
-| Canvas / primary | `#0F0B08` | page background |
-| Surface / raised | `#19110D` | cards, panels, chapters |
-| Surface / elevated | `#21140F` | inputs, nested surfaces, hover |
-| Border | `#2E221B` / `#3A2C23` | 1px warm borders (normal / strong) |
-| Brand orange | `#E8652B` | primary buttons, active nav, passed steps, progress |
-| Orange highlight | `#F08A57` | links, labels, focus ring, hover |
-| Text / primary | `#F2EDE8` | headings and body |
-| Text / secondary | `#C9BDB3` | supporting copy |
-| Text / muted | `#A89C92` | hints, metadata |
-| Light panel | `#FBFAF8` / `#1B1410` | architecture and docs only, sparingly |
+| Frame / sheet / well / active | `--ground` `--surface` `--raised` `--active` | #f4f4f2 · #fff · #f7f7f5 · #e9e9e6 |
+| Edges: card / row rule / control | `--border` `--rule` `--control` | #e4e4e0 · #eeeeeb · #cfcfca |
+| Text: primary / secondary / meta (all ≥ 4.5:1) | `--text` `--muted` `--faint` | #161616 · #57574f · #66665e |
+| Primary action | `--primary` | #18181a, white label |
+| Accent: mark, running, focus | `--accent` `--accent-ink` `--accent-bg` | #e8652b · #a8401a · #fdf1ea |
+| Pass / fail / warn / info pairs | `--pos*` `--neg*` `--warn*` `--info*` | pale fill, darker text of the same hue, 1px line |
 
-**Semantic colours:** red and green appear only as product pass/fail, as in the proof strip, diffs and check chips.
-They are never brand colour: fail `#D63A2C` (text `#F2877C`), pass `#2F8A46` (text `#7FC98A`), warning `#E9B65A`.
-
-## Gradient and texture
-- **Hero glow:** burnt orange over `#0F0B08`, on the home hero only.
-- **App screens:** mostly solid. No heavy shadows, glass effects or decorative gradients.
-
-## Typography
-- **Inter** 400/700 is the primary UI family. The scale is 52 (hero) / 36 / 22 / 16 / 15 / 14.
-- **JetBrains Mono** 400/500 is for technical labels: section labels, metadata, IDs, logs, step status and page numbers. These labels are uppercase and tracked, in orange highlight.
-
-## Shape and spacing
-- **Spacing:** 8px base (0.5 / 1 / 1.5 / 2 / 3 / 4 rem).
-- **Radius:** 8px for controls, 12px for cards, 16px for chapters, and pills for badges and chips.
-- **Borders:** 1px warm.
-- **Focus:** a visible 2px orange-highlight ring.
-- **Motion:** respects `prefers-reduced-motion`.
+- **Type:**
+  - IBM Plex Sans 400/500/600 at 12 / 14 / 16 / 20 / 24. Titles are 24/600, body is 14/20, tabular figures everywhere.
+  - IBM Plex Mono only for code, paths, IDs and diffs.
+  - No uppercase tracked labels, no eyebrows, no index numbers.
+- **Shape:** radius 4 for chips, 6 for controls, 8 for cards, 12 for the sheet. 1px edges and no shadows at rest. Spacing is on a 4px base: gap 16, card padding 20, page padding 32 (16 on a phone). Controls are 34px tall, form inputs 38px.
+- **Layout:**
+  - The sidebar is 232px wide.
+  - Content is capped at 1180px.
+  - The run workspace is `1fr 320px` (main + rail).
+  - Below 1080px it becomes one column. Below 900px the sidebar folds into a 52px top bar with a menu sheet (Close stays visible; Escape closes it).
 
 ## Components
-- **Primary button:** orange fill, dark text `#1B1410`. **Secondary:** transparent with a strong border, which turns orange on hover.
-- **Chapter:** a raised surface with a 16px radius that holds what the screen is about: the run verdict and proof strip, the review header, or the PR success.
-- **Proof strip:** the one bold element. The same test, red twice on the original code and green twice after the fix.
-- **Timeline:** numbered mono markers (orange when passed, red when failed, a pulsing ring while running), joined by a line that turns orange as steps pass.
+- **Status:** an icon plus a word in a pale pill, never colour alone.
+  - Passed ✓, Failed ✕, Inconclusive !, Not run –, Running (a spinning ring; reduced motion stops it). Paused uses the warning pair, never the running orange.
+  - Icons are drawn SVG (`Icon` in `components.tsx`, 16px, 1.5px stroke), never Unicode glyphs.
+- **Run header (`RunNav.tsx`):** breadcrumb (My runs › repo #n), the issue title as h1, the readiness badge, and the one next action, which is hidden when it points at the current screen.
+- **Run tabs, in workflow order:** Overview · Change and approval · Publish (or Pull request). A stage that isn't reachable yet is shown greyed and isn't a link.
+- **Steps:** one ruled list with one status pill per row and no numbers. "Not run" stays visible and is never hidden or shown as passed.
+- **Diff viewer (`DiffView.tsx`):**
+  - a file list, and one collapsible section per file with +/− counts and New file / Deleted marks;
+  - real old and new line numbers from the hunk headers, the sign in its own column, horizontal scroll inside each file, and the page never scrolls sideways.
+  - No syntax highlighting yet (it would need a dependency).
+- **States:**
+  - Loading keeps the layout with flat grey bars (no shimmer).
+  - Empty keeps the title and the frame, plus one sentence.
+  - Errors appear inside the block that failed. Red frames are for real failures only; "eval not run" is an empty state.
+- **Motion:** feedback only (hover, press, the running ring), with `prefers-reduced-motion` respected.
+
+## Banned here
+Gradients, glows, glass, decorative blobs, emoji or glyph icons, icon-in-a-tinted-square cards, rows of identical cards for list data, uppercase tracked labels, accent on chrome (the nav, every button), fake metrics or activity, sample data without the "Sample data" label.

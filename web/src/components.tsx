@@ -13,9 +13,48 @@ const WORD: Record<string, string> = {
   blocked: "Blocked", running: "Running",
 };
 
+// One drawn icon set (16px, 1.5px stroke). Status is always icon + word, never colour alone.
+const PATHS: Record<string, string> = {
+  check: "M3.5 8.5l3 3 6-7", x: "M4.5 4.5l7 7m0-7l-7 7", alert: "M8 4.5v4m0 2.5v.5", dash: "M4.5 8h7",
+  plus: "M8 3.5v9m-4.5-4.5h9", list: "M5.5 4.5h7m-7 3.5h7m-7 3.5h7M3 4.5h.01M3 8h.01M3 11.5h.01",
+  search: "M7 11.5a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9zm3.2-1.3L13 13", gauge: "M2.5 11a5.5 5.5 0 0 1 11 0M8 11l2.5-3",
+  arrow: "M3.5 8h9m-3.5-3.5L12.5 8 9 11.5", chev: "M6 4l4 4-4 4", menu: "M3 5h10M3 8h10M3 11h10",
+  github: "M8 1.8a6.2 6.2 0 0 0-2 12.1c.3 0 .4-.1.4-.3v-1.1c-1.7.4-2.1-.8-2.1-.8-.3-.7-.7-.9-.7-.9-.6-.4 0-.4 0-.4.6 0 .9.7.9.7.6 1 1.5.7 1.9.5 0-.4.2-.7.4-.9-1.4-.2-2.8-.7-2.8-3.1 0-.7.2-1.2.6-1.7-.1-.2-.3-.8.1-1.6 0 0 .5-.2 1.7.6a5.8 5.8 0 0 1 3.1 0c1.2-.8 1.7-.6 1.7-.6.3.8.1 1.4.1 1.6.4.4.6 1 .6 1.7 0 2.4-1.5 2.9-2.8 3.1.2.2.4.6.4 1.1v1.7c0 .2.1.4.4.3A6.2 6.2 0 0 0 8 1.8z",
+  file: "M4 2.5h5l3 3v8H4zM9 2.5v3h3", pause: "M6 4v8m4-8v8", clock: "M8 13.5a5.5 5.5 0 1 0 0-11 5.5 5.5 0 0 0 0 11zM8 5v3l2 1.5",
+};
+export function Icon({ name, size = 16 }: { name: keyof typeof PATHS | string; size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d={PATHS[name]} />
+    </svg>
+  );
+}
+const STATUS_ICON: Record<string, string> = { passed: "check", failed: "x", blocked: "x", inconclusive: "alert", not_run: "dash" };
+/** Running is a spinning ring: the only motion that reports work, stopped by reduced-motion. */
+export function StatusIcon({ s, size = 14 }: { s: string; size?: number }) {
+  if (s === "running") return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" aria-hidden>
+      <circle cx="8" cy="8" r="5.5" stroke="currentColor" strokeOpacity=".25" strokeWidth="1.5" />
+      <path className="spin" d="M8 2.5a5.5 5.5 0 0 1 5.5 5.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+  return <Icon name={STATUS_ICON[s] ?? "dash"} size={size} />;
+}
+
 export function Status({ s }: { s?: CheckStatus | "running" | null }) {
   const k = s ?? "not_run";
-  return <span className={`status status-${k}`}>{WORD[k]}</span>;
+  return <span className={`status status-${k}`}><StatusIcon s={k} size={12} />{WORD[k]}</span>;
+}
+
+/** The product mark: a patch square in the one hue. */
+export function Mark({ size = 22 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 22 22" aria-hidden>
+      <rect width="22" height="22" rx="5" fill="var(--accent)" />
+      <path d="M7 15.5V6.5h4.2a2.8 2.8 0 0 1 0 5.6H7" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M13.5 15.5h2" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
 }
 
 export function SampleBadge() {
@@ -59,8 +98,8 @@ export function LiveStatus({ run }: { run: RunView }) {
   const label = run.status === "queued" ? "Waiting for a free sandbox" : now ? `Now: ${now.label}` : "Finishing up";
   return (
     <div className="live">
-      <p className="live-now">{label}</p>
-      <div className="meter" role="progressbar" aria-label="Steps finished" aria-valuemin={0} aria-valuemax={STEPS.length} aria-valuenow={done}>
+      <p className="live-now"><StatusIcon s={run.status === "paused" ? "inconclusive" : "running"} size={16} />{run.status === "paused" ? "Paused" : label}</p>
+      <div className={`meter${run.status === "paused" ? " meter-paused" : ""}`} role="progressbar" aria-label="Steps finished" aria-valuemin={0} aria-valuemax={STEPS.length} aria-valuenow={done}>
         <span style={{ width: `${(done / STEPS.length) * 100}%` }} />
       </div>
       <p className="live-count">{done} of {STEPS.length} steps finished. You can leave this page; the run keeps going.</p>
@@ -87,8 +126,28 @@ const BADGE: Record<string, string> = {
 };
 
 export function ReadinessBadge({ run }: { run: RunView }) {
-  if (!run.outcome) return <div className="badge badge-muted">Still working</div>;
-  return <div className={`badge badge-${BADGE[run.outcome] ?? "bad"}`}>{run.readiness}</div>;
+  if (!run.outcome) return <div className={`badge ${run.status === "paused" ? "status-inconclusive" : "status-running"}`} role="status"><StatusIcon s={run.status === "paused" ? "inconclusive" : "running"} size={12} />{run.status === "paused" ? "Paused" : "Working"}</div>;
+  const k = BADGE[run.outcome] ?? "bad";
+  return <div className={`badge badge-${k}`}><StatusIcon s={k === "good" ? "passed" : k === "warn" ? "inconclusive" : k === "muted" ? "not_run" : "failed"} size={12} />{run.readiness}</div>;
+}
+
+/** Real metadata only: what the run is pinned to. */
+export function RunDetails({ run }: { run: RunView }) {
+  const t = (s?: string) => (s ? new Date(s).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) : "—");
+  return (
+    <div className="card">
+      <h2>Details</h2>
+      <dl className="kv">
+        <dt>Repository</dt><dd><a href={`https://github.com/${run.issue.repo}`}>{run.issue.repo}</a></dd>
+        <dt>Issue</dt><dd><a href={run.issue.html_url}>#{run.issue.number}</a></dd>
+        <dt>Base commit</dt><dd><code title={run.base_sha}>{run.base_sha?.slice(0, 10) || "—"}</code></dd>
+        <dt>Revision</dt><dd>{run.revision ?? 0}</dd>
+        <dt>Started</dt><dd>{t(run.created_at)}</dd>
+        <dt>Updated</dt><dd>{t(run.updated_at)}</dd>
+        <dt>Run</dt><dd><code title={run.run_id}>{run.run_id.slice(0, 8)}</code></dd>
+      </dl>
+    </div>
+  );
 }
 
 /** The winning feature: same test, red on the original code, green after the fix, in a fresh sandbox. */
@@ -101,17 +160,17 @@ export function ProofPanel({ run }: { run: RunView }) {
     <section className="proof" aria-label="Proof that the fix works">
       <div className="proof-col">
         <h3>On the original code</h3>
-        <div className="proof-runs">{before.map((s, i) => <span key={i} className={`run run-${s}`}>Run {i + 1}: {WORD[s]}</span>)}</div>
+        <div className="proof-runs">{before.map((s, i) => <span key={i} className={`run run-${s}`}><StatusIcon s={s} />Run {i + 1}: {WORD[s]}</span>)}</div>
       </div>
-      <div className="proof-arrow" aria-hidden>➜</div>
+      <div className="proof-arrow" aria-hidden />
       <div className="proof-col">
         <h3>After the fix, in a fresh sandbox</h3>
         <div className="proof-runs">
-          {after.length ? after.map((s, i) => <span key={i} className={`run run-${s}`}>Run {i + 1}: {WORD[s]}</span>)
-            : <span className="run run-not_run">Not verified</span>}
+          {after.length ? after.map((s, i) => <span key={i} className={`run run-${s}`}><StatusIcon s={s} />Run {i + 1}: {WORD[s]}</span>)
+            : <span className="run run-not_run"><StatusIcon s="not_run" />Not verified</span>}
         </div>
       </div>
-      <p className="proof-test"><code>{run.repro?.test_ids.join(", ")}</code></p>
+      <p className="proof-test"><span>Regression test</span><code>{run.repro?.test_ids.join(", ")}</code></p>
       {base && (
         <p className="proof-base">
           {base.pass_set?.length ?? 0} existing tests passed before{run.verify ? ` and still pass` : ""}.

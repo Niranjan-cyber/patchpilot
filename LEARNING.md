@@ -182,3 +182,14 @@ Every session appends here after every event: a step started or finished, a deci
   - #68 enforced "ask once" only in the UI.
   LESSON: when a new check reads one more source, its failure path must make the check inconclusive. A UI-only limit isn't a limit.
 - [2026-11-09 05:12 UTC] A EVENT: the human's maintainer-trust plan was handed to C as issue #70 (`docs/handoff/trust-plan.md`: decisions, a map of what exists, an order). A reviews and merges.
+- [2026-11-09 05:42 UTC] A EVENT: frontend redesign on branch a-redesign, at the human's request.
+  - Method: Taste (app-screens) and Impeccable (Operate, craft floor), installed to `.claude/skills/` as docs only. Their scripts and launcher binary weren't run; Playwright screenshots stood in for Taste's inspector.
+  - New look: a light framed sheet with a labelled sidebar, IBM Plex, colour only on data and status, and the proof ledger as the signature element.
+  - New UI: run tabs in workflow order, a real diff viewer (per-file, line numbers), and a Details card with base commit and times.
+  - New `docs/DESIGN.md`.
+  - Checks: e2e 25 pass, 3 skip, 2 fail on stale data (pallets/click #3900 merged on 10-30; tinycalc Explore is "empty" because all its issues have our PRs). Every screen at 390px has no horizontal overflow and one h1.
+- [2026-11-09 05:42 UTC] A LESSON (redesign QA):
+  - The first phone menu covered its own Close button.
+  - A paused run used the "running" orange, so the UI said "working" when nothing was.
+  - "Eval not run" used the red failure frame.
+  None of these show in code review; they only showed in screenshots. Look at every state in the browser, not only the happy path.

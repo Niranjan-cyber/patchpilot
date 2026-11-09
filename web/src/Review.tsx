@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { api, ApiError } from "./api";
+import { api, ApiError, useRun } from "./api";
 import { Loading } from "./components";
+import { DiffView } from "./DiffView";
+import { RunHeader } from "./RunNav";
 
 type Ctx = { revision: number; diff: string; diff_hash: string; evidence_hash: string; files: string[];
   publish_blockers: string[]; approved: boolean; pr_title: string; pr_summary: string; revise_blocked?: string | null };
@@ -19,20 +21,10 @@ const BLOCKER: Record<string, string> = {
   upstream_changed: "Files in this change were edited upstream after we tested, so we won't publish a change that was never tested against that code.",
 };
 
-function Diff({ text }: { text: string }) {
-  return (
-    <pre className="diff" aria-label="Exact change">
-      {text.split("\n").map((l, i) => (
-        <span key={i} className={l.startsWith("diff --git") ? "d-file" : l.startsWith("+") && !l.startsWith("+++") ? "d-add"
-          : l.startsWith("-") && !l.startsWith("---") ? "d-del" : l.startsWith("@@") ? "d-hunk" : ""}>{l}{"\n"}</span>
-      ))}
-    </pre>
-  );
-}
-
 export default function Review() {
   const { id = "" } = useParams();
   const nav = useNavigate();
+  const { run } = useRun(id);
   const [ctx, setCtx] = useState<Ctx | null>(null);
   const [err, setErr] = useState<ApiError | null>(null);
   const [boxes, setBoxes] = useState<Record<string, boolean>>({});
@@ -68,20 +60,21 @@ export default function Review() {
 
   return (
     <section className="review">
-      <div className="chapter">
-        <p className="issue-ref"><Link to={`/runs/${id}`}>Back to the run</Link></p>
-        <h1>Review the exact change</h1>
-        <p className="lede">This is everything that would go into the pull request: {ctx.files.length} file{ctx.files.length === 1 ? "" : "s"}. Nothing is published until you approve it and connect GitHub.</p>
+      {run ? <RunHeader run={run} id={id} /> : <p className="crumbs"><Link to={`/runs/${id}`}>Back to the run</Link></p>}
+      <div>
+        <h2>Review the exact change</h2>
+        <p className="hint">Everything that would go into the pull request: {ctx.files.length} file{ctx.files.length === 1 ? "" : "s"}, revision {ctx.revision}. Nothing is published until you approve it and connect GitHub.</p>
       </div>
-      <ol className="consequences" aria-label="What happens when you approve">
+      {ctx.publish_blockers.filter((b) => BLOCKER[b]).map((b) => <p key={b} className="notice warn">{BLOCKER[b]}</p>)}
+      {ctx.publish_blockers.includes("deps_inconclusive") && <div><button className="secondary-btn" onClick={() => post(`/api/runs/${id}/recheck-deps`, undefined, "Re-checking dependencies…").then(load)}>Re-check dependencies</button></div>}
+      <div className="review-grid">
+      <DiffView text={ctx.diff} />
+      <div className="stack">
+      <ol className="consequences card" aria-label="What happens when you approve">
         <li><strong>You approve this exact diff.</strong> If anything in it changes later, the approval is cancelled.</li>
         <li><strong>We open a draft pull request</strong> with this change, after checking nothing changed upstream.</li>
         <li><strong>Nothing merges.</strong> Maintainers read the draft and decide.</li>
       </ol>
-      {ctx.publish_blockers.filter((b) => BLOCKER[b]).map((b) => <p key={b} className="notice warn">{BLOCKER[b]}</p>)}
-      {ctx.publish_blockers.includes("deps_inconclusive") && <button className="secondary-btn" onClick={() => post(`/api/runs/${id}/recheck-deps`, undefined, "Re-checking dependencies…").then(load)}>Re-check dependencies</button>}
-      <Diff text={ctx.diff} />
-
       <div className="card form">
         <label>Pull request title<input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={120} /></label>
         <label>Summary for maintainers<textarea rows={3} value={summary} onChange={(e) => setSummary(e.target.value)} /></label>
@@ -106,6 +99,8 @@ export default function Review() {
         {ctx.revise_blocked && <p className="notice warn">{ctx.revise_blocked}</p>}
         <button className="secondary-btn" disabled={feedback.trim().length < 3 || !!busy || !!ctx.revise_blocked}
           onClick={() => post(`/api/runs/${id}/revise`, { feedback }, "Starting the revision…").then((r) => r && nav(`/runs/${id}`))}>Revise the fix</button>
+      </div>
+      </div>
       </div>
     </section>
   );

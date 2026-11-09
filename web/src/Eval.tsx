@@ -25,10 +25,14 @@ export default function Eval() {
   useEffect(() => { api<Summary>("/api/eval").then(setS).catch(setErr); }, []);
 
   if (err) return (
-    <section className="panel failed">
-      <h1>No eval results yet</h1>
-      <p>{err.message}</p>
-      <p className="hint">Results appear here after the eval script runs on the server. We show no numbers until then.</p>
+    <section>
+      <div className="page-head"><div><h1>How often is PatchPilot right?</h1></div></div>
+      {/* not run yet is an empty state, not a failure; any other error stays a failure */}
+      <div className={`panel${err.code === "EVAL_NOT_RUN" ? "" : " failed"}`}>
+        <h2>{err.code === "EVAL_NOT_RUN" ? "No eval results yet" : "Couldn't load the eval results"}</h2>
+        <p>{err.message}</p>
+        <p className="hint">Results appear here after the eval script runs on the server. We show no numbers until then.</p>
+      </div>
     </section>
   );
   if (!s) return <Loading label="Loading the eval…" />;

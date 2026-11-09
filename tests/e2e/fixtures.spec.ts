@@ -9,6 +9,7 @@ for (const id of ["verified_fix", "env_failed", "paused_quota_unknown_reset", "s
 }
 test("shell", async ({ page }) => {
   await page.goto(BASE);
-  await expect(page.getByText("Turn a GitHub issue into a tested fix.")).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "New run" })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "My runs" })).toBeVisible();
   await page.screenshot({ path: "tests/e2e/screenshots/b01-shell.png", fullPage: true });
 });

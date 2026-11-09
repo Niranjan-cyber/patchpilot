@@ -6,7 +6,7 @@ test("S-05: exact diff, approve needs all 3 boxes, typed text survives reload", 
   await context.addCookies([{ name: "pp_sid", value: PP_TOKEN, url: BASE }]);
   await page.goto(`${BASE}/runs/${PP_RUN}/review`);
   await expect(page.getByText("Review the exact change")).toBeVisible();
-  await expect(page.getByText("+    return a / b")).toBeVisible();
+  await expect(page.locator("tr.add", { hasText: "return a / b" })).toBeVisible();   // the added line, shown as added
   const approve = page.getByRole("button", { name: "Approve this change" });
   await page.getByLabel("I read every change below").check();
   await page.getByLabel("I understand what it changes and why").check();
