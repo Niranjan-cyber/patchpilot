@@ -317,6 +317,18 @@ def continue_run(run_id: str, request: Request):
         raise ApiErr(409, "NOT_PAUSED", "This run isn't waiting for you.")
     _wake(c, run_id)
     return v
+@app.get("/api/runs/{run_id}/test-quality")
+def get_test_quality(run_id: str, request: Request):
+    """#70 item 8: the regression test's quality rows, decided by code (owner-checked). No test yet -> checks None."""
+    from backend.agents.test_quality import report
+    if not _is_real(run_id):
+        _fixture(run_id)
+        return {"checks": None, "reason": "sample_run"}
+    _own(request, run_id)
+    v = db.get_run(db.connect(), run_id)
+    return {"checks": report(v), "reason": None} if v and v.repro else {"checks": None, "reason": "no_test_yet"}
+
+
 @app.get("/api/runs/{run_id}/bisect")
 def get_bisect(run_id: str, request: Request):
     """B17 / S6: the commit-search result (owner-checked). Not run yet -> status "pending", never a guessed commit."""
