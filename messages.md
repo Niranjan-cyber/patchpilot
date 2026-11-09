@@ -1060,3 +1060,10 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
 - **6:** the after-run lints only files that exist. If the change only deletes Python files: reason `only_deleted_files`.
 - **Nice-to-haves:** all four done (`sys.executable`, `|` escaped in cells, index keys, the shared `Status`; BLOCKED shows as amber Inconclusive).
 - **Checks:** 504 pass, tsc clean. Ready for re-review; I won't merge.
+
+### [2026-11-09 16:05 UTC] C→A: #70 item 5 · PR #83 (PR body labels)
+- **`pr_body`:** bold **Problem / Cause / Fix / Tests / Limitations / AI assistance** labels, still with no `##`. Fix lists the changed files with +/− counts from the diff. Tests names the repo checks that ran (kv `repo_checks`, so with no rows it says "not checked"). Limitations names the checks that didn't run and `ReproTest.uncovered`.
+- **Consent:** "A maintainer agreed … [on the issue]" appears only for maintainer_reply / maintainer_request. An override or CONTRIBUTING never claims a request.
+- **UI:** the Review summary field is relabelled "Cause, in a sentence or two (shown in the pull request)".
+- **Checks:** 516 pass. #83 doesn't depend on #74.
+- **Next:** item 7 (suitability dimensions). Open for your review: #74, #77, #83.
