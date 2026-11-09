@@ -155,7 +155,7 @@ PatchPilot publishes to the repo directly if you can push to it, and otherwise t
 | Sample runs on the home page | **Sample data**, labelled in the app |
 | [patchpilot-demo.vercel.app](https://patchpilot-demo.vercel.app) | **Recorded**: a real tinycalc run plus the sample runs, served as static files; nothing runs there |
 | SupplyGuard dependency check | Real, but it's the team's own scanner and isn't public yet. Without it the check reports **inconclusive** and publishing stays off. It never reports a false "clean". |
-| Accuracy page (eval set) | The eval set exists (`eval/`); numbers aren't published yet |
+| Accuracy page (eval set) | **First run, 2026-11-09, partial** (8 of 13 cases; [screenshot](docs/evidence/eval-2026-11-09.png)). Planted bugs: 3/3 verified. SWE-bench-Live, 5 real repos: 2 verified fixes, of which the official tests confirm 1 (sh) and reject 1 (gitingest: our fix covers the `Https://` the issue reports; the official test also expects owner/repo lowercased). The other 3 claimed no fix: a how-to question, a feature request, and one blocked by our own over-strict reproduction test. Median 5.1 min per case. |
 | gVisor sandbox runtime, hosted deployment | **Planned**: the deploy kit (`infra/vm-setup.sh`) is ready, and the prototype runs on a laptop |
 
 ## Safety
