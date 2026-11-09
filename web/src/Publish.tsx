@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { api, ApiError, useRun } from "./api";
-import { Loading } from "./components";
+import { Loading, StatusIcon } from "./components";
 
 type Me = { signed_in: boolean; login: string | null; oauth_ready: boolean };
 const ERR: Record<string, string> = {
@@ -78,6 +78,17 @@ const KIND: Record<string, string> = {
   contributing_invites: "The project's contributing guide invites fixes like this", user_override: "You chose to publish without a maintainer's yes",
 };
 
+// status pill per DESIGN.md (icon + word); an override is a warning, never the "passed" green
+const PILL: Record<string, [string, string]> = {
+  recorded: ["passed", "Consent recorded"], override: ["inconclusive", "Override"], granted: ["passed", "Consent found"],
+  replied: ["inconclusive", "Unclear reply"], waiting: ["not_run", "Waiting for a reply"], none: ["not_run", "Not asked yet"],
+  declined: ["failed", "Declined"],
+};
+function ConsentPill({ state }: { state: string }) {
+  const [s, word] = PILL[state] ?? ["not_run", state];
+  return <span className={`status status-${s}`}><StatusIcon s={s} size={12} />{word}</span>;
+}
+
 /** Contracts v0.5 §2.2: publishing needs a maintainer's yes, an invitation, or the user's typed reason. */
 function ConsentCard({ run, onChange }: { run: string; onChange: (ok: boolean) => void }) {
   const [st, setSt] = useState<Consent | null>(null);
@@ -94,15 +105,15 @@ function ConsentCard({ run, onChange }: { run: string; onChange: (ok: boolean) =
   const k = st?.consent;
   return (
     <div className="card form">
-      <h2>Maintainer's answer</h2>
-      {k ? <p className="notice">{KIND[k.kind] ?? k.kind}{k.attested_by_user ? " (you confirmed their reply)" : ""}
+      <div className="row"><h2>Maintainer's answer</h2>{st && <ConsentPill state={k?.kind === "user_override" ? "override" : st.state} />}</div>
+      {k ? <p className={k.kind === "user_override" ? "notice warn" : "notice"}>{KIND[k.kind] ?? k.kind}{k.attested_by_user ? " (you confirmed their reply)" : ""}
           {k.quote && <>: "{k.quote}"</>}{k.source_url && <> <a href={k.source_url}>source</a></>}
           {k.override_reason && <>. Your reason: {k.override_reason}</>}</p>
         : st && <>
           <p>{STATE[st.state] ?? st.state}{st.why ? ` ${st.why}` : ""}</p>
           {st.replies.filter((r) => !r.declined).map((r) => (
             <div key={r.url} className="row">
-              <blockquote>{r.author} ({r.association.toLowerCase()}): "{r.quote}" <a href={r.url}>open</a></blockquote>
+              <p><strong>{r.author}</strong> <span className="hint">({r.association.toLowerCase()})</span>: "{r.quote}" <a href={r.url}>Open on GitHub</a></p>
               <button className="secondary-btn" disabled={busy} onClick={() => send({ attest_comment_url: r.url })}>They agreed: record this reply</button>
             </div>
           ))}
