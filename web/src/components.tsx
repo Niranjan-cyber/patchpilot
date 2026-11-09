@@ -21,6 +21,10 @@ const PATHS: Record<string, string> = {
   arrow: "M3.5 8h9m-3.5-3.5L12.5 8 9 11.5", chev: "M6 4l4 4-4 4", menu: "M3 5h10M3 8h10M3 11h10",
   github: "M8 1.8a6.2 6.2 0 0 0-2 12.1c.3 0 .4-.1.4-.3v-1.1c-1.7.4-2.1-.8-2.1-.8-.3-.7-.7-.9-.7-.9-.6-.4 0-.4 0-.4.6 0 .9.7.9.7.6 1 1.5.7 1.9.5 0-.4.2-.7.4-.9-1.4-.2-2.8-.7-2.8-3.1 0-.7.2-1.2.6-1.7-.1-.2-.3-.8.1-1.6 0 0 .5-.2 1.7.6a5.8 5.8 0 0 1 3.1 0c1.2-.8 1.7-.6 1.7-.6.3.8.1 1.4.1 1.6.4.4.6 1 .6 1.7 0 2.4-1.5 2.9-2.8 3.1.2.2.4.6.4 1.1v1.7c0 .2.1.4.4.3A6.2 6.2 0 0 0 8 1.8z",
   file: "M4 2.5h5l3 3v8H4zM9 2.5v3h3", pause: "M6 4v8m4-8v8", clock: "M8 13.5a5.5 5.5 0 1 0 0-11 5.5 5.5 0 0 0 0 11zM8 5v3l2 1.5",
+  copy: "M5.5 5.5V3.5h7v7h-2M3.5 5.5h7v7h-7z", activity: "M2 8h2.5l2-4.5 3 9 2-4.5H14",
+  flask: "M6.5 2.5v4L3 12.5a1 1 0 0 0 .9 1.5h8.2a1 1 0 0 0 .9-1.5L9.5 6.5v-4M5.5 2.5h5", shield: "M8 2l5 2v4c0 3-2.2 5.2-5 6-2.8-.8-5-3-5-6V4z",
+  commit: "M8 10.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM2 8h3.5m5 0H14", eye: "M1.5 8S4 3.5 8 3.5 14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8zM8 10a2 2 0 1 0 0-4 2 2 0 0 0 0 4z",
+  terminal: "M2.5 3.5h11v9h-11zM5 6.5l2 1.5-2 1.5M8.5 10h2.5", stop: "M4.5 4.5h7v7h-7z", external: "M9.5 2.5h4v4M13.5 2.5L8 8M12 9v4.5H2.5V4H7",
 };
 export function Icon({ name, size = 16 }: { name: keyof typeof PATHS | string; size?: number }) {
   return (
@@ -97,7 +101,7 @@ export function LiveStatus({ run }: { run: RunView }) {
   const now = STEPS.find((st) => steps[st.id]?.status === "running") ?? STEPS.find((st) => !steps[st.id]?.status || steps[st.id]?.status === "not_run");
   const label = run.status === "queued" ? "Waiting for a free sandbox" : now ? `Now: ${now.label}` : "Finishing up";
   return (
-    <div className="live">
+    <div className={`live${run.status === "paused" ? " paused" : ""}`}>
       <p className="live-now"><StatusIcon s={run.status === "paused" ? "inconclusive" : "running"} size={16} />{run.status === "paused" ? "Paused" : label}</p>
       <div className={`meter${run.status === "paused" ? " meter-paused" : ""}`} role="progressbar" aria-label="Steps finished" aria-valuemin={0} aria-valuemax={STEPS.length} aria-valuenow={done}>
         <span style={{ width: `${(done / STEPS.length) * 100}%` }} />
@@ -131,25 +135,6 @@ export function ReadinessBadge({ run }: { run: RunView }) {
   return <div className={`badge badge-${k}`}><StatusIcon s={k === "good" ? "passed" : k === "warn" ? "inconclusive" : k === "muted" ? "not_run" : "failed"} size={12} />{run.readiness}</div>;
 }
 
-/** Real metadata only: what the run is pinned to. */
-export function RunDetails({ run }: { run: RunView }) {
-  const t = (s?: string) => (s ? new Date(s).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) : "—");
-  return (
-    <div className="card">
-      <h2>Details</h2>
-      <dl className="kv">
-        <dt>Repository</dt><dd><a href={`https://github.com/${run.issue.repo}`}>{run.issue.repo}</a></dd>
-        <dt>Issue</dt><dd><a href={run.issue.html_url}>#{run.issue.number}</a></dd>
-        <dt>Base commit</dt><dd><code title={run.base_sha}>{run.base_sha?.slice(0, 10) || "—"}</code></dd>
-        <dt>Revision</dt><dd>{run.revision ?? 0}</dd>
-        <dt>Started</dt><dd>{t(run.created_at)}</dd>
-        <dt>Updated</dt><dd>{t(run.updated_at)}</dd>
-        <dt>Run</dt><dd><code title={run.run_id}>{run.run_id.slice(0, 8)}</code></dd>
-      </dl>
-    </div>
-  );
-}
-
 /** The winning feature: same test, red on the original code, green after the fix, in a fresh sandbox. */
 export function ProofPanel({ run }: { run: RunView }) {
   const before = run.repro?.runs_on_base ?? [];
@@ -159,10 +144,10 @@ export function ProofPanel({ run }: { run: RunView }) {
   return (
     <section className="proof" aria-label="Proof that the fix works">
       <div className="proof-col">
-        <h3>On the original code</h3>
+        <h3>On the original code <code title={run.base_sha}>{run.base_sha?.slice(0, 7)}</code></h3>
         <div className="proof-runs">{before.map((s, i) => <span key={i} className={`run run-${s}`}><StatusIcon s={s} />Run {i + 1}: {WORD[s]}</span>)}</div>
       </div>
-      <div className="proof-arrow" aria-hidden />
+      <div className="proof-arrow" aria-hidden><Icon name="arrow" size={14} /></div>
       <div className="proof-col">
         <h3>After the fix, in a fresh sandbox</h3>
         <div className="proof-runs">

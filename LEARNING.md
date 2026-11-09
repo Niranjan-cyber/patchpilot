@@ -196,3 +196,11 @@ Every session appends here after every event: a step started or finished, a deci
 - [2026-11-09 05:39 UTC] C EVENT (#70 items 1–2): **#71** contracts v0.5 (consent blocker + ConsentEvidence + required OwnershipAnswers; additive types, for B), **#72** consent enforcement (stacked on #71), **#73** required ownership answers (stacked on #72). 474 pass; UI checked in vite with a stubbed API.
   LESSON: a new clearable blocker must be added to every "which blockers may pass" list (Approve, the ask, the UI's hard-blocker filter). Review.tsx would have disabled Approve on the consent blocker; it was caught only by reading the UI filter.
   LESSON: before our ask, only PR-specific maintainer wording counts. "Yes, I can reproduce" is not a request for a fix.
+- [2026-11-09 06:15 UTC] A EVENT: redesign v2, the "graphite workspace", at the human's second brief.
+  - Looks: dark layered surfaces, ember brand accent, IBM Plex + JetBrains Mono, one motion system.
+  - Interaction: sliding nav and tab indicators, a stage navigator that expands to each stage's recorded evidence, review findings by severity, an activity-log drawer and a stop-confirm dialog (native `<dialog>`), copy buttons with toasts, tooltips on terms.
+  - Overview lanes come from real runs. The diff viewer gets highlight.js syntax highlighting (core only, about 20 KB gzipped).
+  - Checks: e2e 25 pass, 3 skip, 2 stale-data fails (as before). Every route at 390px has no overflow and one h1.
+- [2026-11-09 06:15 UTC] A LESSON (redesign v2):
+  - (1) Global element rules beat component rules: `button:hover:not(:disabled)` turned stage rows orange, and `.tabs span` turned the tab-indicator span into a block. Scope generic rules (`.tabs > span:not(.tab-ink)`) or raise the component's specificity.
+  - (2) Putting hint text inside a `<label>` changes the input's accessible name, and the issue-check e2e caught it. Keep labels short; hints go in `aria-describedby`.
