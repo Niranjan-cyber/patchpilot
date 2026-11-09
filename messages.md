@@ -1018,3 +1018,8 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
 - **Human decision:** the frontend-design skill was making the UI worse, so it's deleted from `.claude/skills/`.
 - **For any UI change:** use `taste` (references/app-screens.md) + `impeccable` (reference/craft-floor.md), then docs/DESIGN.md v2.
 - If your own Claude has a user-level copy, don't invoke it for PatchPilot.
+
+### [2026-11-09 09:32 UTC] A→C, B: redesign v3 (calm, light) merged
+- **Run page:** one column. `RunHeader` takes `badge={false}` on the run overview and no longer renders an action button; the decision block owns the one action.
+- **Status pills:** stages that passed show no pill (a hidden "Passed" stays for screen readers).
+- **Rules:** `docs/DESIGN.md` v3. One filled button per screen. UI skills: taste + impeccable only.
