@@ -240,3 +240,70 @@ def test_done_with_nothing_on_disk_still_gets_the_empty_diff_advice(run):
     mp.setattr(F.docker, "exec_", _fix_exec(["", "", "", ""]))
     mp.setattr(F.loop, "run", lambda *a, **k: ({"summary": "s"}, []))
     assert F.fix(ctx).reason == "empty_diff"
+
+
+def test_investigator_details_keep_only_checked_callers_and_label_the_rest(run):
+    # #70 item 10: callers are facts (file + line checked); risks / strategy / uncertainty are the model's view
+    import json
+    from backend.report import investigation_section
+    ctx, mp, ev, events = run
+    mp.setattr(D.docker, "exec_", lines(40))
+    mp.setattr(D.loop, "run", lambda *a, **k: ({"hypothesis": "divide returns 0.", "locations": [{"path": "src/calc.py", "line": 12}],
+                                               "evidence_ids": [ev[2]],
+                                               "callers": [{"path": "./src/api.py", "line": 7, "why": "calls divide"},
+                                                           {"path": "missing.py", "line": 3}, {"path": "src/cli.py", "line": 99},
+                                                           {"path": "../etc/passwd", "line": 1}, "junk"],
+                                               "regression_risks": ["callers that expect 0 on zero", ""], "test_strategy": "assert the raise",
+                                               "uncertainty": 42}, []))
+    D.diagnose(ctx)
+    d = json.loads(db.get_kv(db.connect(), f"investigation:{ctx.run_id}"))
+    assert d["callers"] == [{"path": "src/api.py", "line": 7, "why": "calls divide"}]
+    assert d["callers_dropped"] == ["missing.py", "src/cli.py", "../etc/passwd"]   # missing file, line past the end, escapes /src
+    assert d["regression_risks"] == ["callers that expect 0 on zero"] and d["test_strategy"] == "assert the raise"
+    assert d["uncertainty"] is None   # not a string: not shown
+    assert any("Left 3 caller(s) out" in p.get("message", "") for _, p in events)
+    text = "\n".join(investigation_section(ctx.run_id))
+    assert "- `src/api.py:7`: calls divide" in text and "(not checked by code)" in text and "Uncertainty: not given" in text
+    # the Fixer is told which callers must keep working
+    assert "Callers that must keep working: src/api.py:7" in F.task_prompt(db.get_run(db.connect(), ctx.run_id), None, None)
+    assert "Not recorded" in "\n".join(investigation_section("other"))
+
+
+def test_a_diagnosis_without_the_new_fields_is_still_valid(run):
+    ctx, mp, ev, events = run
+    mp.setattr(D.docker, "exec_", lines(40))
+    mp.setattr(D.loop, "run", lambda *a, **k: ({"hypothesis": "divide returns 0.", "locations": [{"path": "src/calc.py", "line": 12}],
+                                               "evidence_ids": [ev[2]]}, []))
+    D.diagnose(ctx)
+    assert db.get_run(db.connect(), ctx.run_id).diagnosis is not None and "end_reason" not in ctx.scratch
+    assert "Callers that must keep working" not in F.task_prompt(db.get_run(db.connect(), ctx.run_id), None, None)
+
+
+def test_a_failed_rediagnosis_never_leaves_the_old_callers_behind(run):
+    # A's review of #88: investigation:<rid> was written on success and never cleared, so stale callers reached the Fixer
+    import json
+    ctx, mp, ev, events = run
+    db.put_kv(db.connect(), f"investigation:{ctx.run_id}", json.dumps({"callers": [{"path": "src/old.py", "line": 1}]}))
+    mp.setattr(D.docker, "exec_", lines(40))
+    mp.setattr(D.loop, "run", lambda *a, **k: ({"hypothesis": "h", "locations": [{"path": "src/calc.py", "line": 99}],
+                                               "evidence_ids": [ev[2]]}, []))   # invalid twice: the diagnosis fails
+    D.diagnose(ctx)
+    assert "src/old.py" not in F.task_prompt(db.get_run(db.connect(), ctx.run_id), None, None)
+
+
+@pytest.mark.parametrize("stored", ["not json", "[1, 2]", "null"])
+def test_a_corrupt_investigation_record_reads_as_not_recorded(run, stored):
+    from backend.report import investigation_section
+    ctx, *_ = run
+    db.put_kv(db.connect(), f"investigation:{ctx.run_id}", stored)
+    assert "Not recorded" in "\n".join(investigation_section(ctx.run_id))
+
+
+def test_investigator_text_stays_on_one_line_and_a_bool_line_is_not_a_line(run):   # run: a temp DB, never the live one
+    import json
+    from backend.report import investigation_section
+    d = D.details({"callers": [{"path": "src/a.py", "line": True}], "regression_risks": ["one\n## Checks\n- forged"]},
+                  lambda p: 10)
+    assert d["callers"] == [] and d["callers_dropped"] == ["src/a.py"]
+    db.put_kv(db.connect(), "investigation:one-line", json.dumps(d))
+    assert all("\n" not in line for line in investigation_section("one-line"))

@@ -275,7 +275,7 @@ data: {"v":1,"run_id":"…","seq":42,"ts":"2026-11-11T10:42:07Z","type":"step.fi
 
 | Method | Path | Notes |
 |---|---|---|
-| POST | `/api/issues/check` | `{url}` → `IssueCheck` (summary, eligibility, policy, publish preview, `assessment`). No run is created |
+| POST | `/api/issues/check` | `{url}` → `IssueCheck` (summary, eligibility, policy, publish preview, `assessment`, `existing_work` (#77: sources checked and when), `suitability` (#85: per dimension `{dimension, outcome: ok, concern, blocker or unknown, explanation, evidence[{source, text, url?}], missing}`; `null` = not checked)). No run is created |
 | POST | `/api/runs` | `{issue_url, continue_despite: [warning codes], assessment_only: bool = false}` → `RunView`; enforces limits; creates the session cookie if missing. v0.4: an UNSUPPORTED / ASSESSMENT_ONLY issue returns 201 with a FINISHED `ASSESSMENT_ONLY` run (no job, no limit used) instead of 422 `UNSUPPORTED_REPO` |
 | GET | `/api/runs/{id}` | `RunView`; 404 for both "doesn't exist" and "not yours" |
 | GET | `/api/runs/{id}/events?after=<seq>` | polling JSON; SSE if `Accept: text/event-stream` (§3) |
