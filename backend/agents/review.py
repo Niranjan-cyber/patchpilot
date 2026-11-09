@@ -73,6 +73,10 @@ def review(ctx: StepContext) -> GateResult:
     if (gap := run.repro and run.repro.uncovered):   # code-decided (gitingest-115): a fix can pass a test that skips part of the issue
         concerns = [*concerns, {"severity": "medium", "text": (f"The test designer didn't claim its test checks {len(gap)} of the things the "
                                 "issue expects, so passing it may not prove the bug is fixed. Not claimed: " + "; ".join(gap))[:300]}]
+    from backend.agents.fix import UNFINISHED
+    if run.patch.policy_reason == UNFINISHED:   # code-decided: an edit the fixer never called finished can't be "Ready"
+        concerns = [*concerns, {"severity": "medium", "text": "The fixer stopped before saying its change was finished, so "
+                                "check that the change is complete, not only that the tests pass."}]
     from backend.gates.diff_policy import swallowed_excepts   # code-decided: an added catch-all or silent `except` (run 11)
     concerns = [*concerns, *swallowed_excepts((artifacts.get(run.patch.fix_diff_id) or b"").decode("utf-8", "replace"))]
     from backend.agents.lint import review_concerns   # code-decided: the repo's own linters on what the change adds (mcstatus #1238)
