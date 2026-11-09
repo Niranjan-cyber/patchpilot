@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { motion } from "motion/react";
 import type { CheckStatus, RunView, StepId } from "./contracts";
 
 export const STEPS: { id: StepId; label: string }[] = [
@@ -50,13 +51,15 @@ export function Status({ s }: { s?: CheckStatus | "running" | null }) {
   return <span className={`status status-${k}`}><StatusIcon s={k} size={12} />{WORD[k]}</span>;
 }
 
-/** The product mark: a patch square in the one hue. */
-export function Mark({ size = 22 }: { size?: number }) {
+/** The product mark: a soft patch, stitched. */
+export function Mark({ size = 28 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 22 22" aria-hidden>
-      <rect width="22" height="22" rx="5" fill="var(--accent)" />
-      <path d="M7 15.5V6.5h4.2a2.8 2.8 0 0 1 0 5.6H7" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M13.5 15.5h2" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
+    <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden>
+      <g transform="rotate(-32 16 16)">
+        <rect x="1.5" y="9.5" width="29" height="13" rx="6.5" fill="var(--color-peach-300)" />
+        <rect x="10.5" y="9.5" width="11" height="13" fill="var(--color-peach-400)" />
+        <g fill="var(--color-ink)"><circle cx="13.5" cy="13" r="1.1" /><circle cx="18.5" cy="13" r="1.1" /><circle cx="13.5" cy="19" r="1.1" /><circle cx="18.5" cy="19" r="1.1" /><circle cx="16" cy="16" r="1.1" /></g>
+      </g>
     </svg>
   );
 }
@@ -67,28 +70,11 @@ export function SampleBadge() {
 
 type StepMap = Record<string, { status?: CheckStatus | "running"; headline?: string | null }>;
 
-export function Stepper({ run }: { run: RunView }) {
-  const steps = (run.steps ?? {}) as StepMap;
-  return (
-    <ol className="stepper" aria-label="What PatchPilot did">
-      {STEPS.map((st) => {
-        const s = steps[st.id];
-        return (
-          <li key={st.id} className={`step step-${s?.status ?? "not_run"}`} aria-current={s?.status === "running" ? "step" : undefined}>
-            <div className="step-head"><span className="step-name">{st.label}</span><Status s={s?.status} /></div>
-            {s?.headline && <p className="step-line">{s.headline}</p>}
-          </li>
-        );
-      })}
-    </ol>
-  );
-}
-
 /** A designed loading state: what we're doing in words, plus a quiet placeholder of the content to come. */
 export function Loading({ label }: { label: string }) {
   return (
     <section className="panel loading" aria-busy="true" aria-live="polite">
-      <p>{label}</p>
+      <p className="flex items-center gap-2"><StatusIcon s="running" size={16} />{label}</p>
       <div className="skel" aria-hidden><span /><span /><span /></div>
     </section>
   );
@@ -97,71 +83,98 @@ export function Loading({ label }: { label: string }) {
 /** For a run that's still going: which step is on, and how far along it is. Counts only recorded step states. */
 export function LiveStatus({ run }: { run: RunView }) {
   const steps = (run.steps ?? {}) as StepMap;
+  const paused = run.status === "paused";
   const done = STEPS.filter((st) => steps[st.id]?.status && steps[st.id]?.status !== "running" && steps[st.id]?.status !== "not_run").length;
   const now = STEPS.find((st) => steps[st.id]?.status === "running") ?? STEPS.find((st) => !steps[st.id]?.status || steps[st.id]?.status === "not_run");
   const label = run.status === "queued" ? "Waiting for a free sandbox" : now ? `Now: ${now.label}` : "Finishing up";
   return (
-    <div className={`live${run.status === "paused" ? " paused" : ""}`}>
-      <p className="live-now"><StatusIcon s={run.status === "paused" ? "inconclusive" : "running"} size={16} />{run.status === "paused" ? "Paused" : label}</p>
-      <div className={`meter${run.status === "paused" ? " meter-paused" : ""}`} role="progressbar" aria-label="Steps finished" aria-valuemin={0} aria-valuemax={STEPS.length} aria-valuenow={done}>
-        <span style={{ width: `${(done / STEPS.length) * 100}%` }} />
+    <div className="live">
+      <h2 className="live-now flex items-center gap-2.5 !text-[26px]"><StatusIcon s={paused ? "inconclusive" : "running"} size={22} />{paused ? "Paused" : label}</h2>
+      <div className="flex gap-1.5 mt-4" role="progressbar" aria-label="Steps finished" aria-valuemin={0} aria-valuemax={STEPS.length} aria-valuenow={done}>
+        {STEPS.map((st, i) => {
+          const k = steps[st.id]?.status ?? "not_run";
+          const on = k === "running";
+          const fill = on ? "55%" : k === "not_run" ? "0%" : "100%";
+          return (
+            <div key={st.id} className="flex-1 min-w-0" title={`${st.label}: ${WORD[k] ?? k}`}>
+              <div className="h-2.5 rounded-full bg-white/70 overflow-hidden">
+                <motion.div className={`h-full rounded-full ${paused ? "bg-butter-300" : k === "failed" || k === "blocked" ? "bg-rose-300" : "bg-lav-500"}`}
+                  initial={{ width: 0 }} animate={{ width: fill }} transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1], delay: i * 0.05 }} />
+              </div>
+              <span className={`hidden md:block mt-2 text-[12px] truncate ${on ? "text-lav-700 font-semibold" : "text-muted"}`}>{st.label}</span>
+            </div>
+          );
+        })}
       </div>
-      <p className="live-count">{done} of {STEPS.length} steps finished. You can leave this page; the run keeps going.</p>
+      <p className="live-count hint !mt-3">{done} of {STEPS.length} steps finished. You can leave this page; the run keeps going.</p>
     </div>
   );
-}
-
-const VERDICT: Record<string, string> = {
-  CANNOT_REPRODUCE: "We couldn't make the bug happen in a test, so there's no fix to prove. The report says what we tried.",
-  ENV_FAILED: "We couldn't install this project in the sandbox, so none of its code ran. The report has the install log.",
-  BLOCKED: "A dependency looked malicious, so nothing from this repository was installed or run.",
-  STOPPED: "This run was stopped. Everything recorded up to that point is kept below.",
-  SYSTEM_ERROR: "Something on our side failed. The report has what we know; nothing was published.",
-};
-
-/** Runs that end without a proof strip still say plainly why, never an empty space. */
-export function VerdictNote({ run }: { run: RunView }) {
-  const text = run.outcome && VERDICT[run.outcome];
-  return text && !run.repro?.runs_on_base?.length ? <p className="verdict-note">{text}</p> : null;
 }
 
 const BADGE: Record<string, string> = {
   VERIFIED_FIX: "good", FIX_NEEDS_ATTENTION: "warn", TRIAGE_ONLY: "warn", STOPPED: "muted", ASSESSMENT_ONLY: "muted",
 };
+/** The tone of a run, used to tint the block that says where it stands. */
+export const tone = (run: RunView) => !run.outcome ? (run.status === "paused" ? "warn" : "work") : BADGE[run.outcome] ?? "bad";
 
 export function ReadinessBadge({ run }: { run: RunView }) {
-  if (!run.outcome) return <div className={`badge ${run.status === "paused" ? "status-inconclusive" : "status-running"}`} role="status"><StatusIcon s={run.status === "paused" ? "inconclusive" : "running"} size={12} />{run.status === "paused" ? "Paused" : "Working"}</div>;
+  if (!run.outcome) return <div className={`badge ${run.status === "paused" ? "status-inconclusive" : "status-running"}`} role="status"><StatusIcon s={run.status === "paused" ? "inconclusive" : "running"} size={13} />{run.status === "paused" ? "Paused" : "Working"}</div>;
   const k = BADGE[run.outcome] ?? "bad";
-  return <div className={`badge badge-${k}`}><StatusIcon s={k === "good" ? "passed" : k === "warn" ? "inconclusive" : k === "muted" ? "not_run" : "failed"} size={12} />{run.readiness}</div>;
+  return <div className={`badge badge-${k}`}><StatusIcon s={k === "good" ? "passed" : k === "warn" ? "inconclusive" : k === "muted" ? "not_run" : "failed"} size={13} />{run.readiness}</div>;
 }
 
-/** The winning feature: same test, red on the original code, green after the fix, in a fresh sandbox. */
+/** One test run as a chip that pops in: a filled disc with the icon, then the words. */
+export function RunDot({ s, i, delay = 0 }: { s: string; i: number; delay?: number }) {
+  const good = s === "passed", bad = s === "failed" || s === "blocked";
+  return (
+    <motion.span className={`run run-${s} inline-flex items-center gap-2 rounded-full pl-1.5 pr-4 h-11 bg-white font-semibold text-[14px] ${good ? "text-mint-700" : bad ? "text-rose-700" : "text-muted"}`}
+      initial={{ opacity: 0, scale: 0.6, y: 8 }} animate={{ opacity: 1, scale: 1, y: 0 }}
+      transition={{ type: "spring", stiffness: 380, damping: 18, delay: delay + i * 0.18 }}>
+      <span className={`grid place-items-center w-8 h-8 rounded-full ${good ? "bg-mint-500 text-white" : bad ? "bg-rose-500 text-white" : "bg-soft"}`}><StatusIcon s={s} size={16} /></span>
+      Run {i + 1}: {WORD[s]}
+    </motion.span>
+  );
+}
+
+/** The signature: same test, red on the original code, green after the fix, in a fresh sandbox. */
 export function ProofPanel({ run }: { run: RunView }) {
   const before = run.repro?.runs_on_base ?? [];
   const after = run.verify?.new_test_runs ?? [];
   if (!before.length) return null;
   const base = run.baseline;
+  const green = after.length > 0 && after.every((s) => s === "passed");
   return (
     <section className="proof" aria-label="Proof that the fix works">
-      <div className="proof-col">
-        <h3>Before the fix <span className="hint">original code <code title={run.base_sha}>{run.base_sha?.slice(0, 7)}</code></span></h3>
-        <div className="proof-runs">{before.map((s, i) => <span key={i} className={`run run-${s}`}><StatusIcon s={s} />Run {i + 1}: {WORD[s]}</span>)}</div>
-      </div>
-      <div className="proof-arrow" aria-hidden><Icon name="arrow" size={14} /></div>
-      <div className="proof-col">
-        <h3>After the fix <span className="hint">fresh sandbox</span></h3>
-        <div className="proof-runs">
-          {after.length ? after.map((s, i) => <span key={i} className={`run run-${s}`}><StatusIcon s={s} />Run {i + 1}: {WORD[s]}</span>)
-            : <span className="run run-not_run"><StatusIcon s="not_run" />Not verified</span>}
+      <div className="grid md:grid-cols-[1fr_auto_1fr] items-stretch gap-3">
+        <div className="proof-col rounded-[var(--radius-card)] bg-rose-50 p-6">
+          <h3 className="text-rose-700">Before the fix</h3>
+          <p className="hint !mb-4">On the original code <code title={run.base_sha}>{run.base_sha?.slice(0, 7)}</code></p>
+          <div className="proof-runs flex flex-wrap gap-2">{before.map((s, i) => <RunDot key={i} s={s} i={i} delay={0.15} />)}</div>
+        </div>
+        <div className="proof-arrow grid place-items-center" aria-hidden>
+          <motion.span className={`grid place-items-center w-12 h-12 rounded-full ${green ? "bg-mint-100 text-mint-700" : "bg-soft text-muted"}`}
+            animate={{ x: [0, 5, 0] }} transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}>
+            <span className="rotate-90 md:rotate-0 grid"><Icon name="arrow" size={20} /></span>
+          </motion.span>
+        </div>
+        <div className={`proof-col rounded-[var(--radius-card)] p-6 ${green ? "bg-mint-50" : "bg-soft"}`}>
+          <h3 className={green ? "text-mint-700" : ""}>After the fix</h3>
+          <p className="hint !mb-4">In a brand-new sandbox</p>
+          <div className="proof-runs flex flex-wrap gap-2">
+            {after.length ? after.map((s, i) => <RunDot key={i} s={s} i={i} delay={0.55} />)
+              : <span className="run run-not_run status"><StatusIcon s="not_run" />Not verified</span>}
+          </div>
         </div>
       </div>
-      <p className="proof-test"><span>Test</span><code>{run.repro?.test_ids.join(", ")}</code></p>
-      {base && (
-        <p className="proof-base">
-          {base.pass_set?.length ?? 0} existing tests passed before{run.verify ? ` and still pass` : ""}.
-          {(base.fail_set?.length ?? 0) > 0 && ` ${base.fail_set?.length} ${base.fail_set?.length === 1 ? "was" : "were"} already failing before we started (not caused by this fix).`}
-        </p>
-      )}
+      <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-[14px]">
+        <p className="proof-test !m-0 flex items-center gap-2"><span className="text-muted">Test</span><code>{run.repro?.test_ids.join(", ")}</code></p>
+        {base && (
+          <p className="proof-base !m-0 text-muted">
+            {base.pass_set?.length ?? 0} existing tests passed before{run.verify ? ` and still pass` : ""}.
+            {(base.fail_set?.length ?? 0) > 0 && ` ${base.fail_set?.length} ${base.fail_set?.length === 1 ? "was" : "were"} already failing before we started (not caused by this fix).`}
+          </p>
+        )}
+      </div>
     </section>
   );
 }

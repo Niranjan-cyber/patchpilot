@@ -1,5 +1,6 @@
 import { Fragment, useState } from "react";
 import { Link } from "react-router-dom";
+import { motion } from "motion/react";
 import type { Event, RunView } from "./contracts";
 import { Icon, Status, StatusIcon, STEPS } from "./components";
 import { CopyButton, Drawer } from "./ui";
@@ -65,25 +66,33 @@ export function StageNavigator({ run }: { run: RunView }) {
   const [open, setOpen] = useState<Record<string, boolean>>(focus ? { [focus]: true } : {});
   const gates = (run.gates ?? {}) as Record<string, string>;
   return (
-    <ol className="stages" aria-label="What PatchPilot did">
-      {STEPS.map((st) => {
+    <ol className="stages list-none p-3 md:p-4 bg-white rounded-[var(--radius-card)]" aria-label="What PatchPilot did">
+      {STEPS.map((st, n) => {
         const s = steps[st.id] ?? {};
         const k = s.status ?? "not_run";
         const isOpen = !!open[st.id];
         const g = GATE[st.id];
+        const node = k === "passed" ? "bg-mint-500 text-white" : k === "failed" || k === "blocked" ? "bg-rose-500 text-white"
+          : k === "running" ? "bg-lav-500 text-white" : k === "inconclusive" ? "bg-butter-300 text-ink" : "bg-soft text-faint";
         return (
-          <li key={st.id} className={`stage s-${k}${isOpen ? " open" : ""}`} aria-current={k === "running" ? "step" : undefined}>
-            <span className="stage-node"><StatusIcon s={k} size={13} /></span>
-            <button className="stage-btn" aria-expanded={isOpen} aria-controls={`stage-${st.id}`} onClick={() => setOpen({ ...open, [st.id]: !isOpen })}>
-              <span className="stage-title"><strong>{st.label}</strong>{s.headline && <span className="stage-line">{s.headline}</span>}</span>
-              <span className="stage-time">{(t => t === "0s" ? "" : t)(took(s.started_at, s.finished_at) ?? "")}</span>
+          <motion.li key={st.id} className={`stage s-${k}${isOpen ? " open" : ""} relative rounded-[20px] transition-colors ${isOpen ? "bg-ground" : "hover:bg-ground/70"}`}
+            aria-current={k === "running" ? "step" : undefined}
+            initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.1 + n * 0.05, duration: 0.4, ease: [0.22, 1, 0.36, 1] }}>
+            {n < STEPS.length - 1 && <span aria-hidden className={`absolute left-[29px] top-[44px] -bottom-[12px] w-0.5 rounded ${k === "passed" ? "bg-mint-300" : "bg-line"}`} />}
+            <button className="stage-btn !bg-transparent hover:!bg-transparent !transform-none w-full !justify-start !whitespace-normal text-left !min-h-[60px] !px-3 !gap-4 !font-normal"
+              aria-expanded={isOpen} aria-controls={`stage-${st.id}`} onClick={() => setOpen({ ...open, [st.id]: !isOpen })}>
+              <span className={`stage-node relative z-[1] grid place-items-center shrink-0 w-9 h-9 rounded-full ${node} ${k === "running" ? "animate-pulse" : ""}`}><StatusIcon s={k} size={16} /></span>
+              <span className="stage-title flex-1 min-w-0 flex flex-col md:flex-row md:items-baseline gap-x-3 gap-y-0.5">
+                <strong className="font-semibold text-[15px] shrink-0">{st.label}</strong>
+                {s.headline && <span className="stage-line text-muted text-[14px]">{s.headline}</span>}
+              </span>
+              <span className="stage-time text-faint text-[12.5px] hidden sm:inline">{(t => t === "0s" ? "" : t)(took(s.started_at, s.finished_at) ?? "")}</span>
               {k === "passed" ? <span className="sr-only">Passed</span> : <Status s={k as never} />}
-              <span className="chev"><Icon name="chev" size={14} /></span>
+              <span className={`chev text-faint transition-transform duration-300 ${isOpen ? "rotate-90" : ""}`}><Icon name="chev" size={14} /></span>
             </button>
             <div className="reveal" id={`stage-${st.id}`}><div>
-              <div className="stage-detail">
-                {s.headline && <p className="stage-headline">{s.headline}</p>}
-                <dl className="kv">
+              <div className="stage-detail pl-[68px] pr-4 pb-5 grid gap-3 text-[14px]">
+                                <dl className="kv">
                   <dt>Started</dt><dd><span>{time(s.started_at) ?? "—"}</span></dd>
                   <dt>Finished</dt><dd><span>{time(s.finished_at) ?? "—"}</span></dd>
                   {s.attempt ? <><dt>Attempt</dt><dd><span>{s.attempt}</span></dd></> : null}
@@ -92,7 +101,7 @@ export function StageNavigator({ run }: { run: RunView }) {
                 {k !== "not_run" && <StageEvidence id={st.id} run={run} />}
               </div>
             </div></div>
-          </li>
+          </motion.li>
         );
       })}
     </ol>
