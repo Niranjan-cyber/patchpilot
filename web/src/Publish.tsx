@@ -36,6 +36,7 @@ export function Connect() {
           <p>We'll ask GitHub for permission to:</p>
           <ul>
             <li>make a copy of the repository under your account (a <abbr title="A fork is your own copy of someone else's repository. It's free and stays under your account.">fork</abbr>), if you can't push to it directly,</li>
+            <li>post the comment you approve on the issue, asking the maintainer whether they want the fix,</li>
             <li>push one branch with the change you approved,</li>
             <li>open one <abbr title="A draft pull request is a proposal maintainers can review; it can't be merged until you mark it ready.">draft pull request</abbr>.</li>
           </ul>
@@ -47,14 +48,47 @@ export function Connect() {
           </div>
         </div>
       )}
+      {me?.signed_in && run && <AskFirst run={run} />}
       {me?.signed_in && run && (
         <div className="card">
+          <h2>Then, if they say yes: open the pull request</h2>
           <p>We'll check that nothing changed upstream, re-apply your approved change on a clean copy, and open a draft pull request. If you can't push to the repository, we use your fork.</p>
-          <div className="row"><button onClick={publish} disabled={busy}>{busy ? "Starting…" : "Publish draft pull request"}</button></div>
+          <div className="row"><button className="secondary-btn" onClick={publish} disabled={busy}>{busy ? "Starting…" : "Publish draft pull request"}</button></div>
         </div>
       )}
       {err && <p className="notice warn">{err.message}</p>}
     </section>
+  );
+}
+
+type Ask = { draft: string | null; pending: boolean; url?: string; error?: string };
+
+/** Ask the maintainer on the issue before opening a PR (human decision 2026-11-09, after mcstatus #1238 was closed unasked). */
+function AskFirst({ run }: { run: string }) {
+  const [st, setSt] = useState<Ask | null>(null);
+  const [text, setText] = useState("");
+  const [err, setErr] = useState<ApiError | null>(null);
+  const load = () => api<Ask>(`/api/runs/${run}/ask-maintainer`).then((a) => { setSt(a); setText((t) => t || a.draft || ""); }).catch(setErr);
+  useEffect(() => { load(); }, [run]);
+  useEffect(() => { if (st?.pending) { const t = setTimeout(load, 3000); return () => clearTimeout(t); } }, [st]);
+  const post = async () => {
+    setErr(null);
+    try { await api(`/api/runs/${run}/ask-maintainer`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ body: text }) }); load(); }
+    catch (e) { setErr(e as ApiError); }
+  };
+  if (!st) return err ? <p className="notice warn">{err.message}</p> : null;
+  return (
+    <div className="card form">
+      <h2>First, ask the maintainer (recommended)</h2>
+      <p>Many maintainers close pull requests they didn't ask for. Post this short comment on the issue, and open the pull request only if they say yes.</p>
+      {st.url ? <p className="notice">Comment posted. <a href={st.url}>Open it on GitHub</a> and wait for a reply before opening the pull request.</p> : <>
+        <label>Your comment (edit it so it sounds like you)
+          <textarea rows={6} value={text} onChange={(e) => setText(e.target.value)} maxLength={2000} /></label>
+        <div className="row"><button onClick={post} disabled={st.pending || text.trim().length < 20}>{st.pending ? "Posting…" : "Post this comment on the issue"}</button></div>
+      </>}
+      {st.error && <p className="notice warn">{st.error}</p>}
+      {err && <p className="notice warn">{err.message}</p>}
+    </div>
   );
 }
 

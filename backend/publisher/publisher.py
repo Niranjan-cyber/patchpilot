@@ -56,6 +56,26 @@ def pr_body(v: RunView) -> str:
     return "\n".join(lines)
 
 
+ASK_NOTE = "I used PatchPilot, an AI-assisted bug-fix tool, and reviewed the change myself before asking."
+
+
+def ask_comment(v: RunView) -> str:
+    """The default 'ask first' comment (mcstatus #1238 was closed unasked; the human decided 2026-11-09: comment first).
+    The user edits it before it is posted."""
+    summary = (v.approval.pr_summary.strip().split("\n\n")[0] if v.approval else "")[:600]
+    kept = f" and the {len(v.baseline.pass_set)} existing tests still pass" if v.baseline else ""
+    return (f"Hi! I looked into this and have a small fix ready. {summary}\n\n"
+            f"It comes with a regression test that fails before the fix and passes after{kept}. "
+            "Would you like a pull request for it? I'll only open one if you say yes.\n\n"
+            f"_{ASK_NOTE}_")
+
+
+def ask(v: RunView, gh, body: str) -> str:
+    """Post the user's approved 'ask first' comment on the issue. Same pre-checks as a PR: it offers the approved fix."""
+    preflight_checks(v)
+    return gh.comment(v.issue.repo, v.issue.number, body)["html_url"]
+
+
 def compare_url(upstream: str, base_branch: str, owner: str, branch: str, title: str, body: str) -> str:
     return (f"https://github.com/{upstream}/compare/{base_branch}...{owner}:{quote(branch, safe='')}?expand=1"
             f"&title={quote(title)}&body={quote(body[:6000])}")
@@ -111,6 +131,9 @@ class GitHubWriter:
     def create_pr(self, repo: str, head: str, base: str, title: str, body: str) -> dict | None:
         r = self.h.post(f"/repos/{repo}/pulls", json={"head": head, "base": base, "title": title, "body": body, "draft": True})
         return r.json() if r.status_code == 201 else None    # 403/422: PRs restricted → branch_only
+
+    def comment(self, repo: str, number: int, body: str) -> dict:
+        return self.h.post(f"/repos/{repo}/issues/{number}/comments", json={"body": body}).raise_for_status().json()
 
     def update_pr(self, repo: str, number: int, title: str, body: str) -> dict:
         return self.h.patch(f"/repos/{repo}/pulls/{number}", json={"title": title, "body": body}).raise_for_status().json()

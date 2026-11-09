@@ -96,3 +96,31 @@ def test_github_user_error_is_friendly_not_500(env, monkeypatch):
     state = b.cookies.get("pp_oauth", path="/auth").split(":")[0]
     r = b.get(f"/auth/github/callback?code=abc&state={state}")
     assert r.status_code == 303 and "error=github" in r.headers["location"]
+
+
+def test_ask_first_queues_one_comment_and_reports_the_link(env, monkeypatch):
+    from backend.contracts.models import Approval, Owner, RunStatus
+    from backend.publisher import job
+    b = env
+    rid = b.post("/api/runs", json={"issue_url": URL}).json()["run_id"]
+    msg = {"body": "Hi! I have a small fix ready. Would you like a pull request?"}
+    assert b.post(f"/api/runs/{rid}/ask-maintainer", json=msg).status_code == 401
+    sign_in(b, rid)
+    assert b.post(f"/api/runs/{rid}/ask-maintainer", json=msg).json()["code"] == "APPROVAL_STALE"   # nothing approved yet
+    c = db.connect(); v = db.get_run(c, rid)
+    v.status = RunStatus.AWAITING_APPROVAL
+    v.approval = Approval(run_id=rid, revision=0, diff_hash="sha256:" + "1" * 64, evidence_hash="sha256:" + "2" * 64,
+                          approved_by=Owner(session_id_hash="s"), approved_at=db.now(), checklist={}, pr_title="t", pr_summary="Fixes it.")
+    db.save_run(c, v)
+    assert "Fixes it." in b.get(f"/api/runs/{rid}/ask-maintainer").json()["draft"]
+    assert b.post(f"/api/runs/{rid}/ask-maintainer", json=msg).json() == {"status": "asking"}
+    assert b.post(f"/api/runs/{rid}/ask-maintainer", json=msg).json()["code"] == "ALREADY_ASKING"   # a double click posts once
+    assert b.get(f"/api/runs/{rid}/ask-maintainer").json()["pending"] is True
+    seen = {}
+    monkeypatch.setattr(job, "ask", lambda v, gh, body: seen.setdefault("body", body) and "https://github.com/o/r/issues/1#c")
+    j = db.connect().execute("SELECT * FROM jobs WHERE run_id=? AND kind='ask'", (rid,)).fetchone()
+    job.run_ask({"id": j[0], "run_id": rid})
+    st = b.get(f"/api/runs/{rid}/ask-maintainer").json()
+    assert seen["body"] == msg["body"] and st["url"].endswith("#c") and st["pending"] is False
+    assert db.get_run(db.connect(), rid).status == RunStatus.AWAITING_APPROVAL   # asking never changes the run's status
+    assert b.post(f"/api/runs/{rid}/ask-maintainer", json=msg).json()["code"] == "ALREADY_ASKED"   # never ping twice
