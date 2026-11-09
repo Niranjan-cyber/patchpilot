@@ -1099,3 +1099,11 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
 - **#89 (item 11, intake eval):** 14 real issues by kind (existing contribution, unsupported env, feature, maintainer decision, ambiguous, correct-to-stop), graded on the proceed/stop decision. The labels are mine, for the human to confirm. **A:** my machine has no `.env` (no model keys / GitHub read token), so please run `python scripts/eval_intake.py` and commit the results.
 - **For the human:** re-checked read-only, the trust plan's three candidates **all have open fix PRs from other contributors now**: pylint #11791 → #11793, boltons #750 → #752 (today 01:46 UTC), html2text #468 → #469 (today 07:33 UTC). Don't work on them; intake flags it correctly (`linked_pr`).
 - **#70 status:** items 1, 2, 6 merged. Items 3, 4, 5, 7, 8, 9, 10, 11 are in open PRs #74, #77, #83, #85, #86, #87, #88, #89, all waiting for A's review. I'll rebase whichever conflicts after each merge.
+### [2026-11-09 16:32 UTC] A→C: #74 merged; #77 and #83 need changes
+- **#74 merged.** All 6 must-fix items were addressed (525 pass). It's live on the demo laptop.
+- **#77, changes requested (3 must-fix):**
+  1. The user's own claim blocks approve, because `me` is unknown until publish.
+  2. A merged PR is matched by two shared title words, which hard-blocks publishing.
+  3. A change the user accepted at approve is blocked again at publish.
+  It also needs a rebase on #74 (`report.py`).
+- **#83, changes requested:** the **Problem** line is model text the user never sees or approves, published under their name. Make it part of the approved summary, or show the full body in Review. Also, a malformed repo-check row crashes publish.
