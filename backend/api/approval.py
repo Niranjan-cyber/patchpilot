@@ -6,7 +6,9 @@ from pydantic import BaseModel, Field
 
 from backend import artifacts, db
 from backend.contracts.hashing import canonical_diff, diff_hash, evidence_hash, evidence_manifest
-from backend.contracts.models import (Approval, ApproveRequest, Owner, PERMANENT_BLOCKERS, PublishBlocker, RevisionSummary,
+from datetime import datetime
+
+from backend.contracts.models import (Approval, ApproveRequest, CheckStatus, Owner, PERMANENT_BLOCKERS, PublishBlocker, RevisionSummary,
                                       RunStatus, RunView)
 from backend.github import reader
 
@@ -62,17 +64,67 @@ def changed_files(diff: str) -> set[str]:
     return {l.split(" b/", 1)[1].strip() for l in diff.splitlines() if l.startswith("diff --git ") and " b/" in l}
 
 
+def new_existing_work(start: dict | None, now: dict, *, me: str | None, started_at: str, claims_known_at_start: bool) -> list[str]:
+    """#70 item 4: work that appeared since the run started (code decides). The user's own comments never count.
+    An unreadable source now is unknown, so it fails closed. Without a start snapshot (older runs), claims count only if the
+    issue had none at the start."""
+    out, mine = [], (me or "").lower()
+    if now.get("claimants") is None:
+        out.append("the issue's comments couldn't be read, so we can't confirm nobody has claimed it")
+    else:
+        before = set() if start is None else {x.lower() for x in (start.get("claimants") or []) + (start.get("assignees") or []) if x}
+        people = [p for p in dict.fromkeys((now.get("claimants") or []) + (now.get("assignees") or []))
+                  if p and p.lower() != mine and p.lower() not in before]
+        if people and start is not None and start.get("claimants") is None:   # unreadable then: old and new look the same
+            out.append("the comments couldn't be read when the run started, so we can't tell whether these claims are new: "
+                       + ", ".join(people))
+        elif people and (start is not None or claims_known_at_start):
+            out.append("since the run started, " + ", ".join(people) + " claimed the issue or was assigned")
+    for pr in now.get("closed_prs") or []:
+        if pr.get("merged_at") and datetime.fromisoformat(pr["merged_at"]) > datetime.fromisoformat(started_at):
+            out.append(f"pull request #{pr['number']}, which mentions this issue, was merged after the run started")
+    return out
+
+
+def _login(c, run_id: str) -> str | None:
+    """The user's GitHub login: the publishing account, else the signed-in owner (at approve nothing is published yet)."""
+    aid = db.get_kv(c, f"publish_account:{run_id}") or (c.execute("SELECT owner_account_id FROM runs WHERE run_id=?",
+                                                                  (run_id,)).fetchone() or [None])[0]
+    return (c.execute("SELECT login FROM accounts WHERE id=?", (int(aid),)).fetchone() or [None])[0] if aid else None
+
+
+def accept_issue_change(run_id: str) -> None:
+    """The user approved despite the change: what they saw becomes the baseline, so publish blocks only on newer changes."""
+    import json
+    c = db.connect()
+    if (raw := db.get_kv(c, f"existing_work_recheck:{run_id}")):
+        seen = json.loads(raw)
+        db.put_kv(c, f"existing_work:{run_id}", json.dumps({k: x for k, x in seen.items() if k not in ("new", "warnings")}))
+        db.put_kv(c, f"issue_change_accepted:{run_id}", json.dumps(seen.get("warnings") or []))
+
+
 def stale_checks(v: RunView, diff: str) -> list[PublishBlocker]:
     """Has the world moved since we tested? Fails closed: if GitHub can't confirm, raise (never assume unchanged)."""
-    out = []
+    import json
+    out, recheck, c = [], None, db.connect()
     try:
         chk = reader.check_issue(v.issue.html_url, extract_model=False)   # repo facts only: no assessor call
-        if {"closed", "linked_pr"} & set(chk.warnings):
+        warned = sorted({"closed", "linked_pr"} & set(chk.warnings))
+        if set(warned) - set(json.loads(db.get_kv(c, f"issue_change_accepted:{v.run_id}") or "[]")):
             out.append(PublishBlocker.ISSUE_CHANGED)
+        if chk.existing_work is not None:   # new claims / assignees / merged PRs since the start (#70 item 4)
+            start = json.loads(db.get_kv(c, f"existing_work:{v.run_id}") or "null")
+            new = new_existing_work(start, chk.existing_work, me=_login(c, v.run_id), started_at=v.created_at.isoformat(),
+                                    claims_known_at_start=v.issue.checks.get("unassigned") == CheckStatus.PASSED)
+            recheck = {**chk.existing_work, "new": new, "warnings": warned}
+            if new and PublishBlocker.ISSUE_CHANGED not in out:
+                out.append(PublishBlocker.ISSUE_CHANGED)
         with reader._client() as h:
             cmp = reader._get(h, f"/repos/{v.issue.repo}/compare/{v.base_sha}...{chk.default_branch}")
     except reader.GitHubError as e:
         raise _err(503, "GITHUB_UNAVAILABLE", f"We couldn't confirm nothing changed upstream. {e}", e.retry_after)
+    if recheck is not None:   # saved only once every lookup answered, so a 503 never leaves a clean-looking re-check
+        db.put_kv(c, f"existing_work_recheck:{v.run_id}", json.dumps(recheck))
     files = {f["filename"] for f in cmp.get("files", [])}
     if len(cmp.get("files", [])) >= 300 or files & changed_files(diff):
         out.append(PublishBlocker.UPSTREAM_CHANGED)
@@ -112,6 +164,7 @@ def approve(run_id: str, body: ApproveRequest, request: Request, accept_issue_ch
     new = [b for b in stale_checks(v, diff) if b not in v.publish_blockers]
     if PublishBlocker.ISSUE_CHANGED in new and accept_issue_changed:
         new.remove(PublishBlocker.ISSUE_CHANGED)
+        accept_issue_change(run_id)
         db.emit(db.connect(), run_id, "approval.recorded", None, v.revision, note="approved despite issue change")
     if new:
         v.publish_blockers += new
@@ -120,7 +173,7 @@ def approve(run_id: str, body: ApproveRequest, request: Request, accept_issue_ch
         db.save_run(db.connect(), v)
         code = "UPSTREAM_CHANGED" if PublishBlocker.UPSTREAM_CHANGED in new else "APPROVAL_STALE"
         raise _err(409, code, "Files in this change were edited upstream after we tested. Re-run on the latest code."
-                   if code == "UPSTREAM_CHANGED" else "The issue changed since the run (closed or a new linked pull request).")
+                   if code == "UPSTREAM_CHANGED" else "The issue changed since the run: it was closed, a pull request now addresses it, or someone else claimed it.")
     v.approval = Approval(run_id=run_id, revision=v.revision, diff_hash=body.diff_hash, evidence_hash=body.evidence_hash,
                           approved_by=Owner(session_id_hash=session.current(request)), approved_at=db.now(),
                           checklist=body.checklist, explanation=body.explanation, ownership=body.ownership, pr_title=body.pr_title, pr_summary=body.pr_summary)

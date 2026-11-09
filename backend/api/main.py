@@ -135,9 +135,18 @@ def create_run(body: NewRun, request: Request, response: Response):
     forbidden = chk.policy.ai_policy == "forbidden"
     accepted = [w for w in chk.warnings if w in body.continue_despite]
     # everything in ONE transaction with the job (bug 5); G0 records accepted v0.4 warnings as failed (bug 4)
-    return db.create_run(c, chk.issue, base_sha=chk.base_sha or "pending", owner_session_hash=sid, owner_account_id=aid,
-                         g0=g0_status(chk.issue.checks, accepted), assessment=a,
-                         **({"policy": chk.policy, "publish_blockers": [PublishBlocker.REPO_FORBIDS_AI]} if forbidden else {}))
+    v = db.create_run(c, chk.issue, base_sha=chk.base_sha or "pending", owner_session_hash=sid, owner_account_id=aid,
+                      g0=g0_status(chk.issue.checks, accepted), assessment=a,
+                      **({"policy": chk.policy, "publish_blockers": [PublishBlocker.REPO_FORBIDS_AI]} if forbidden else {}))
+    _existing_work(c, v.run_id, chk)
+    return v
+
+
+def _existing_work(c, run_id: str, chk: IssueCheck) -> None:
+    """#70 item 4: what existing work looked like when the run started; publish compares against it (approval.stale_checks)."""
+    import json
+    if chk.existing_work is not None:
+        db.put_kv(c, f"existing_work:{run_id}", json.dumps(chk.existing_work))
 
 
 def _assessment_only(c, chk: IssueCheck, sid, aid) -> RunView:
@@ -157,6 +166,7 @@ def _assessment_only(c, chk: IssueCheck, sid, aid) -> RunView:
                       readiness=readiness(Outcome.ASSESSMENT_ONLY), publish_blockers=blockers,
                       finished=dict(outcome=Outcome.ASSESSMENT_ONLY.value, end_reason=EndReason.COMPLETED.value,
                                     readiness=readiness(Outcome.ASSESSMENT_ONLY), publish_blockers=[b.value for b in blockers]))
+    _existing_work(c, v.run_id, chk)
     return v
 
 
@@ -328,6 +338,18 @@ def get_bisect(run_id: str, request: Request):
     raw, var = db.get_kv(db.connect(), f"bisect:{run_id}"), db.get_kv(db.connect(), f"variant:{run_id}")
     return {**(json.loads(raw) if raw else {"status": "pending", "reason": "not_run_yet"}),
             "variant": json.loads(var) if var else None}   # hidden-variant reason (RunView only carries its status)
+
+
+@app.get("/api/runs/{run_id}/repo-checks")
+def get_repo_checks(run_id: str, request: Request):
+    """#70 item 3: the repo's own checks, one row per tool (owner-checked). Not run yet -> checks null, never "passed"."""
+    import json
+    if not _is_real(run_id):
+        _fixture(run_id)
+        return {"checks": None, "files": [], "reason": "sample_run"}
+    _own(request, run_id)
+    raw = db.get_kv(db.connect(), f"repo_checks:{run_id}")
+    return json.loads(raw) if raw else {"checks": None, "files": [], "reason": "not_run_yet"}
 
 
 @app.get("/api/runs/{run_id}/report.md")

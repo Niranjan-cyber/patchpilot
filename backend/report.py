@@ -64,6 +64,8 @@ def render(v: RunView, narrative: str | None = None) -> str:
     if narrative:
         L += ["## Explanation", narrative, ""]
     blockers = [b.value for b in v.publish_blockers]
+    L += existing_work_section(v.run_id)
+    L += repo_checks_section(v.run_id)
     o = v.approval.ownership if v.approval else None   # contracts v0.5 §2.3; never in the PR body
     if o:
         L += ["## The contributor's explanation (own words)", f"- What was broken: {o.what_was_broken}",
@@ -82,3 +84,61 @@ def render(v: RunView, narrative: str | None = None) -> str:
             if any(s == CheckStatus.INCONCLUSIVE for s in v.gates.values())
             or (v.supplyguard and v.supplyguard.status == CheckStatus.INCONCLUSIVE) else [])]
     return "\n".join(L) + "\n"
+
+
+def existing_work_section(run_id: str) -> list[str]:
+    """#70 item 4: where we looked for existing work and when, at the start and again at publish. A source we couldn't
+    read says so; we never write "no existing work" for it."""
+    import json
+    from backend import db
+    def get(k):
+        try:
+            raw = db.get_kv(db.connect(), f"{k}:{run_id}")
+        except Exception:
+            raw = None
+        return json.loads(raw) if raw else None
+    start, again = get("existing_work"), get("existing_work_recheck")
+    if not start and not again:
+        return ["## Existing work", "- Not re-checked for this run. G0 checked assignees, claims and linked PRs when it started (see Checks).", ""]
+    names = {"timeline": "issue timeline", "open_prs": "open pull requests", "comments": "issue comments", "closed_prs": "recently closed pull requests"}
+    def lines(w, when):
+        srcs = ", ".join(f"{names.get(k, k)} ({'read' if st == 'checked' else 'could not be read'})" for k, st in w.get("sources", {}).items())
+        prs = w.get("linked_prs")
+        merged = [p["number"] for p in (w.get("closed_prs") or []) if p.get("merged_at")]
+        return [f"- {when}, checked {w.get('checked_at', '?')}: {srcs}.",
+                f"  - Open pull requests for this issue: {', '.join(f'#{n}' for n in prs) if prs else ('none found' if prs == [] else 'unknown')}.",
+                f"  - Claimed in comments by: {', '.join(w['claimants']) if w.get('claimants') else ('nobody' if w.get('claimants') == [] else 'unknown')}."
+                + (f" Assigned to: {', '.join(w['assignees'])}." if w.get("assignees") else ""),
+                *([f"  - Merged pull requests that mention it: {', '.join(f'#{n}' for n in merged)}."] if merged else [])]
+    out = ["## Existing work"]
+    if start:
+        out += lines(start, "When the run started")
+    if again:
+        out += lines(again, "Re-checked before publishing")
+        out += [f"  - New since the start: {'; '.join(again['new'])}." if again.get("new") else "  - Nothing new since the start."]
+    return [*out, ""]
+
+
+def repo_checks_section(run_id: str) -> list[str]:
+    """#70 item 3: one line per tool with its command and exit code. Missing evidence says "not checked", never passed."""
+    import json
+    from backend import db
+    try:
+        raw = db.get_kv(db.connect(), f"repo_checks:{run_id}")
+    except Exception:
+        raw = None
+    res = json.loads(raw) if raw else None
+    if not res or res.get("checks") is None:
+        return ["## Repository checks", "- Not checked: the repo's own linters and type checkers didn't run for this change.", ""]
+    if not res["checks"]:
+        why = {"no_python_files": "no Python files changed", "diff_did_not_apply": "the change didn't apply in the check sandbox",
+               "sandbox_failed": "the check sandbox failed", "only_deleted_files": "the change only deletes Python files"
+               }.get(res.get("reason"), "the repo configures none we can run")
+        return ["## Repository checks", f"- Not checked: {why}.", ""]
+    out = ["## Repository checks", "| Tool | Result | Exit code | Command | Notes |", "|---|---|---|---|---|"]
+    cell = lambda s: str(s).replace("|", "\\|")   # a pipe inside a cell would split the table row
+    for c in res["checks"]:
+        cmd = f"`{cell(c['command'])}`" if c.get("command") else "-"
+        notes = c.get("note", "") + ("; " + "; ".join(c["new"][:3]) if c.get("new") else "")
+        out.append(f"| {cell(c['tool'])} | {c['status']} | {c['exit_code'] if c.get('exit_code') is not None else '-'} | {cmd} | {cell(notes)} |")
+    return [*out, ""]
