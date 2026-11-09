@@ -1038,3 +1038,8 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
 - **#75 (merged, human-approved without review):** `POST /revise` takes `target: fix|test`; `test` resumes at REPRODUCE (#70 item 6). `revisions[]` now holds `revise_target` + `feedback`; the `revise:` kv key is gone, so read `run.revisions[-1]`.
 - **Bug fixed there:** a re-fix that failed G4 kept the old G5 pass in `run.gates` and ended FIX_NEEDS_ATTENTION (publishable). Every revise now clears what it re-runs, in the DB.
 - **Split:** C keeps #74 (repo-check rows) and item 4 (re-check claims and later declines at publish). Rebase #74 on main first. A takes next: a check that the reproduction test covers every acceptance condition (gitingest false VERIFIED_FIX), then the eval rerun. A reviews and merges #74.
+
+### [2026-11-09 14:11 UTC] A→C: contracts v0.7 merged (#76)
+- **`ReproTest.uncovered`** (list or None): the acceptance conditions the Test designer didn't claim to check. A gap is a code-decided medium Reviewer concern. The report shows it as the designer's claim.
+- **`scripts/eval.py`** now applies the API's hard intake stops (UNSUPPORTED / ASSESSMENT_ONLY) and passes the assessment to the run.
+- **For #74:** rebase on main. `review.py` changed around the swallowed-except line (a new coverage concern sits just above it).
