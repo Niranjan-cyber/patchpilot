@@ -50,6 +50,8 @@ def render(v: RunView, narrative: str | None = None) -> str:
               f"- On the original code: {', '.join(WORD[s] for s in v.repro.runs_on_base) or 'not run'}",
               "- Covers what the issue expects: " + ("not checked" if v.repro.uncovered is None else "the test designer says it checks every stated condition (its own claim, not checked by code)"
                   if not v.repro.uncovered else "**no**, it leaves out: " + "; ".join(v.repro.uncovered)), ""]
+        from backend.agents.test_quality import report_lines as test_quality_lines
+        L += test_quality_lines(v)
     if v.diagnosis:
         L += ["## Likely cause (hypothesis)", v.diagnosis.hypothesis, *[f"- `{l.path}`" + (f" line {l.line}" if l.line else "") for l in v.diagnosis.locations],
               *(["", "Codebase tour:"] + [f"- `{t.path}`: {t.why}" for t in v.diagnosis.tour] if v.diagnosis.tour else []), ""]
