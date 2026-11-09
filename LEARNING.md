@@ -182,3 +182,6 @@ Every session appends here after every event: a step started or finished, a deci
   - #68 enforced "ask once" only in the UI.
   LESSON: when a new check reads one more source, its failure path must make the check inconclusive. A UI-only limit isn't a limit.
 - [2026-11-09 05:12 UTC] A EVENT: the human's maintainer-trust plan was handed to C as issue #70 (`docs/handoff/trust-plan.md`: decisions, a map of what exists, an order). A reviews and merges.
+- [2026-11-09 05:39 UTC] C EVENT (#70 items 1–2): **#71** contracts v0.5 (consent blocker + ConsentEvidence + required OwnershipAnswers; additive types, for B), **#72** consent enforcement (stacked on #71), **#73** required ownership answers (stacked on #72). 474 pass; UI checked in vite with a stubbed API.
+  LESSON: a new clearable blocker must be added to every "which blockers may pass" list (Approve, the ask, the UI's hard-blocker filter). Review.tsx would have disabled Approve on the consent blocker; it was caught only by reading the UI filter.
+  LESSON: before our ask, only PR-specific maintainer wording counts. "Yes, I can reproduce" is not a request for a fix.
