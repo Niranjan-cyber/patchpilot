@@ -193,3 +193,6 @@ Every session appends here after every event: a step started or finished, a deci
   - A paused run used the "running" orange, so the UI said "working" when nothing was.
   - "Eval not run" used the red failure frame.
   None of these show in code review; they only showed in screenshots. Look at every state in the browser, not only the happy path.
+- [2026-11-09 05:39 UTC] C EVENT (#70 items 1–2): **#71** contracts v0.5 (consent blocker + ConsentEvidence + required OwnershipAnswers; additive types, for B), **#72** consent enforcement (stacked on #71), **#73** required ownership answers (stacked on #72). 474 pass; UI checked in vite with a stubbed API.
+  LESSON: a new clearable blocker must be added to every "which blockers may pass" list (Approve, the ask, the UI's hard-blocker filter). Review.tsx would have disabled Approve on the consent blocker; it was caught only by reading the UI filter.
+  LESSON: before our ask, only PR-specific maintainer wording counts. "Yes, I can reproduce" is not a request for a fix.
