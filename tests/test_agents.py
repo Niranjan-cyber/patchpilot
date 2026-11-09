@@ -108,6 +108,22 @@ def test_reproduce_passes_g3_on_two_real_failures(node):
     assert db.get_run(db.connect(), ctx.run_id).repro.runs_on_base == [CheckStatus.FAILED, CheckStatus.FAILED]
 
 
+def test_revise_the_test_tells_the_test_designer_why_and_shows_the_old_test(node):
+    from backend import artifacts
+    ctx, _ = node
+    c = db.connect()
+    assert "asked to change" not in R.task_prompt(ctx, 1, None)        # a first run has no feedback
+    from backend.contracts.models import RevisionSummary
+    ask = RevisionSummary(revision=0, outcome=None, end_reason=None, revise_target="test",
+                          feedback="drop the zstd read-back, it fails for another reason")
+    ctx.run.revision, ctx.run.revisions = 1, [ask]
+    db.put_kv(c, f"revise_old_test:{ctx.run_id}", artifacts.put("def test_old(): assert zstd_roundtrip()"))
+    p = R.task_prompt(ctx, 1, None)
+    assert "drop the zstd read-back" in p and "def test_old" in p
+    ask.revise_target = "fix"                                             # feedback about the fix is not for the test designer
+    assert "drop the zstd read-back" not in R.task_prompt(ctx, 1, None)
+
+
 def test_reproduce_retries_then_fails_on_import_error(node):
     ctx, mp = node
     calls = []

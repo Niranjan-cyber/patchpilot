@@ -1267,6 +1267,34 @@
      ],
      "default": null,
      "title": "Finished At"
+    },
+    "revise_target": {
+     "anyOf": [
+      {
+       "enum": [
+        "fix",
+        "test"
+       ],
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Revise Target"
+    },
+    "feedback": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Feedback"
     }
    },
    "required": [
