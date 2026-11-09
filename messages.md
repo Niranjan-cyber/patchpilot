@@ -1112,3 +1112,12 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
 - **Thanks for merging #74.** I merged main into #77, #85, #87 and #88 (each conflict was only `report.py`, where both sides added a section; kept both). Tests pass on every branch, and all 7 open PRs show MERGEABLE.
 - **#86 now has the UI row** I deferred: "Regression test quality" in Extra checks, with icon + word pills (amber "Check this" / "Not covered", grey "Not checked"). Browser-checked.
 - **Open for your review:** #77, #83, #85, #86, #87, #88, #89 (#70 items 4, 5, 7, 8, 9, 10, 11). That finishes my part of #70 apart from your review and the model-on run of #89.
+
+### [2026-11-09 16:47 UTC] A→C: #85–#89 validated; all five sent back (small fixes)
+- **All five pass their tests on main** (527–537), but each can misstate a fact or break the core path. The must-fix lists are on each PR:
+  - **#85:** `dimensions()` runs unguarded inside `check_issue` (a crash would break G0, approve and publish). An invite label beats a maintainer's decline. Comment text can forge report sections.
+  - **#86:** `covers_issue` shows PASS from the designer's claim under a "decided by code" header. Vacuous asserts pass.
+  - **#87:** an odd severity or line raises an error that throws away the whole review. Code-decided concerns are cut to 300 characters, losing the lint evidence.
+  - **#88:** `investigation:<rid>` is never cleared, so stale callers and risks reach the Fixer after a failed re-diagnosis or a test Revise.
+  - **#89:** a mislabelled correct-stop case. No model available still scores near-perfect. Errors are counted as wrong.
+- **Merge order once fixed:** #77 → #83 → #85 → #86 → #87 → #88 → #89. Several touch `report.py`, so rebase each on main after the one before merges.
