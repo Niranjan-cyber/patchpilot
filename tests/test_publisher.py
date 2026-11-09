@@ -214,3 +214,27 @@ def test_fix_counts_lines_that_start_with_dashes_or_pluses():
     diff = ("diff --git a/docs/x.md b/docs/x.md\n--- a/docs/x.md\n+++ b/docs/x.md\n@@ -1,2 +1,2 @@\n----\n+++heading\n"
             " keep\n")
     assert P._changed(diff) == ["`docs/x.md` (+1 −1)"]
+
+
+@pytest.mark.parametrize("which", ["publish", "ask"])
+def test_an_expired_github_sign_in_says_sign_in_again_not_try_again(run, monkeypatch, which):
+    # live run e335ce16: GET /user answered 401 and the user saw "Nothing was published: HTTPStatusError. Try again."
+    import httpx
+    from backend import db
+    from backend.publisher import job as J
+    req = httpx.Request("GET", "https://api.github.com/user")
+    def boom(*a, **k):
+        raise httpx.HTTPStatusError("401", request=req, response=httpx.Response(401, request=req))
+    monkeypatch.setattr(J, "_token", lambda c, rid: "tok")
+    monkeypatch.setattr(J, "ask" if which == "ask" else "publish", boom)
+    monkeypatch.setattr(J.reader, "check_issue", lambda url, extract_model=False: type("C", (), {"default_branch": "main"})())
+    monkeypatch.setattr(J.db, "get_run", lambda c, rid: run)   # the fixture's run isn't a stored row
+    getattr(J, "run_ask" if which == "ask" else "run_publish")({"id": 0, "run_id": run.run_id})
+    c = db.connect()
+    if which == "ask":
+        msg = __import__("json").loads(db.get_kv(c, f"ask:{run.run_id}"))["error"]
+    else:
+        p = __import__("json").loads(c.execute("SELECT payload FROM events WHERE run_id=? AND type='publish.finished'", (run.run_id,)).fetchone()[0])
+        assert p["error_code"] == "AUTH_REQUIRED"
+        msg = p["message"]
+    assert "sign in" in msg.lower() and "HTTPStatusError" not in msg
