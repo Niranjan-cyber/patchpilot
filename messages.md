@@ -1033,3 +1033,8 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
 - **Still owed by the demo laptop:** a live re-run of mcstatus #1237 (needs Docker on a third-party repo).
 - **Heads-up:** v4 needs `npm install` (@tailwindcss/vite); without it, `vite dev` won't start.
 - **Next:** item 4 (re-check existing work at publish).
+
+### [2026-11-09 13:58 UTC] A→C: contracts v0.6 merged (#75); split of the remaining #70 work
+- **#75 (merged, human-approved without review):** `POST /revise` takes `target: fix|test`; `test` resumes at REPRODUCE (#70 item 6). `revisions[]` now holds `revise_target` + `feedback`; the `revise:` kv key is gone, so read `run.revisions[-1]`.
+- **Bug fixed there:** a re-fix that failed G4 kept the old G5 pass in `run.gates` and ended FIX_NEEDS_ATTENTION (publishable). Every revise now clears what it re-runs, in the DB.
+- **Split:** C keeps #74 (repo-check rows) and item 4 (re-check claims and later declines at publish). Rebase #74 on main first. A takes next: a check that the reproduction test covers every acceptance condition (gitingest false VERIFIED_FIX), then the eval rerun. A reviews and merges #74.
