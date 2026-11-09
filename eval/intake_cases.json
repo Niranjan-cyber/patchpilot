@@ -1,0 +1,131 @@
+{
+ "about": "#70 item 11 (trust plan §12), intake slice: does PatchPilot make the right proceed/stop decision on real issues? Intake only (GitHub reads + one model extraction per issue); no repository code runs. `expected` lists the handling decisions C judged acceptable on 2026-11-09; they are C's labels for the human to confirm, not ground truth. A correct stop counts as a success.",
+ "cases": [
+  {
+   "id": "pylint-11791",
+   "url": "https://github.com/pylint-dev/pylint/issues/11791",
+   "kind": "existing contribution: a trust-plan candidate; open fix PR #11793 by another contributor (checked 2026-11-09)",
+   "expected": [
+    "ALREADY_ADDRESSED",
+    "HUMAN_DECISION"
+   ]
+  },
+  {
+   "id": "boltons-750",
+   "url": "https://github.com/mahmoud/boltons/issues/750",
+   "kind": "existing contribution: a trust-plan candidate; open fix PR #752 by another contributor (checked 2026-11-09)",
+   "expected": [
+    "ALREADY_ADDRESSED",
+    "HUMAN_DECISION"
+   ]
+  },
+  {
+   "id": "html2text-468",
+   "url": "https://github.com/Alir3z4/html2text/issues/468",
+   "kind": "existing contribution: a trust-plan candidate; open fix PR #469 by another contributor (checked 2026-11-09)",
+   "expected": [
+    "ALREADY_ADDRESSED",
+    "HUMAN_DECISION"
+   ]
+  },
+  {
+   "id": "requests-5936",
+   "url": "https://github.com/psf/requests/issues/5936",
+   "kind": "version compatibility (labelled Feature Request)",
+   "expected": [
+    "ASSESSMENT_ONLY",
+    "HUMAN_DECISION"
+   ]
+  },
+  {
+   "id": "requests-5871",
+   "url": "https://github.com/psf/requests/issues/5871",
+   "kind": "needs maintainer decision (optional dependency)",
+   "expected": [
+    "ASSESSMENT_ONLY",
+    "HUMAN_DECISION"
+   ]
+  },
+  {
+   "id": "httpx-3781",
+   "url": "https://github.com/encode/httpx/issues/3781",
+   "kind": "feature request",
+   "expected": [
+    "ASSESSMENT_ONLY",
+    "HUMAN_DECISION"
+   ]
+  },
+  {
+   "id": "express-7532",
+   "url": "https://github.com/expressjs/express/issues/7532",
+   "kind": "unsupported environment (JavaScript)",
+   "expected": [
+    "UNSUPPORTED"
+   ]
+  },
+  {
+   "id": "pytest-10364",
+   "url": "https://github.com/pytest-dev/pytest/issues/10364",
+   "kind": "Windows-only flaky test; our sandbox is Linux, so a human decides (Windows only, flaky)",
+   "expected": [
+    "HUMAN_DECISION",
+    "NEEDS_INFORMATION"
+   ]
+  },
+  {
+   "id": "pytest-10843",
+   "url": "https://github.com/pytest-dev/pytest/issues/10843",
+   "kind": "Windows-only flaky test; our sandbox is Linux, so a human decides (Windows, flaky)",
+   "expected": [
+    "HUMAN_DECISION",
+    "NEEDS_INFORMATION"
+   ]
+  },
+  {
+   "id": "msoffcrypto-108",
+   "url": "https://github.com/nolze/msoffcrypto-tool/issues/108",
+   "kind": "existing contribution (claimed + open PR)",
+   "expected": [
+    "ALREADY_ADDRESSED",
+    "HUMAN_DECISION"
+   ]
+  },
+  {
+   "id": "dotenv-715",
+   "url": "https://github.com/theskumar/python-dotenv/issues/715",
+   "kind": "existing contribution (several open PRs)",
+   "expected": [
+    "ALREADY_ADDRESSED",
+    "HUMAN_DECISION"
+   ]
+  },
+  {
+   "id": "mcstatus-1237",
+   "url": "https://github.com/py-mine/mcstatus/issues/1237",
+   "kind": "correct to stop (our own PR was closed unasked)",
+   "expected": [
+    "ALREADY_ADDRESSED",
+    "HUMAN_DECISION"
+   ]
+  },
+  {
+   "id": "csvkit-1274",
+   "url": "https://github.com/wireservice/csvkit/issues/1274",
+   "kind": "correct to stop (closed feature)",
+   "expected": [
+    "ASSESSMENT_ONLY",
+    "ALREADY_ADDRESSED"
+   ]
+  },
+  {
+   "id": "gitingest-115",
+   "url": "https://github.com/cyclotruc/gitingest/issues/115",
+   "kind": "ambiguous issue (closed since)",
+   "expected": [
+    "ALREADY_ADDRESSED",
+    "HUMAN_DECISION",
+    "NEEDS_INFORMATION"
+   ]
+  }
+ ]
+}
