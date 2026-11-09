@@ -12,11 +12,14 @@ from backend.sandbox import docker
 from backend.sandbox.steps import image, snap
 from backend.worker.nodes import StepContext
 
+UNFINISHED = ("The fixer stopped without saying it was finished (step limit, stuck, or an unreadable DONE line); "
+              "the checks below judge its edit as it stands.")
 WHY = {"edits_tests": "it changed a test file; tests are fixed, only change source files",
        "dependency_change": "it changed a dependency file (requirements, pyproject, setup, lock files)",
        "ci_change": "it changed .github/", "too_many_files": f"it changed more than {MAX_FILES} files",
        "too_many_lines": f"it changed more than {MAX_LINES} lines", "empty_diff": "it changed nothing on disk (printing a diff or describing a change edits no file; write the file, then check `git diff`)",
        "binary_change": "it changed a binary file",
+       "stray_file": "it added a file that isn't Python source (delete scratch files you created while testing)",
        "unparseable_diff": "a changed file name could not be read from the diff (avoid spaces or non-ASCII in file names)"}
 
 
@@ -76,12 +79,15 @@ def fix(ctx: StepContext) -> GateResult | None:
         ev = [artifacts.put("\n\n".join(f"[{m['role']}]\n{m['content']}" for m in transcript))]
         if diff.strip():
             ev.append(artifacts.put(diff))
-        last = g4_result(diff, evidence_ids=ev) if res else GateResult(gate="G4", status=CheckStatus.FAILED,
-                                                                     reason="no_fix_written", evidence_ids=ev)
+        # smart_open-833: an edit made before the step limit is judged by G4/G5 like any other; DONE is only the model's word
+        last = g4_result(diff, evidence_ids=ev) if res is not None or diff.strip() else GateResult(gate="G4", status=CheckStatus.FAILED,
+                                                                              reason="no_fix_written", evidence_ids=ev)
         if last.status == CheckStatus.PASSED:
             run = db.get_run(db.connect(), rid)
             run.patch = Patch(fix_diff_id=ev[1], test_diff_id=run.repro.test_diff_id, attempt=attempt,
-                              policy_result=CheckStatus.PASSED, policy_reason=str(res.get("summary", ""))[:300] or None)
+                              policy_result=CheckStatus.PASSED,
+                              policy_reason=(UNFINISHED if res is None else str(res.get("summary", "") if isinstance(res, dict)
+                                                                                 else "")[:300]) or None)
             db.save_run(db.connect(), run)
             files = diff.count("\ndiff --git ") + diff.startswith("diff --git ")
             ctx.scratch["headline"] = f"Wrote a fix ({files} file{'s' if files != 1 else ''}) that passed the change rules."

@@ -175,3 +175,27 @@ def test_a_concern_in_a_spaced_file_is_attributed_to_it():
             "@@ -1,2 +1,3 @@\n try:\n     x()\n+except Exception:\n+    pass\n")
     concerns = swallowed_excepts(diff)
     assert len(concerns) == 1 and "src/my module.py" in concerns[0]["text"]
+
+
+STRAY = """diff --git a/src/pkg/mod.py b/src/pkg/mod.py
+--- a/src/pkg/mod.py
++++ b/src/pkg/mod.py
+@@ -1 +1 @@
+-x = 1
++x = 2
+diff --git a/x.zst.gz b/x.zst.gz
+new file mode 100644
+index 0000000..e69de29
+"""
+
+
+def test_a_new_file_that_is_not_python_source_is_refused():
+    # smart_open-833 (run ba3c0fe0): the fixer's empty scratch files x.zst.gz / y.zst.gz passed G4 and would ride into the PR
+    from backend.gates.diff_policy import g4_result
+    assert g4_result(STRAY, evidence_ids=[]).reason == "stray_file"
+    for ok in ("src/pkg/helper.py", "src/pkg/py.typed"):
+        assert g4_result(STRAY.replace("x.zst.gz", ok), evidence_ids=[]).status.value == "passed"   # new source in a package
+    assert g4_result(STRAY.replace("x.zst.gz", "repro.py"), evidence_ids=[]).reason == "stray_file"   # scratch at the root
+    moved = STRAY.replace("new file mode 100644\nindex 0000000..e69de29\n",
+                          "similarity index 100%\nrename from src/pkg/u.py\nrename to notes.txt\n")
+    assert g4_result(moved.replace("a/x.zst.gz b/x.zst.gz", "a/src/pkg/u.py b/notes.txt"), evidence_ids=[]).reason == "stray_file"

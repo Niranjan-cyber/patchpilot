@@ -82,6 +82,17 @@ def test_reviewer_checks_the_test_against_what_the_issue_expects(ctx):   # gitin
     assert "doesn't ask for" in seen["p"] and "only the reporter's example" in seen["p"]
 
 
+def test_an_unfinished_fixer_edit_can_never_be_ready(ctx):   # a half-done multi-file edit must not reach VERIFIED_FIX
+    from backend.agents.fix import UNFINISHED
+    c, mp = ctx
+    v = db.get_run(db.connect(), c.run_id)
+    v.patch = v.patch.model_copy(update={"policy_reason": UNFINISHED}); db.save_run(db.connect(), v)
+    mp.setattr(RV, "complete", lambda *a, **k: '{"concerns": []}')
+    RV.review(c)
+    r = db.get_run(db.connect(), c.run_id).review
+    assert r.lowers_readiness is True and any("before saying its change was finished" in x["text"] for x in r.concerns)
+
+
 def test_reviewer_sees_what_the_issue_asks_for(ctx):   # tinycalc #2: the requested change was flagged as a risk
     c, mp = ctx
     v = db.get_run(db.connect(), c.run_id)
