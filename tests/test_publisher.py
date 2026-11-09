@@ -2,7 +2,7 @@ import pytest
 
 from backend import artifacts
 from backend.api import approval
-from backend.contracts.models import (Approval, CheckStatus, IssueSpec, Outcome, Owner, Patch, PublishBlocker, ReproTest,
+from backend.contracts.models import (Approval, CheckStatus, ConsentEvidence, IssueSpec, Outcome, Owner, Patch, PublishBlocker, ReproTest,
                                       RunStatus, RunView, SGReport, TestRun, Verification)
 from backend.publisher import publisher as P
 
@@ -24,6 +24,8 @@ def run(monkeypatch):
     dh, eh = approval.hashes(v, approval.exact_diff(v))
     v.approval = Approval(run_id=v.run_id, revision=0, diff_hash=dh, evidence_hash=eh, approved_by=Owner(session_id_hash="s"),
                           approved_at=t, checklist={}, pr_title="Fix #7: bug", pr_summary="Raises now.")
+    v.consent = ConsentEvidence(kind="maintainer_reply", source_url="https://github.com/up/proj/issues/7#issuecomment-2",
+                                author="maint", author_association="OWNER", quote="Yes please", recorded_at=t)
     return v
 
 
@@ -137,3 +139,20 @@ def test_ask_posts_one_comment_after_the_same_checks(run):
     with pytest.raises(P.PublishRefused):
         P.ask(run, gh, "Would you like a PR?")
     assert gh.calls == []
+
+
+def test_no_pr_without_consent_but_the_ask_still_works(run):
+    # contracts v0.5 §2.2 (human decision 2026-11-09): publishing needs recorded consent; asking is how you get it
+    run.consent = None
+    run.publish_blockers.append(PublishBlocker.NO_MAINTAINER_CONSENT)
+    gh = FakeGH()
+    with pytest.raises(P.PublishRefused) as e:
+        P.publish(run, gh, "main")
+    assert e.value.code == "PUBLISH_BLOCKED" and gh.calls == []
+    assert P.ask(run, gh, "Would you like a PR?").endswith("#issuecomment-1")
+
+
+def test_override_is_never_written_into_the_pr_body(run):
+    run.consent = ConsentEvidence(kind="user_override", override_reason="The maintainer asked me on Discord to send it.",
+                                  recorded_at=run.created_at)
+    assert "Discord" not in P.pr_body(run) and "maintainer asked" not in P.pr_body(run).lower()

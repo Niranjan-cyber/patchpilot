@@ -101,6 +101,9 @@ def publish(run_id: str, request: Request):
         raise _err(401, "AUTH_REQUIRED", "Connect GitHub to publish. Until then you can download the diff and report.")
     if v.status not in (RunStatus.AWAITING_APPROVAL, RunStatus.PUBLISHED) or v.approval is None:
         raise _err(409, "APPROVAL_STALE", "Approve the current version of the change first.")
+    if v.consent is None:   # v0.5 §2.2: enforced here and again by the publisher
+        from backend.publisher.publisher import NO_CONSENT
+        raise _err(409, "PUBLISH_BLOCKED", NO_CONSENT)
     blocked = [b for b in v.publish_blockers if b not in (PublishBlocker.NOT_SIGNED_IN,)]
     if blocked:
         raise _err(409, "PUBLISH_BLOCKED", "Publishing is blocked: " + ", ".join(b.value for b in blocked))
@@ -144,7 +147,7 @@ def ask_maintainer(run_id: str, body: AskBody, request: Request):
         raise _err(401, "AUTH_REQUIRED", "Connect GitHub to comment on the issue.")
     if v.status not in (RunStatus.AWAITING_APPROVAL, RunStatus.PUBLISHED) or v.approval is None or v.approval.revision != v.revision:
         raise _err(409, "APPROVAL_STALE", "Approve the current version of the change first.")
-    blocked = [b for b in v.publish_blockers if b not in (PublishBlocker.NOT_SIGNED_IN,)]
+    blocked = [b for b in v.publish_blockers if b not in (PublishBlocker.NOT_SIGNED_IN, PublishBlocker.NO_MAINTAINER_CONSENT)]
     if blocked:
         raise _err(409, "PUBLISH_BLOCKED", "Publishing is blocked: " + ", ".join(b.value for b in blocked))
     c = db.connect()
@@ -158,3 +161,65 @@ def ask_maintainer(run_id: str, body: AskBody, request: Request):
         c.execute("DELETE FROM kv WHERE key=?", (f"ask:{run_id}",))
         c.execute("INSERT INTO jobs(run_id,kind,state,available_at) VALUES(?,?,?,?)", (run_id, "ask", "queued", db.now().isoformat()))
     return {"status": "asking"}
+
+
+class ConsentBody(BaseModel):
+    attest_comment_url: str | None = Field(default=None, max_length=500)
+    override_reason: str | None = Field(default=None, min_length=20, max_length=1000)
+
+
+def _consent_state(v, request: Request) -> dict:
+    import json
+    from backend.github import consent, reader
+    c = db.connect()
+    asked = json.loads(db.get_kv(c, f"ask:{v.run_id}") or "{}").get("url")
+    aid = db.get_kv(c, f"publish_account:{v.run_id}")
+    poster = c.execute("SELECT login FROM accounts WHERE id=?", (int(aid),)).fetchone() if aid else None
+    me = (poster or [None])[0] or (session.account(request) or {}).get("login")
+    try:
+        return consent.check(v.issue.repo, v.issue.number, asked_url=asked, me=me)
+    except reader.GitHubError as e:   # unknown is never consent
+        raise _err(503, "GITHUB_UNAVAILABLE", f"We couldn't read the issue to check for a maintainer's reply. {e}")
+
+
+def _out(v, st: dict) -> dict:
+    return {"consent": v.consent.model_dump(mode="json") if v.consent else None, "state": "recorded" if v.consent else st["state"],
+            "replies": st.get("replies", []), "why": st.get("why")}
+
+
+@router.get("/api/runs/{run_id}/consent")
+def consent_state(run_id: str, request: Request):
+    """v0.5 §2.2: what GitHub says now. Records nothing."""
+    from backend.api.approval import _run
+    v = _run(request, run_id)
+    return _out(v, {"state": "recorded"} if v.consent else _consent_state(v, request))
+
+
+@router.post("/api/runs/{run_id}/consent")
+def record_consent(run_id: str, body: ConsentBody, request: Request):
+    """v0.5 §2.2: {} records consent GitHub shows; {attest_comment_url} a maintainer reply the user confirms;
+    {override_reason} the user's typed override (shown in the report, never in the PR body)."""
+    from backend.api.approval import _run
+    from backend.contracts.models import ConsentEvidence
+    v = _run(request, run_id)
+    if v.status not in (RunStatus.AWAITING_APPROVAL, RunStatus.PUBLISHED):
+        raise _err(409, "APPROVAL_STALE", "This run isn't waiting to be published.")
+    st = {"state": "recorded"}
+    if body.override_reason:
+        ev = ConsentEvidence(kind="user_override", override_reason=body.override_reason.strip(), recorded_at=db.now())
+    else:
+        st = _consent_state(v, request)
+        if body.attest_comment_url:
+            r = next((r for r in st["replies"] if r["url"] == body.attest_comment_url), None)
+            if not r or r["declined"]:
+                raise _err(409, "NOT_CONSENT", "That isn't a maintainer's reply to your question (or it declined). "
+                                               "You can still publish with a typed reason.")
+            ev = ConsentEvidence(kind="maintainer_reply", source_url=r["url"], author=r["author"], author_association=r["association"],
+                                 quote=r["quote"], attested_by_user=True, recorded_at=db.now())
+        else:
+            ev = st.get("evidence")
+    if ev:
+        v.consent = ev
+        v.publish_blockers = [b for b in v.publish_blockers if b != PublishBlocker.NO_MAINTAINER_CONSENT]
+        db.save_run(db.connect(), v)
+    return _out(v, st)

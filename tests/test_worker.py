@@ -50,6 +50,7 @@ def test_all_gates_pass_awaits_approval(env):
     v = db.create_run(c, ISSUE, "sha"); drain(c, g)
     r = db.get_run(c, v.run_id)
     assert (r.status.value, r.outcome.value) == ("awaiting_approval", "VERIFIED_FIX")
+    assert {"not_approved", "no_maintainer_consent"} <= {b.value for b in r.publish_blockers}   # contracts v0.5 §2.2
     types = [e.type for e in db.events_after(c, v.run_id, 0)]
     assert types[0] == "run.queued" and types[-1] == "analysis.finished"
 

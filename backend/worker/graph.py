@@ -132,6 +132,8 @@ def finish(state: S) -> S:
     status = status_after_analysis(outcome, blockers)
     if status == RunStatus.AWAITING_APPROVAL and PublishBlocker.NOT_APPROVED not in blockers:
         blockers.append(PublishBlocker.NOT_APPROVED)
+    if status == RunStatus.AWAITING_APPROVAL and run.consent is None and PublishBlocker.NO_MAINTAINER_CONSENT not in blockers:
+        blockers.append(PublishBlocker.NO_MAINTAINER_CONSENT)   # contracts v0.5 §2.2 (#70)
     run.outcome, run.end_reason, run.readiness, run.status = outcome, end, readiness(outcome, capped=capped), status
     run.publish_blockers = blockers
     db.save_run(c, run)

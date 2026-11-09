@@ -20,6 +20,7 @@ export function Connect() {
   const [err, setErr] = useState<ApiError | null>(null);
   const [busy, setBusy] = useState(false);
   useEffect(() => { api<Me>("/api/me").then(setMe).catch(setErr); }, []);
+  const [consented, setConsented] = useState(false);
   const publish = async () => {
     setBusy(true); setErr(null);
     try { await api(`/api/runs/${run}/publish`, { method: "POST" }); nav(`/runs/${run}/pr`); }
@@ -49,15 +50,73 @@ export function Connect() {
         </div>
       )}
       {me?.signed_in && run && <AskFirst run={run} />}
+      {me?.signed_in && run && <ConsentCard run={run} onChange={setConsented} />}
       {me?.signed_in && run && (
         <div className="card">
           <h2>Then, if they say yes: open the pull request</h2>
+          {!consented && <p className="hint">Available once a maintainer's yes (or your reason) is recorded above.</p>}
           <p>We'll check that nothing changed upstream, re-apply your approved change on a clean copy, and open a draft pull request. If you can't push to the repository, we use your fork.</p>
-          <div className="row"><button className="secondary-btn" onClick={publish} disabled={busy}>{busy ? "Starting…" : "Publish draft pull request"}</button></div>
+          <div className="row"><button className="secondary-btn" onClick={publish} disabled={busy || !consented}>{busy ? "Starting…" : "Publish draft pull request"}</button></div>
         </div>
       )}
       {err && <p className="notice warn">{err.message}</p>}
     </section>
+  );
+}
+
+type Reply = { url: string; author: string; association: string; quote: string; positive: boolean; declined: boolean };
+type Consent = { consent: { kind: string; source_url?: string | null; author?: string | null; quote?: string | null;
+  attested_by_user?: boolean; override_reason?: string | null } | null; state: string; replies: Reply[]; why?: string | null };
+const STATE: Record<string, string> = {
+  none: "No maintainer has said yes yet. Ask them first (above).",
+  waiting: "Waiting for a maintainer to reply to your comment. Silence isn't a yes.",
+  replied: "A maintainer replied, but not with a clear yes. Read it, and record it below only if it agrees to your fix.",
+  declined: "A maintainer declined. Respect that unless something new has changed their mind.",
+};
+const KIND: Record<string, string> = {
+  maintainer_reply: "A maintainer replied yes", maintainer_request: "A maintainer asked for a fix",
+  contributing_invites: "The project's contributing guide invites fixes like this", user_override: "You chose to publish without a maintainer's yes",
+};
+
+/** Contracts v0.5 §2.2: publishing needs a maintainer's yes, an invitation, or the user's typed reason. */
+function ConsentCard({ run, onChange }: { run: string; onChange: (ok: boolean) => void }) {
+  const [st, setSt] = useState<Consent | null>(null);
+  const [err, setErr] = useState<ApiError | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [reason, setReason] = useState("");
+  const show = (c: Consent) => { setSt(c); onChange(!!c.consent); };
+  useEffect(() => { api<Consent>(`/api/runs/${run}/consent`).then(show).catch(setErr); }, [run]);
+  const send = async (body: object) => {
+    setBusy(true); setErr(null);
+    try { show(await api<Consent>(`/api/runs/${run}/consent`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) })); }
+    catch (e) { setErr(e as ApiError); } finally { setBusy(false); }
+  };
+  const k = st?.consent;
+  return (
+    <div className="card form">
+      <h2>Maintainer's answer</h2>
+      {k ? <p className="notice">{KIND[k.kind] ?? k.kind}{k.attested_by_user ? " (you confirmed their reply)" : ""}
+          {k.quote && <>: "{k.quote}"</>}{k.source_url && <> <a href={k.source_url}>source</a></>}
+          {k.override_reason && <>. Your reason: {k.override_reason}</>}</p>
+        : st && <>
+          <p>{STATE[st.state] ?? st.state}{st.why ? ` ${st.why}` : ""}</p>
+          {st.replies.filter((r) => !r.declined).map((r) => (
+            <div key={r.url} className="row">
+              <blockquote>{r.author} ({r.association.toLowerCase()}): "{r.quote}" <a href={r.url}>open</a></blockquote>
+              <button className="secondary-btn" disabled={busy} onClick={() => send({ attest_comment_url: r.url })}>They agreed: record this reply</button>
+            </div>
+          ))}
+          <div className="row"><button className="secondary-btn" disabled={busy} onClick={() => send({})}>{busy ? "Checking…" : "Check the issue for a reply"}</button></div>
+          <details>
+            <summary>Publish without a maintainer's yes</summary>
+            <label>Why is it right to open this pull request anyway? (at least 20 characters)
+              <textarea rows={2} value={reason} onChange={(e) => setReason(e.target.value)} maxLength={1000} /></label>
+            <p className="hint">Your reason goes in the report as an override. It never appears in the pull request as if a maintainer asked.</p>
+            <button className="secondary-btn" disabled={busy || reason.trim().length < 20} onClick={() => send({ override_reason: reason })}>Record my reason</button>
+          </details>
+        </>}
+      {err && <p className="notice warn">{err.message}</p>}
+    </div>
   );
 }
 
