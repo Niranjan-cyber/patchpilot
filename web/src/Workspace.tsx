@@ -76,8 +76,8 @@ export function StageNavigator({ run }: { run: RunView }) {
             <span className="stage-node"><StatusIcon s={k} size={13} /></span>
             <button className="stage-btn" aria-expanded={isOpen} aria-controls={`stage-${st.id}`} onClick={() => setOpen({ ...open, [st.id]: !isOpen })}>
               <span className="stage-title"><strong>{st.label}</strong>{s.headline && <span className="stage-line">{s.headline}</span>}</span>
-              <span className="stage-time">{took(s.started_at, s.finished_at) ?? time(s.started_at) ?? ""}</span>
-              <Status s={k as never} />
+              <span className="stage-time">{(t => t === "0s" ? "" : t)(took(s.started_at, s.finished_at) ?? "")}</span>
+              {k === "passed" ? <span className="sr-only">Passed</span> : <Status s={k as never} />}
               <span className="chev"><Icon name="chev" size={14} /></span>
             </button>
             <div className="reveal" id={`stage-${st.id}`}><div>

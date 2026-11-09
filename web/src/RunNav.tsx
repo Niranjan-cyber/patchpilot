@@ -21,22 +21,18 @@ export function RunTabs({ run, id }: { run: RunView; id: string }) {
   );
 }
 
-export function RunHeader({ run, id }: { run: RunView; id: string }) {
-  const here = useLocation();
-  const onOverview = here.pathname === `/runs/${id}`;
+/** Title and tabs. The next action lives in the page body (one button per screen), so the header carries none.
+ *  `badge` is off on the run overview, whose decision block shows the readiness instead (one badge per screen). */
+export function RunHeader({ run, id, badge = true }: { run: RunView; id: string; badge?: boolean }) {
   const real = /^[0-9a-f-]{36}$/.test(id);
-  const action = run.pr ? { to: `/runs/${id}/pr`, label: "See the pull request" }
-    : run.status === "awaiting_approval" && run.approval ? { to: `/connect?run=${id}`, label: "Publish draft pull request" }
-    : run.status === "awaiting_approval" ? { to: `/runs/${id}/review`, label: "Review and approve" } : null;
   return (
     <>
       <div className="page-head">
         <div>
           <p className="crumbs"><Link to="/my-runs">My runs</Link><Icon name="chev" size={12} /><a href={run.issue.html_url}>{run.issue.repo} #{run.issue.number}</a>{!real && <SampleBadge />}</p>
           <h1>{run.issue.title}</h1>
-          {onOverview && run.status === "awaiting_approval" && !run.approval && <p className="hint">Ready for you: read the exact change and decide. Nothing is published until you approve.</p>}
         </div>
-        <div className="actions"><ReadinessBadge run={run} />{action && here.pathname + here.search !== action.to && <Link className="button" to={action.to}>{action.label}</Link>}</div>
+        {badge && <div className="actions"><ReadinessBadge run={run} /></div>}
       </div>
       <RunTabs run={run} id={id} />
     </>

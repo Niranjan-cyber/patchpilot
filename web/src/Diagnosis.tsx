@@ -30,8 +30,9 @@ export function DiagnosisCard({ run }: { run: RunView }) {
   }
   return (
     <div className="card diagnosis">
-      <h2>Likely cause <span className="sample" title="Written by AI, checked against real files and evidence">Estimate</span></h2>
-      <p>{d.hypothesis}</p>
+      <h2>Likely cause</h2>
+      <p className="cause">{d.hypothesis}</p>
+      <p className="hint">Written by AI and checked against the code it cites. It can still be wrong.</p>
       <ul className="locs">
         {(d.locations ?? []).map((l) => (
           <li key={`${l.path}:${l.line}`}><a href={blob(run, l.path, l.line)}><code>{l.path}{l.line ? `:${l.line}` : ""}</code></a></li>

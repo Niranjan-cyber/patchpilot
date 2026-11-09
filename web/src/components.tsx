@@ -144,18 +144,18 @@ export function ProofPanel({ run }: { run: RunView }) {
   return (
     <section className="proof" aria-label="Proof that the fix works">
       <div className="proof-col">
-        <h3>On the original code <code title={run.base_sha}>{run.base_sha?.slice(0, 7)}</code></h3>
+        <h3>Before the fix <span className="hint">original code <code title={run.base_sha}>{run.base_sha?.slice(0, 7)}</code></span></h3>
         <div className="proof-runs">{before.map((s, i) => <span key={i} className={`run run-${s}`}><StatusIcon s={s} />Run {i + 1}: {WORD[s]}</span>)}</div>
       </div>
       <div className="proof-arrow" aria-hidden><Icon name="arrow" size={14} /></div>
       <div className="proof-col">
-        <h3>After the fix, in a fresh sandbox</h3>
+        <h3>After the fix <span className="hint">fresh sandbox</span></h3>
         <div className="proof-runs">
           {after.length ? after.map((s, i) => <span key={i} className={`run run-${s}`}><StatusIcon s={s} />Run {i + 1}: {WORD[s]}</span>)
             : <span className="run run-not_run"><StatusIcon s="not_run" />Not verified</span>}
         </div>
       </div>
-      <p className="proof-test"><span>Regression test</span><code>{run.repro?.test_ids.join(", ")}</code></p>
+      <p className="proof-test"><span>Test</span><code>{run.repro?.test_ids.join(", ")}</code></p>
       {base && (
         <p className="proof-base">
           {base.pass_set?.length ?? 0} existing tests passed before{run.verify ? ` and still pass` : ""}.
