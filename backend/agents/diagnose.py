@@ -46,9 +46,34 @@ When done, run: echo {loop.DONE} '<one line of JSON>' with this shape:
 {{"hypothesis": "<2-3 plain sentences a first-time contributor understands>",
   "locations": [{{"path": "<repo-relative file>", "line": <line number>}}],
   "tour": [{{"path": "<file>", "why": "<one line: why this file matters>"}}],
-  "evidence_ids": ["<ids from the list above that support the hypothesis>"]}}
-Cite 1-3 locations and 2-5 tour files. Paths are relative to /src.
+  "evidence_ids": ["<ids from the list above that support the hypothesis>"],
+  "callers": [{{"path": "<file>", "line": <line>, "why": "<one line: what calls the code a fix would change>"}}],
+  "regression_risks": ["<one line each: existing behaviour a fix could break>"],
+  "test_strategy": "<one line: how to prove a fix works without breaking the callers>",
+  "uncertainty": "<one line: what you are NOT sure of, or empty>"}}
+Cite 1-3 locations and 2-5 tour files. List up to 5 callers you actually found (grep -rn), not guesses; an empty list is
+fine. Paths are relative to /src.
 {"Your previous answer was rejected: " + previous if previous else ""}"""
+
+
+def details(res: dict, line_count) -> dict:
+    """#70 item 10: the Investigator's extra fields (kv investigation:<run_id>, not a contract field). Optional: a missing
+    or malformed field never rejects a diagnosis. Callers are facts, so code checks each file and line in the pinned
+    source and drops the rest; risks, test strategy and uncertainty are the Investigator's own view, shown as such."""
+    kept, dropped = [], []
+    for c in (res.get("callers") if isinstance(res.get("callers"), list) else [])[:5]:
+        if not isinstance(c, dict):
+            continue
+        path, line = str(c.get("path") or "").removeprefix("/src/").removeprefix("./"), c.get("line")
+        n = line_count(path) if path and not path.startswith("/") and ".." not in path.split("/") else None
+        if n is None or not isinstance(line, int) or not 0 < line <= n:
+            dropped.append(path or "(no path)")
+        else:
+            kept.append({"path": path, "line": line, "why": str(c.get("why") or "")[:200]})
+    text = lambda k: (str(res.get(k)).strip()[:300] or None) if isinstance(res.get(k), str) else None
+    risks = [str(r).strip()[:200] for r in (res.get("regression_risks") if isinstance(res.get("regression_risks"), list) else []) if str(r).strip()][:5]
+    return {"callers": kept, "callers_dropped": dropped, "regression_risks": risks, "test_strategy": text("test_strategy"),
+            "uncertainty": text("uncertainty")}
 
 
 def _bisect_once(ctx: StepContext) -> None:
@@ -97,6 +122,7 @@ def diagnose(ctx: StepContext):
             why = check_diagnosis(res, set(menu), line_count)
             # Inside the container: line_count needs it, and it's removed below.
             tour_kept, tour_dropped = keep_tour((res.get("tour") or [])[:5], line_count) if why is None else ([], [])
+            extra = details(res, line_count) if why is None else None
         finally:
             docker.rm(name)
         tid = artifacts.put("\n\n".join(f"[{m['role']}]\n{m['content']}" for m in transcript))
@@ -108,6 +134,11 @@ def diagnose(ctx: StepContext):
                 tour=[TourItem(path=str(t["path"]), why=str(t.get("why", ""))[:200]) for t in tour_kept],
                 evidence_ids=[*res["evidence_ids"], tid])
             db.save_run(db.connect(), run)
+            import json
+            db.put_kv(db.connect(), f"investigation:{rid}", json.dumps(extra))
+            if extra["callers_dropped"]:
+                ctx.emit("step.progress", "diagnose",
+                         message=f"Left {len(extra['callers_dropped'])} caller(s) out: the file or line isn't in the pinned source.")
             if tour_dropped:   # never silent: the model named files that aren't in the pinned source
                 ctx.emit("step.progress", "diagnose",
                          message=f"Left {len(tour_dropped)} tour file(s) out of the report: not in the pinned source.")

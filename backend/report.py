@@ -53,6 +53,7 @@ def render(v: RunView, narrative: str | None = None) -> str:
     if v.diagnosis:
         L += ["## Likely cause (hypothesis)", v.diagnosis.hypothesis, *[f"- `{l.path}`" + (f" line {l.line}" if l.line else "") for l in v.diagnosis.locations],
               *(["", "Codebase tour:"] + [f"- `{t.path}`: {t.why}" for t in v.diagnosis.tour] if v.diagnosis.tour else []), ""]
+        L += investigation_section(v.run_id)
     if v.patch:
         L += ["## Change", f"- Fix attempt {v.patch.attempt}; diff policy: {WORD[v.patch.policy_result]}" + (f" ({v.patch.policy_reason})" if v.patch.policy_reason else ""),
               f"- Exact diff: download `/api/runs/{v.run_id}/diff.patch`", ""]
@@ -82,3 +83,24 @@ def render(v: RunView, narrative: str | None = None) -> str:
             if any(s == CheckStatus.INCONCLUSIVE for s in v.gates.values())
             or (v.supplyguard and v.supplyguard.status == CheckStatus.INCONCLUSIVE) else [])]
     return "\n".join(L) + "\n"
+
+
+def investigation_section(run_id: str) -> list[str]:
+    """#70 item 10: callers are facts checked by code; risks, test strategy and uncertainty are the Investigator's view."""
+    import json
+    from backend import db
+    try:
+        raw = db.get_kv(db.connect(), f"investigation:{run_id}")
+    except Exception:
+        raw = None
+    if not raw:
+        return ["## Investigation details", "- Not recorded for this run.", ""]
+    d = json.loads(raw)
+    calls = [f"- `{c['path']}:{c['line']}`" + (f": {c['why']}" if c.get("why") else "") for c in d.get("callers") or []]
+    return ["## Investigation details",
+            "Callers (each file and line checked in the pinned source):", *(calls or ["- none listed"]),
+            *([f"- {len(d['callers_dropped'])} more left out: not in the pinned source"] if d.get("callers_dropped") else []), "",
+            "The Investigator's own view (not checked by code):",
+            "- Regression risks: " + ("; ".join(d.get("regression_risks") or []) or "not given"),
+            f"- Test strategy: {d.get('test_strategy') or 'not given'}",
+            f"- Uncertainty: {d.get('uncertainty') or 'not given'}", ""]
