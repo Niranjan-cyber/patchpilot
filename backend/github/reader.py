@@ -35,6 +35,7 @@ class IssueCheck(BaseModel):
     unsupported: str | None = None    # reason nothing can execute (v0.4: an ASSESSMENT_ONLY run, not an error)
     assessment: IssueAssessment | None = None   # #48 intake assessment, decided by code
     fetched_at: datetime
+    suitability: list[dict] | None = None       # #70 item 7: per-dimension outcome + evidence (backend/github/suitability.py)
 
 
 def parse_url(url: str) -> tuple[str, int]:
@@ -243,5 +244,8 @@ def check_issue(url: str, *, extract_model: bool = True) -> IssueCheck:
                checks=checks, unsupported=unsupported, warnings=warnings, linked=linked, extracted=x,
                base_sha=(head or {}).get("sha"), forbids_ai=policy.ai_policy == "forbidden")
     warnings += [w for w in new_warnings(a) if w not in warnings]
-    return IssueCheck(issue=spec, base_sha=(head or {}).get("sha"), default_branch=branch, language=meta.get("language"),
+    from backend.github.suitability import dimensions
+    dims = dimensions(a=a, issue=issue, comments=comments if isinstance(comments, list) else None, checks=checks,
+                      expected=exp, actual=act, unsupported=unsupported, ai_policy=policy.ai_policy)
+    return IssueCheck(suitability=dims, issue=spec, base_sha=(head or {}).get("sha"), default_branch=branch, language=meta.get("language"),
                       policy=policy, warnings=warnings, unsupported=unsupported, assessment=a, fetched_at=datetime.now(timezone.utc))

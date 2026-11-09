@@ -740,6 +740,22 @@
      "format": "date-time",
      "title": "Fetched At",
      "type": "string"
+    },
+    "suitability": {
+     "anyOf": [
+      {
+       "items": {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       "type": "array"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Suitability"
     }
    },
    "required": [

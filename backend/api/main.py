@@ -1,4 +1,5 @@
 """FastAPI app: serves the SPA and the run API (contracts §4). RUN_MODE=fixture serves fixtures/runs."""
+import json
 import logging
 import os
 import shutil
@@ -135,9 +136,17 @@ def create_run(body: NewRun, request: Request, response: Response):
     forbidden = chk.policy.ai_policy == "forbidden"
     accepted = [w for w in chk.warnings if w in body.continue_despite]
     # everything in ONE transaction with the job (bug 5); G0 records accepted v0.4 warnings as failed (bug 4)
-    return db.create_run(c, chk.issue, base_sha=chk.base_sha or "pending", owner_session_hash=sid, owner_account_id=aid,
-                         g0=g0_status(chk.issue.checks, accepted), assessment=a,
-                         **({"policy": chk.policy, "publish_blockers": [PublishBlocker.REPO_FORBIDS_AI]} if forbidden else {}))
+    v = db.create_run(c, chk.issue, base_sha=chk.base_sha or "pending", owner_session_hash=sid, owner_account_id=aid,
+                      g0=g0_status(chk.issue.checks, accepted), assessment=a,
+                      **({"policy": chk.policy, "publish_blockers": [PublishBlocker.REPO_FORBIDS_AI]} if forbidden else {}))
+    return _suitability(c, v, chk)
+
+
+def _suitability(c, v: RunView, chk: IssueCheck) -> RunView:
+    """#70 item 7: the per-dimension suitability seen at the start, for the report (kv, not a contract field)."""
+    if chk.suitability is not None:
+        db.put_kv(c, f"suitability:{v.run_id}", json.dumps(chk.suitability))
+    return v
 
 
 def _assessment_only(c, chk: IssueCheck, sid, aid) -> RunView:
@@ -157,7 +166,7 @@ def _assessment_only(c, chk: IssueCheck, sid, aid) -> RunView:
                       readiness=readiness(Outcome.ASSESSMENT_ONLY), publish_blockers=blockers,
                       finished=dict(outcome=Outcome.ASSESSMENT_ONLY.value, end_reason=EndReason.COMPLETED.value,
                                     readiness=readiness(Outcome.ASSESSMENT_ONLY), publish_blockers=[b.value for b in blockers]))
-    return v
+    return _suitability(c, v, chk)
 
 
 @app.post("/api/runs/{run_id}/stop", response_model=RunView)

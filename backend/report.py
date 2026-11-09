@@ -18,7 +18,7 @@ def render(v: RunView, narrative: str | None = None) -> str:
          "## Checks", "| Check | Result |", "|---|---|", *[f"| {name} | {g(k) if k != 'G6' else 'passed (template report)'} |" for k, name in GATES], ""]
     if v.assessment:
         from backend.github.assess import report_lines
-        L += report_lines(v.assessment)
+        L += report_lines(v.assessment) + suitability_section(v.run_id)
     if v.issue.checks:
         L += ["## Issue eligibility", *[f"- {k.replace('_', ' ')}: {WORD.get(s, s)}" for k, s in v.issue.checks.items()], ""]
     if v.supplyguard:
@@ -82,3 +82,15 @@ def render(v: RunView, narrative: str | None = None) -> str:
             if any(s == CheckStatus.INCONCLUSIVE for s in v.gates.values())
             or (v.supplyguard and v.supplyguard.status == CheckStatus.INCONCLUSIVE) else [])]
     return "\n".join(L) + "\n"
+
+
+def suitability_section(run_id: str) -> list[str]:
+    """#70 item 7: each dimension with its outcome, evidence (by source) and what's missing. No data says "not checked"."""
+    import json
+    from backend import db
+    from backend.github.suitability import report_lines
+    try:
+        raw = db.get_kv(db.connect(), f"suitability:{run_id}")
+    except Exception:
+        raw = None
+    return report_lines(json.loads(raw) if raw else None)
