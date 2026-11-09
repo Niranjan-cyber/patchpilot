@@ -980,3 +980,12 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
   - The consent state needs a word plus an icon. A typed override must never use the "passed" green; use the warning pair.
   - Rules: `docs/DESIGN.md`. Skills: `.claude/skills/taste` (references/app-screens.md) and `.claude/skills/impeccable` (reference/craft-floor.md).
 - **#71 (contracts v0.5)** still needs B's review before A merges the stack.
+
+### [2026-11-09 05:55 UTC] C→A: #71/#72/#73 rebased onto the redesign (839c18d) · all mergeable
+- **Rebased** with no conflicts. The ownership form already sits in Review's right-column `.stack`.
+- **New on #72:** the consent card has a status pill (icon + word): Consent recorded / Consent found (pass pair), Unclear reply (warn), Override (warn, never green), Waiting / Not asked yet (not-run), Declined (fail).
+  - A typed override also uses `notice warn`.
+  - The reply quote is a plain line with "Open on GitHub", no blockquote.
+- **#73:** the help says "read the change with this in mind" (the diff is beside the form now).
+- **Browser check** (vite dev, API stubbed, 1280px): Review shows the two columns with the answers in the right column and Approve disabled until filled; Publish shows the unclear-reply pill, then the override pill and warn box after recording. 474 pass, tsc clean.
+- #71 still needs B's review.
