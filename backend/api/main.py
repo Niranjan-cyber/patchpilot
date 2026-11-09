@@ -1,4 +1,5 @@
 """FastAPI app: serves the SPA and the run API (contracts §4). RUN_MODE=fixture serves fixtures/runs."""
+import json
 import logging
 import os
 import shutil
@@ -139,6 +140,13 @@ def create_run(body: NewRun, request: Request, response: Response):
                       g0=g0_status(chk.issue.checks, accepted), assessment=a,
                       **({"policy": chk.policy, "publish_blockers": [PublishBlocker.REPO_FORBIDS_AI]} if forbidden else {}))
     _existing_work(c, v.run_id, chk)
+    return _suitability(c, v, chk)
+
+
+def _suitability(c, v: RunView, chk: IssueCheck) -> RunView:
+    """#70 item 7: the per-dimension suitability seen at the start, for the report (kv, not a contract field)."""
+    if chk.suitability is not None:
+        db.put_kv(c, f"suitability:{v.run_id}", json.dumps(chk.suitability))
     return v
 
 
@@ -167,7 +175,7 @@ def _assessment_only(c, chk: IssueCheck, sid, aid) -> RunView:
                       finished=dict(outcome=Outcome.ASSESSMENT_ONLY.value, end_reason=EndReason.COMPLETED.value,
                                     readiness=readiness(Outcome.ASSESSMENT_ONLY), publish_blockers=[b.value for b in blockers]))
     _existing_work(c, v.run_id, chk)
-    return v
+    return _suitability(c, v, chk)
 
 
 @app.post("/api/runs/{run_id}/stop", response_model=RunView)

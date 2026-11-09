@@ -35,6 +35,7 @@ class IssueCheck(BaseModel):
     unsupported: str | None = None    # reason nothing can execute (v0.4: an ASSESSMENT_ONLY run, not an error)
     assessment: IssueAssessment | None = None   # #48 intake assessment, decided by code
     fetched_at: datetime
+    suitability: list[dict] | None = None       # #70 item 7: per-dimension outcome + evidence (backend/github/suitability.py)
     # #70 item 3/4.3: what was checked for existing work, where, and when. Each source is "checked" or "failed" (unknown,
     # never "none found"). Stored at run start and compared again at publish (approval.stale_checks).
     existing_work: dict | None = None
@@ -258,5 +259,14 @@ def check_issue(url: str, *, extract_model: bool = True) -> IssueCheck:
             # shortcut: the 50 most recently updated closed PRs; enough for "fixed while you worked", not a full history
             "closed_prs": [{"number": p["number"], "merged_at": p.get("merged_at"), "closed_at": p.get("closed_at")}
                            for p in closed if isinstance(p, dict) and p.get("number") in hit] if isinstance(closed, list) else None}
-    return IssueCheck(issue=spec, base_sha=(head or {}).get("sha"), default_branch=branch, language=meta.get("language"),
-                      policy=policy, warnings=warnings, unsupported=unsupported, assessment=a, fetched_at=now, existing_work=work)
+    dims = None
+    if extract_model:   # approval's stale check and the publisher only need repo facts, not the explanation
+        try:   # an explanation panel must never fail G0, approve or publish: a crash here is "not checked"
+            from backend.github.suitability import dimensions
+            dims = dimensions(a=a, issue=issue, comments=comments if isinstance(comments, list) else None, checks=checks,
+                              expected=exp, actual=act, unsupported=unsupported, ai_policy=policy.ai_policy)
+        except Exception:
+            dims = None
+    return IssueCheck(suitability=dims, issue=spec, base_sha=(head or {}).get("sha"), default_branch=branch,
+                      language=meta.get("language"), policy=policy, warnings=warnings, unsupported=unsupported, assessment=a,
+                      fetched_at=now, existing_work=work)
