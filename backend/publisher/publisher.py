@@ -97,7 +97,8 @@ def pr_body(v: RunView) -> str:
         f"**AI assistance:** _{AI_NOTE}_", "",
         "<details><summary>More detail</summary>", "",
         f"- {deps}",
-        *[f"- Reviewer note: {c.get('text', '')}" for c in (v.review.concerns if v.review else [])],
+        *[f"- Reviewer note ({(c.get('level') or c.get('severity') or 'note').replace('_', ' ').lower()}): {c.get('text', '')}"
+          for c in (v.review.concerns if v.review else [])],   # the maintainer can tell a blocker from an accepted tradeoff
         f"- Base commit `{v.base_sha}`; PatchPilot run {v.run_id[:8]}, revision {v.revision}.", "",
         "</details>",
     ]

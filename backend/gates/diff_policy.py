@@ -198,5 +198,5 @@ def swallowed_excepts(diff: str) -> list[dict]:
             text = f"The fix adds `except {what}:` in {path} that neither re-raises nor logs, so it may hide real errors; check it."
         else:
             continue
-        out.append({"severity": "medium", "text": text})
+        out.append({"severity": "medium", "text": text, "path": path or ""})   # the Reviewer shows it as the finding's location
     return out[:2]   # shortcut: two concerns say enough; upgrade if reviewers want every location listed
