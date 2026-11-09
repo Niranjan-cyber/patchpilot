@@ -181,6 +181,21 @@ def test_extract_parses_counts_and_caches(tmpdb):
     assert A.extract(**x(good, calls)) == out and len(calls) == 1  # same issue version: cached, no second call
 
 
+def test_a_new_extraction_prompt_is_not_answered_from_the_old_cache(tmpdb, monkeypatch):
+    # gitingest-115: cached conditions from the old prompt would survive the prompt fix until the issue is edited
+    calls = []
+    good = '{"issue_type": "bug", "acceptance_conditions": ["raises"]}'
+    A.extract(**x(good, calls))
+    monkeypatch.setattr(A, "EXTRACT_PROMPT", A.EXTRACT_PROMPT + " ")
+    A.extract(**x(good, calls))
+    assert len(calls) == 2
+
+
+def test_conditions_state_the_behaviour_not_only_the_reporters_example():   # gitingest-115
+    p = A.EXTRACT_PROMPT
+    assert "not only the reporter's example" in p and "title" in p and "Never invent" in p
+
+
 def test_extract_bad_json_or_type_is_unavailable(tmpdb):
     assert A.extract(**x("not json")) is None
     assert A.extract(**{**x('{"issue_type": "bugfix"}'), "updated_at": "v2"}) is None
