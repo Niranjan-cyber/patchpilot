@@ -308,6 +308,8 @@
   .extra-row p { color: var(--color-muted); margin: 2px 0 0; font-size: 14px; }
   .dot { width: 12px; height: 12px; border-radius: 99px; margin-top: 6px; flex: none; background: var(--color-line-strong); }
   .dot-pass { background: var(--color-mint-500); } .dot-fail { background: var(--color-rose-500); } .dot-info { background: var(--color-lav-500); }
+  .repo-checks { list-style: none; padding: 0; margin: 6px 0 0; display: grid; gap: 6px; font-size: 14px; }
+  .repo-checks details { margin: 4px 0 0 2px; } .repo-checks details ul { margin: 4px 0 0; padding-left: 18px; }
   .ask-qs { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
   .answer { background: var(--color-lav-50); border-radius: var(--radius-tile); padding: 16px 18px; margin-top: 10px; animation: pop 420ms var(--ease-soft) both; }
   .answer-q { font-weight: 650; color: var(--color-lav-700); }
