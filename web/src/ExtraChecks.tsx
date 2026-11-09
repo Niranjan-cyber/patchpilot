@@ -1,6 +1,19 @@
 import { useEffect, useState } from "react";
 import { api } from "./api";
 import type { RunView } from "./contracts";
+import { Status } from "./components";
+
+// #70 item 3: the repo's own checks, one row per tool. A check that didn't run is never shown as passed.
+type Check = { tool: string; status: "PASS" | "FAIL" | "NOT_RUN" | "UNSUPPORTED" | "BLOCKED"; command: string | null;
+  exit_code: number | null; new: string[]; note: string };
+type RepoChecks = { checks: Check[] | null; files: string[]; reason: string | null };
+// BLOCKED means we don't know (amber), not a failure; the row's note says which kind of "not run"
+const CHECK = { PASS: "passed", FAIL: "failed", BLOCKED: "inconclusive", NOT_RUN: "not_run", UNSUPPORTED: "not_run" } as const;
+const NOCHECK: Record<string, string> = {
+  not_run_yet: "Not run yet.", sample_run: "Not run: sample run.", no_python_files: "Not run: no Python files changed.",
+  diff_did_not_apply: "Not run: the change didn't apply in the check sandbox.", sandbox_failed: "Not run: the check sandbox failed.",
+  only_deleted_files: "Not run: the change only deletes Python files.",
+};
 
 type Bisect = { status: "found" | "not_run" | "inconclusive" | "pending"; reason: string; first_bad?: string | null;
   last_good?: string | null; url?: string; probes?: { sha: string; result: "pass" | "fail" | null }[]; window?: number;
@@ -29,9 +42,11 @@ const WHY: Record<string, string> = {
 export default function ExtraChecks({ run }: { run: RunView }) {
   const [b, setB] = useState<Bisect | null>(null);
   const [failed, setFailed] = useState(false);
+  const [rc, setRc] = useState<RepoChecks | null>(null);
   useEffect(() => {
     if (!run.repro) return;
     api<Bisect>(`/api/runs/${run.run_id}/bisect`).then(setB).catch(() => setFailed(true));
+    api<RepoChecks>(`/api/runs/${run.run_id}/repo-checks`).then(setRc).catch(() => setRc({ checks: null, files: [], reason: "unavailable" }));
   }, [run.run_id, run.repro, run.updated_at]);
   if (!run.repro || !run.outcome) return null;
   const hv = run.verify?.hidden_variant;
@@ -46,6 +61,33 @@ export default function ExtraChecks({ run }: { run: RunView }) {
       <div className="extra-row">
         <span className={`dot dot-${cls}`} aria-hidden="true" />
         <div><strong>Hidden test variant</strong><p>{text}</p></div>
+      </div>
+      <div className="extra-row">
+        <span className={`dot dot-${rc?.checks?.some((c) => c.status === "FAIL") ? "fail" : rc?.checks?.length ? "info" : "muted"}`} aria-hidden="true" />
+        <div>
+          <strong>The repository's own checks</strong>
+          {!rc && <p>Loading…</p>}
+          {/* a stored reason (sandbox failed, diff didn't apply) wins over "none configured": a failure is never shown as empty */}
+          {rc && !rc.checks?.length && <p>{rc.reason ? NOCHECK[rc.reason] ?? `Not run: ${rc.reason}.`
+            : rc.checks ? "None we can run: the repo configures no linter or type checker we support." : "Status unavailable."}</p>}
+          {!!rc?.checks?.length && (
+            <ul className="repo-checks">
+              {rc.checks.map((c) => {
+                return (
+                  <li key={c.tool}>
+                    <Status s={CHECK[c.status]} /> <strong>{c.tool}</strong>: {c.note}
+                    {(c.command || c.new.length > 0) && (
+                      <details><summary>Details</summary>
+                        {c.command && <p><code>{c.command}</code> exited {c.exit_code ?? "without a code"}</p>}
+                        {c.new.length > 0 && <ul>{c.new.slice(0, 10).map((n, i) => <li key={i}><code>{n}</code></li>)}</ul>}
+                      </details>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
       </div>
       <div className="extra-row">
         <span className={`dot dot-${b?.status === "found" ? "info" : "muted"}`} aria-hidden="true" />
