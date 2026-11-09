@@ -186,8 +186,10 @@ def _consent_state(v, request: Request) -> dict:
 
 
 def _out(v, st: dict) -> dict:
+    # found: consent GitHub shows now but not yet recorded, so the page can show it and offer "Use this consent"
+    found = st.get("evidence") if not v.consent else None
     return {"consent": v.consent.model_dump(mode="json") if v.consent else None, "state": "recorded" if v.consent else st["state"],
-            "replies": st.get("replies", []), "why": st.get("why")}
+            "replies": st.get("replies", []), "why": st.get("why"), "found": found.model_dump(mode="json") if found else None}
 
 
 @router.get("/api/runs/{run_id}/consent")

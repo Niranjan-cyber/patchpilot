@@ -123,3 +123,15 @@ def test_a_maintainers_earlier_no_beats_an_invite_label():
     assert K2.read(issue, [no], asked_url=None, me=None)["state"] == "declined"
     later_yes = {**no, "body": "Changed my mind: PRs welcome.", "id": 9}
     assert K2.read(issue, [no, later_yes], asked_url=None, me=None)["state"] == "granted"   # the latest word wins
+
+
+def test_found_consent_is_shown_then_recorded_with_one_click(api):
+    # A's live test (wheelgap #114): the page said "Consent found" but nothing was recorded until another click
+    b, rid, mp = api
+    replies = [cm(101, "Yes please, a PR would be welcome!")]
+    mp.setattr(K, "check", lambda repo, n, asked_url, me: K.read(ISSUE, replies, asked_url=asked_url, me=me))
+    st = b.get(f"/api/runs/{rid}/consent").json()
+    assert st["consent"] is None and st["found"]["kind"] == "maintainer_reply" and st["found"]["source_url"] == replies[0]["html_url"]
+    assert db.get_run(db.connect(), rid).consent is None   # GET shows it, records nothing
+    out = b.post(f"/api/runs/{rid}/consent", json={}).json()   # "Use this consent"
+    assert out["consent"]["source_url"] == st["found"]["source_url"] and out["found"] is None and out["state"] == "recorded"
