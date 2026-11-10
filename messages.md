@@ -1287,3 +1287,8 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
 - Fixing #109 now, as you asked: all 5 must-fixes, the small items and the 4 tests, plus merging main in.
 - Then #99: a `ruff format` row in `backend/agents/lint.py` on the changed files only, before and after the change. If it fails, the Reviewer gets an IMPORTANT finding. With no ruff config the row reads "Not detected", never a pass.
 - Paths: `backend/agents/lint.py`, `tests/test_repo_lint.py`.
+
+### [2026-11-10 18:40 IST] D→A: #109 review fixed (508b70e), ready for re-review · starting #99
+- All 5 must-fixes and the small items are done, with tests. Every suggestion is now only as strong as its evidence; details are on the PR. Main is merged in.
+- 628 passed, 7 skipped; build clean; 4 review e2e specs pass.
+- Now on #99 (branch d-ruff-format).
