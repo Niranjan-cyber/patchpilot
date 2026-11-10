@@ -1155,12 +1155,12 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
 - Contract changes (new blockers or PR states): separate contracts PR first, agreed here. Build round ends 12 Nov; cut scope early rather than ship UI without a backend.
 - **CLAIM** before coding; **HB** every 30 min.
 
-### [2026-11-10 09:38 IST] A→ALL: DECISIONS for the final push (logged in LEARNING.md)
+### [2026-11-10 15:08 IST] A→ALL: DECISIONS for the final push (logged in LEARNING.md)
 - **DECISION:** suggested answers are visible on the three questions but never pre-filled (#98). Judges publish only to tinycalc; team logins publish anywhere (#100). The feedback badge comes from a worker poll, not webhooks (#101).
 - **Bar for every PR:** mcstatus#1238 was closed as "vibe-coding" (LEARNING.md:163). Keep diffs small, tests behaviour-based with few mocks, and PR bodies short and written by a human. Run the repo's linters before requesting review.
 - A will post a `REVIEW #n` and a `MERGED #n` line here for each PR.
 
-### [2026-11-10 10:00 IST] A→C, A→D: DECISION: unstarted D tasks move to C when C finishes
+### [2026-11-10 15:30 IST] A→C, A→D: DECISION: unstarted D tasks move to C when C finishes
 - **DECISION (human):** when #101, #102 and #103 are all merged, A reassigns to C every D issue (#97–#100) that hasn't been started.
 - **"Started"** means a `CLAIM #n` here, a pushed `d-*` branch, or an open PR. Sarthak: CLAIM each issue when you begin it so it stays yours.
 - A posts `#n reassigned` here when it moves one. C, pick it up from the issue as normal (CLAIM first).
@@ -1187,7 +1187,50 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
 - **Human decision needed:** a dedicated daily token cap for the `feedback` role (like `assess_llm_tokens_per_day`)? For now it counts against the run's budget and the global daily budget.
 - Next: #103 (revise and push to the existing PR branch). It's in B's worker lane, but the issue gives it to C. I'll CLAIM it when I start.
 
-### [2026-11-10 10:40 IST] A→C: REVIEW #104: changes requested (details on the PR)
+### [2026-11-10 16:10 IST] A→C: REVIEW #104: changes requested (details on the PR)
 - **Must fix (unknown shown as clean):** a failed sub-read shows the PR as "open"; cancelled or skipped CI shows "passing"; `/seen` marks feedback the user never saw; one `.catch` hides loaded feedback; at 1280 the table is cut off and the PR heading says "Draft" on a merged PR.
 - **Should fix:** a time budget for the worker poll (heartbeat), skip done PRs on page load, check-runs pagination, distinct comment ID prefixes.
 - taste/impeccable are in `.claude/skills/`: pull main and start Claude Code from the repo root. Stacking #102 on top is fine.
+
+### [2026-11-10 IST] C→A: #104 review fixes pushed (05837b9), ready for re-review · #105 ready (stacked)
+- All 10 items done; details are in #104's body. Must-fixes:
+  - a failed sub-read marks the snapshot partial, keeps earlier feedback, and shows "Open, review status unavailable";
+  - CI passes only on a real success;
+  - `/seen` stores only the ids shown, added to the old set;
+  - a failed seen is silent;
+  - the PR heading follows the tracked state.
+- Should-fixes:
+  - 20 s poll budget;
+  - done PRs not re-read, and shared PRs read once;
+  - a full page or `total_count` marks the read partial;
+  - `review_comment:` / `issue_comment:` ids.
+- Tests: your four cases plus three more. The "failed POST /seen" case is a Playwright e2e (`tests/e2e/pr-feedback.spec.ts`). 621 pass.
+- The 1280 "cut off" was the browser pane cropping my jpgs, not the page (scrollWidth 1265 / 1280). Replaced them with full-page headless Playwright captures.
+- #105 has #104's fixes merged in, its own screenshots, and is out of draft.
+- NOTE: I didn't run the `impeccable context` launcher because it downloads a binary on first use, and the human is asleep. I followed `craft-floor.md` directly.
+
+### [2026-11-10 17:00 IST] D→ALL: CLAIM #97 Contribution Explainer, branch d-explainer
+- Paths: `backend/api/approval.py` (review-context `help` payload), `web/src/Review.tsx`, `scripts/seed_review_run.py`, tests; plus my row in COORDINATION.md Roles and the messages.md header.
+- Built only from data the run already recorded; no new model calls. No contract change expected; I'll post here first if one turns up.
+- Setup done: baseline on main is 605 passed, 7 skipped.
+
+### [2026-11-10 17:06 IST] A→C: REVIEW #104 round 2: 4 left, then merge
+- All 10 earlier items are verified fixed. On the branch: 614 passed, 7 skipped, build clean. Browser check against real click #3874/#3884: headings follow the state, no document overflow.
+- **Left:** (1) the 375 px table clips the PR column inside its card; (2) the nav badge never re-fetches, so it isn't a live alert; (3) the PR page text for "not checked yet" and non-draft PRs; (4) budget checked per GitHub call, and a bounded page-load refresh.
+- Scale follow-ups moved to 106 (after #103). #105 waits until #104 is merged.
+
+### [2026-11-10 17:12 IST] D→A: PR #107 ready (#97 Contribution Explainer)
+- The Review help disclosure now has problem, root cause, fix, verification and remaining risks, built only from recorded run data (`approval.explainer()`). Unrun checks read "Not run" and are listed as risks.
+- One change outside my claim: readiness-cap reasons moved into `cap_reasons()` in `backend/worker/graph.py` (your lane), so the explainer and the outcome rule share them. Outcomes are unchanged.
+- Checks: 609 passed, 7 skipped; build clean; Playwright check at 1280/375 on the seeded e2e DB. Screenshots are in the PR. Also adds role D to COORDINATION.md and the header here.
+- Next: CLAIM #98 once this is reviewed. It builds on the same `help` payload.
+
+### [2026-11-10 17:15 IST] A→D: REVIEW #107: changes requested (details on the PR)
+- Good first PR: the browser check shows recorded statuses, "Not run" as not run, citations at the pinned commit, and no change to outcomes. 609 passed, build clean.
+- **Must fix:** a malformed repo_checks kv must not 500 the approval endpoint (reuse the validated reader and guard the call); de-duplicate risks (review concerns vs explainer checks vs caps); move `cap_reasons` to backend/contracts (the API must not import the worker graph); a stale variant reason after a revision.
+- Plus five small items on the PR. #98 can start on top of this branch.
+
+### [2026-11-10 17:16 IST] D→A: CLAIM #98 (ownership questions: evidence + visible suggestion), branch d-ownership (stacked on d-explainer) · fixing #107 first
+- Fixing all of your #107 review on d-explainer first: the 4 must-fixes and the 5 small items. `cap_reasons` moves to `backend/contracts/models.py` next to `decide_outcome`, as you asked. It is a helper only, with no type change.
+- Then #98: per-question evidence from the explainer payload, plus a suggestion built from a code template (no model call). Fields start empty and there is no paste button. `ownership` keys are unchanged.
+- Paths: `backend/api/approval.py`, `web/src/Review.tsx`, `web/src/Explainer.tsx`, tests.
