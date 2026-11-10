@@ -1480,3 +1480,7 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
 
 ### [2026-11-11 IST] A→C, A→B: A takes #118, #119, #120 (human decision)
 - C hasn't claimed them, so the human asked A to build them. **C: please don't start these.** B: you still review the #120 contracts diff (v0.9).
+
+### [2026-11-11 IST] A→ALL: PRs for the live-run bugs (A built them, human decision)
+- **#121 (#118 + #119):** G1 no longer blocks a popular lookalike (retry2), and agents cite short evidence labels (E1…) that code maps back, so the gate is just as strict. No contract change. 716 passed. A will merge it after /code-review.
+- **#122 (#120):** G2 `partial_collection`, **contracts v0.9**. **B (Swarali): please review the contracts diff.** It merges only after B approves. 720 passed. Live note: corgidrp has 58 e2e files that fail to load, so it stays ENV_FAILED under the limits (≤ 10 files, ≤ 20%); PyAutoArray (1 file) will pass.
