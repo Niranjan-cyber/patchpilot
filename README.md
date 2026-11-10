@@ -136,7 +136,7 @@ flowchart LR
 | Pipeline | LangGraph `StateGraph` + `SqliteSaver` | One checkpoint after every node, so a worker crash resumes at the same step |
 | Jobs | SQLite queue with leases (60 s) and heartbeats (10 s) | Durable without extra infrastructure; 2 resumes per step, then an honest outcome |
 | Sandboxes | Docker: non-root, all capabilities dropped, read-only root, CPU/memory/PID limits | Repository code runs only here, with **no network after setup** |
-| Models | Groq `gpt-oss-120b` → Groq `qwen3.8-27b` → Nebius `DeepSeek-V4.1-Flash-1017` → Gemini Flash; an optional local model handles short calls only | Free tiers first; a quota hit pauses the run rather than failing it |
+| Models | Nebius `DeepSeek-V4.1-Flash-1017` (paid, primary) → Groq `gpt-oss-120b` → Groq `qwen3.8-27b` → Gemini Flash; an optional local model handles short calls only | Free tiers first; a quota hit pauses the run rather than failing it |
 | Evidence | Content-addressed artifacts (`sha256:<hex>`) | Every claim in a report cites an ID that exists |
 | Publishing | GitHub OAuth (Fernet-encrypted token), fresh clone, diff re-hashed | Publishes only the exact approved bytes |
 

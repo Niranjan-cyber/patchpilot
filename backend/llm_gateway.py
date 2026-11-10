@@ -103,7 +103,8 @@ def chain(kind: str) -> list[str]:
     Nebius is paid credit: after the free Groq models (short Groq waits are waited out, so it only runs when Groq is out
     for longer), one model (DeepSeek-V4.1-Flash, id -1017 since 2026-11: $0.30/M in, $1.20/M out, 1M context, ~3 s a call); the daily token budget caps its spend."""
     keyed = {"groq/": bool(_os.getenv("GROQ_API_KEY")), "nebius/": bool(_os.getenv("NEBIUS_API_KEY"))}
-    agent = [m for m in _os.getenv("PP_AGENT_MODELS", f"{GROQ_MODEL},groq/qwen/qwen3.8-27b,nebius/deepseek-ai/DeepSeek-V4.1-Flash-1017,"   # Nebius renamed it 2026-11; the bare name 404s
+    agent = [m for m in _os.getenv("PP_AGENT_MODELS", "nebius/deepseek-ai/DeepSeek-V4.1-Flash-1017,"   # human 2026-11-11: paid Nebius first (no free-tier rate limits); -1017 = its current id
+                                   f"{GROQ_MODEL},groq/qwen/qwen3.8-27b,"
                                    "gemini/gemini-3.8-flash,gemini/gemini-3.5-flash").split(",")
              if m and all(ok or not m.startswith(p) for p, ok in keyed.items())]
     if kind != "short":

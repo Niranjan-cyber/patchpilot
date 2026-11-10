@@ -48,6 +48,8 @@ Rules (checked by code; a violation rejects your fix):
 - Edit with apply_patch (see the rules) or a python script that reads, replaces and writes the file. Printing a diff
   changes nothing. Before finishing, `git diff` must show your change.
 - At most {MAX_FILES} files and {MAX_LINES} changed lines.
+- You have 25 steps. Read only what you need and make your edit by step 12; a partial edit that the tests
+  can check beats none (pint#2562: two attempts spent all 25 steps reading and wrote nothing).
 - Check your fix: python -m pytest -q -p no:cacheprovider {tests} must pass, and the existing tests near your change should still pass.
 - When done, run: echo {loop.DONE} '{{"summary": "<one line: what you changed and why>"}}'
 {"The user asked for this change to the previous fix: " + feedback if feedback else ""}
