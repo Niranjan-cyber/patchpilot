@@ -22,3 +22,33 @@ test("S-05: exact diff, approve needs all 3 boxes, typed text survives reload", 
   await page.getByLabel("What does the new test prove?").fill("It fails on the old code and passes now.");
   await expect(approve).toBeEnabled();
 });
+
+test("#97: the Contribution Explainer is collapsed, each section opens on its own, and unrun checks say so", async ({ page, context }) => {
+  test.skip(!PP_TOKEN, "needs scripts/seed_review_run.py");
+  await context.addCookies([{ name: "pp_sid", value: PP_TOKEN, url: BASE }]);
+  for (const width of [1280, 375]) {
+    await page.setViewportSize({ width, height: 860 });
+    await page.goto(`${BASE}/runs/${PP_RUN}/review`);
+    const explainer = page.locator("details.explainer");
+    await expect(explainer).not.toHaveAttribute("open");
+    await explainer.locator("> summary").click();
+    for (const part of ["Problem", "Root cause", "Fix", "Verification"]) {
+      await expect(explainer.locator("details.explainer-part", { hasText: part }).first()).not.toHaveAttribute("open");
+    }
+    await page.getByText("Verification", { exact: true }).click();
+    // the seed records no lint run: it must read "Not run", never a pass
+    await expect(page.locator("li", { hasText: "The repository's own checks" }).first()).toContainText("Not run");
+    await page.getByText("Root cause", { exact: true }).click();
+    await expect(page.getByRole("link", { name: "tinycalc/ops.py:12" })).toHaveAttribute("href", /\/blob\/2247b35e2247b35e.*\/tinycalc\/ops\.py#L12$/);
+    await page.getByText(/^Remaining risks/).click();
+    await expect(page.getByText("The test doesn't check: dividing by 0.0 (a float)")).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);   // no sideways scroll
+    await page.getByText("Problem", { exact: true }).click();
+    await page.getByText("Fix", { exact: true }).click();
+    if (width === 375) {   // a phone screenshot of the whole page is unreadable: show the explainer just under the top bar
+      await page.setViewportSize({ width, height: 1600 });
+      await explainer.evaluate((el) => window.scrollTo(0, el.getBoundingClientRect().top + window.scrollY - 72));
+    } else await page.evaluate(() => window.scrollTo(0, 0));
+    await page.screenshot({ path: `tests/e2e/screenshots/explainer-${width}.png`, fullPage: width !== 375 });
+  }
+});

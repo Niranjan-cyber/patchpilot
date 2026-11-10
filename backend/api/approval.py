@@ -140,9 +140,51 @@ def stale_checks(v: RunView, diff: str) -> list[PublishBlocker]:
     return out
 
 
+REPO_CHECK = {"PASS": CheckStatus.PASSED, "FAIL": CheckStatus.FAILED, "BLOCKED": CheckStatus.INCONCLUSIVE,
+              "NOT_RUN": CheckStatus.NOT_RUN, "UNSUPPORTED": CheckStatus.NOT_RUN}
+
+
+def explainer(v: RunView, repo_checks: dict | None, variant: dict | None) -> dict:
+    """#97: the Contribution Explainer, only from what this run recorded (no model calls). Statuses are the recorded
+    ones; anything that didn't run is "not_run" and listed under risks, never shown as passed."""
+    from backend.worker.graph import cap_reasons
+    g = lambda k: v.gates.get(k, CheckStatus.NOT_RUN)
+    r, d, vf, b = v.repro, v.diagnosis, v.verify, v.baseline
+    rc = repo_checks or {"checks": None, "reason": "not_run_yet"}
+    checks = [
+        {"id": "reproduced", "status": g("G3"), "runs": r.runs_on_base if r else [], "evidence": r.evidence_ids if r else []},
+        {"id": "fixed", "status": g("G5"), "runs": vf.new_test_runs if vf else [], "regressions": vf.regressions if vf else [],
+         "evidence": vf.evidence_ids if vf else []},
+        {"id": "baseline", "status": g("G2"), "partial": b.partial if b else None, "evidence": b.evidence_ids if b else [],
+         "counts": {"passed": len(b.pass_set), "failed": len(b.fail_set), "flaky": len(b.flaky_set)} if b else None},
+        {"id": "hidden_variant", "status": (vf and vf.hidden_variant) or CheckStatus.NOT_RUN, "reason": (variant or {}).get("reason")},
+        *([{"id": "repo_check", "tool": c["tool"], "status": REPO_CHECK.get(c["status"], CheckStatus.INCONCLUSIVE), "note": c.get("note")}
+           for c in rc["checks"]] if rc["checks"] else
+          [{"id": "repo_check", "tool": None, "status": CheckStatus.NOT_RUN, "reason": rc.get("reason")}]),
+    ]
+    risks = ([{"kind": "review", "severity": c.get("severity"), "text": c.get("text"), "location": c.get("location")}
+              for c in (v.review.concerns if v.review else []) if c.get("level") != "ACCEPTED_TRADEOFF"]
+             + [{"kind": "check", **c} for c in checks if c["status"] != CheckStatus.PASSED]
+             + [{"kind": "cap", "reason": x} for x in cap_reasons(v)]
+             + ([{"kind": "uncovered", "text": t} for t in r.uncovered] if r and r.uncovered
+                else [{"kind": "coverage_not_checked"}] if r and r.uncovered is None else []))
+    blob = f"https://github.com/{v.issue.repo}/blob/{v.base_sha}/"
+    return {
+        "problem": {"expected": v.issue.expected, "actual": v.issue.actual, "tests": r.test_ids if r else [],
+                    "failure": r.expected_failure if r else None, "evidence": [r.test_diff_id, *r.evidence_ids] if r else []},
+        "root_cause": d and {"claim": d.hypothesis, "evidence": d.evidence_ids,
+                             "citations": [{"path": l.path, "line": l.line,
+                                            "url": blob + l.path + (f"#L{l.line}" if l.line else "")} for l in d.locations]},
+        "fix": {"only_these_files": g("G4"), "evidence": [v.patch.fix_diff_id, v.patch.test_diff_id] if v.patch else []},
+        "verification": checks, "risks": risks, "readiness": v.readiness,
+    }
+
+
 @router.get("/api/runs/{run_id}/approval")
 def approval_context(run_id: str, request: Request):
+    import json
     v = _run(request, run_id)
+    kv = lambda k: json.loads(raw) if (raw := db.get_kv(db.connect(), k)) else None
     diff = exact_diff(v)
     dh, eh = hashes(v, diff)
     return {"revision": v.revision, "diff": diff, "diff_hash": dh, "evidence_hash": eh, "files": sorted(changed_files(diff)),
@@ -150,8 +192,7 @@ def approval_context(run_id: str, request: Request):
             "pr_title": f"Fix #{v.issue.number}: {v.issue.title}"[:120],
             "pr_summary": summary_prefill(v),
             # v0.5 §2.3: what PatchPilot found, shown as help next to the three own-words questions (never prefilled into them)
-            "help": {"cause": v.diagnosis.hypothesis if v.diagnosis else None, "tests": v.repro.test_ids if v.repro else [],
-                     "expected_failure": v.repro.expected_failure if v.repro else None},
+            "help": {"explainer": explainer(v, kv(f"repo_checks:{run_id}"), kv(f"variant:{run_id}"))},
             "revise_blocked": None if budget_left(run_id) else NO_BUDGET}
 
 

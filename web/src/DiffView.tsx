@@ -45,7 +45,7 @@ export function parseDiff(text: string): FileDiff[] {
 
 // Line-by-line highlighting: multi-line strings may lose colour, which is acceptable for a diff (never the content).
 const hl = (text: string, lang?: string) => (lang ? hljs.highlight(text, { language: lang, ignoreIllegals: true }).value : null);
-const anchor = (p: string) => "f-" + p.replace(/[^a-zA-Z0-9]+/g, "-");
+export const anchor = (p: string) => "f-" + p.replace(/[^a-zA-Z0-9]+/g, "-");
 const SIGN = { add: "+", del: "-", ctx: " ", hunk: "" } as const;
 
 function FileBlock({ f }: { f: FileDiff }) {

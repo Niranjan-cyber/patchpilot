@@ -16,7 +16,7 @@ const TQ_PILL = { PASS: ["passed", "Passed"], FAIL: ["failed", "Failed"], REVIEW
 const TQ_LABEL: Record<string, string> = { fails_on_base: "Fails on the original code", passes_with_fix: "Passes with the fix",
   assertions: "Real assertions", mocks: "Mocks", existing_tests: "Existing tests untouched", test_location: "Follows the repo's test layout",
   new_imports: "No new dependencies", covers_issue: "Covers what the issue expects", hidden_variant: "Hidden variant" };
-const NOCHECK: Record<string, string> = {
+export const NOCHECK: Record<string, string> = {
   not_run_yet: "Not run yet.", sample_run: "Not run: sample run.", no_python_files: "Not run: no Python files changed.",
   diff_did_not_apply: "Not run: the change didn't apply in the check sandbox.", sandbox_failed: "Not run: the check sandbox failed.",
   only_deleted_files: "Not run: the change only deletes Python files.",
@@ -26,7 +26,7 @@ type Bisect = { status: "found" | "not_run" | "inconclusive" | "pending"; reason
   last_good?: string | null; url?: string; probes?: { sha: string; result: "pass" | "fail" | null }[]; window?: number;
   variant?: { status: string; reason: string } | null };
 
-const VREASON: Record<string, string> = {
+export const VREASON: Record<string, string> = {
   no_sandbox: "the sandbox for writing the variant didn't start", ai_unavailable: "the AI was unavailable or over budget",
   no_variant_written: "no variant test was written", edits_non_test_files: "the variant changed non-test files",
   variant_not_failing_on_base: "the variant didn't fail on the original code, so it would prove nothing",

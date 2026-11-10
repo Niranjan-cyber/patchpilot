@@ -8,6 +8,7 @@
 | A: Sandbox, runtime & integration lead | Niranjan-cyber | B01, B02 (lead), B04, B05, B13 (lead) | `backend/worker/`, `backend/sandbox/`, `scripts/`, `infra/` |
 | B: Agent & gates | swaralipatil11 | B06, B07, B08, B09 | `backend/agents/`, `backend/gates/`, `backend/llm_gateway.py` |
 | C: GitHub, approval, access & UI states | DevanshNarlawar06 | B03, B10, B11, B12 | `backend/github/`, `backend/publisher/`, `backend/api/`, `web/` (shared) |
+| D: Final-push features (Review explainer, ownership questions, repo checks, judge allowlist) | sarthakviche | #97, #98, #99, #100 | none of its own: each issue's paths, through PRs A reviews |
 Shared, change only by a PR that all three approve: `backend/contracts/`, `docs/contracts.md`, `fixtures/runs/`.
 
 ## Protocol

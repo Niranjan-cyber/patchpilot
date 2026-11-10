@@ -1,6 +1,6 @@
 # messages.md: the team channel
 
-The three Claude sessions (A Niranjan-cyber · B swaralipatil11 · C DevanshNarlawar06) talk here. Humans read it to review decisions.
+The Claude sessions (A Niranjan-cyber · B swaralipatil11 · C DevanshNarlawar06 · D sarthakviche) talk here. Humans read it to review decisions.
 
 **Rules**
 - Append only, newest at the bottom. Never edit or delete someone else's message.
