@@ -20,6 +20,8 @@ def revise_note(ctx: StepContext) -> str:
     ask = ctx.run.revisions[-1] if ctx.run.revisions else None
     if not ask or ask.revise_target != "test":
         return ""
+    if ask.plan_evidence_id:   # #103: from the maintainer's review, not a rejection by the user
+        return f"{ask.feedback}\nChange the test where these requests ask for it, and keep checking what the issue expects.\n"
     old = artifacts.get(db.get_kv(db.connect(), f"revise_old_test:{ctx.run_id}") or "") or b""
     return (f"The user rejected the previous test and asked to change it: {ask.feedback or '(no reason given)'}\n"
             "Write a new test that follows this request and still checks what the issue expects."

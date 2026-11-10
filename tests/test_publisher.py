@@ -38,7 +38,7 @@ class FakeGH:
     def login(self): return "alice"
     def can_push(self, repo): return self.push
     def ensure_fork(self, repo, login): self.calls.append("fork"); return f"{login}/proj"
-    def push_branch(self, target, base_sha, upstream, branch, diff, msg): self.calls.append(("push", target, branch, diff))
+    def push_branch(self, target, base_sha, upstream, branch, diff, msg, **kw): self.calls.append(("push", target, branch, diff, kw)); return "c" * 40
     def find_pr(self, repo, head): return self.existing
     def create_pr(self, repo, head, base, title, body):
         self.calls.append(("create", head, body)); return None if self.refuse else {"html_url": "https://github.com/up/proj/pull/9", "number": 9}
@@ -50,7 +50,7 @@ def test_fork_flow_opens_one_draft_pr(run):
     gh = FakeGH()
     r = P.publish(run, gh, "main")
     assert r.status == "created" and r.pr.fork_owner == "alice" and r.pr.number == 9
-    assert "fork" in gh.calls and ("push", "alice/proj", "patchpilot/issue-7-1234abcd", approval.exact_diff(run)) in gh.calls
+    assert "fork" in gh.calls and ("push", "alice/proj", "patchpilot/issue-7-1234abcd", approval.exact_diff(run)) in [c[:4] for c in gh.calls if isinstance(c, tuple)]
 
 
 def test_direct_flow_when_user_can_push(run):
@@ -265,3 +265,98 @@ def test_the_summary_you_approve_is_prefilled_with_the_cause_and_the_fix(run, mo
     from backend.agents.fix import UNFINISHED
     run.patch.policy_reason = UNFINISHED   # not a description of the change: never prefilled as one
     assert A.summary_prefill(run) == "divide returns 0."
+
+
+# ---- #103: a revision is pushed as a new commit on top of the PR branch (real git, local fixture repos) ----
+import subprocess  # noqa: E402
+
+BASE_FILE = "x = 1\n"
+FIX2 = "diff --git a/src/a.py b/src/a.py\n--- a/src/a.py\n+++ b/src/a.py\n@@ -1 +1 @@\n-x = 1\n+x = 3\n"
+
+
+def _git(d, *a):
+    return subprocess.run(["git", *a], cwd=d, capture_output=True, check=True, text=True).stdout.strip()
+
+
+@pytest.fixture
+def hub(tmp_path, monkeypatch):
+    """tmp/up/proj.git is the upstream (one base commit); the PR branch is pushed there too (direct flow)."""
+    work = tmp_path / "w"; work.mkdir(); (work / "src").mkdir(); (work / "src" / "a.py").write_text(BASE_FILE)
+    _git(work, "init", "-q"); _git(work, "add", "-A")
+    _git(work, "-c", "user.name=u", "-c", "user.email=u@x", "commit", "-qm", "base")
+    base = _git(work, "rev-parse", "HEAD")
+    (tmp_path / "up").mkdir()
+    _git(tmp_path, "clone", "-q", "--bare", str(work), str(tmp_path / "up" / "proj.git"))
+    _git(tmp_path / "up" / "proj.git", "config", "uploadpack.allowAnySHA1InWant", "true")
+    monkeypatch.setattr(P, "GIT_HOST", (tmp_path).as_uri())
+    return tmp_path / "up" / "proj.git", base, work
+
+
+def _push(base, diff, **kw):
+    return P.GitHubWriter("gho_x").push_branch("up/proj", base, "up/proj", "pp", diff, "msg", **kw)
+
+
+def _file_at(repo, sha):
+    return _git(repo, "show", f"{sha}:src/a.py")
+
+
+def test_revision_is_a_new_commit_on_top_of_the_pr_head(hub):
+    repo, base, _ = hub
+    first = _push(base, FIX)
+    assert _git(repo, "rev-parse", "pp") == first and _git(repo, "rev-parse", f"{first}^") == base
+    second = _push(base, FIX2, on_top=True, expect_head=first)
+    assert _git(repo, "rev-parse", "pp") == second and _git(repo, "rev-parse", f"{second}^") == first   # history kept
+    assert _file_at(repo, second) == "x = 3"                       # files are exactly base + the newly approved diff
+
+
+def _foreign_commit(repo, work, tmp_path_name="other"):
+    other = work.parent / tmp_path_name
+    _git(work.parent, "clone", "-q", "-b", "pp", str(repo), str(other))
+    (other / "src" / "a.py").write_text("x = 99\n")
+    _git(other, "-c", "user.name=m", "-c", "user.email=maint@example.com", "commit", "-qam", "maintainer edit")
+    _git(other, "push", "-q", "origin", "pp")
+    return _git(other, "rev-parse", "HEAD")
+
+
+def test_a_moved_head_stops_the_push(hub):
+    repo, base, work = hub
+    first = _push(base, FIX)
+    theirs = _foreign_commit(repo, work)
+    with pytest.raises(P.PublishRefused) as e:
+        _push(base, FIX2, on_top=True, expect_head=first)
+    assert e.value.code == "PR_HEAD_MOVED" and _git(repo, "rev-parse", "pp") == theirs     # their commit is untouched
+
+
+def test_without_a_recorded_head_only_patchpilot_commits_may_be_built_on(hub):
+    repo, base, work = hub
+    first = _push(base, FIX)
+    assert _git(repo, "rev-parse", f"{_push(base, FIX2, on_top=True)}^") == first   # runs published before head_sha was kept
+    theirs = _foreign_commit(repo, work)
+    with pytest.raises(P.PublishRefused):
+        _push(base, FIX, on_top=True)
+    assert _git(repo, "rev-parse", "pp") == theirs
+
+
+def test_a_deleted_pr_branch_is_not_recreated(hub):
+    repo, base, _ = hub
+    with pytest.raises(P.PublishRefused) as e:
+        _push(base, FIX, on_top=True, expect_head="d" * 40)
+    assert e.value.code == "PR_HEAD_MOVED" and not _git(repo, "branch", "--list", "pp")
+
+
+def test_republishing_a_revision_updates_the_runs_pr_and_never_creates_one(run):
+    from backend.contracts.models import PullRequestRef
+    run.pr = PullRequestRef(url="https://github.com/up/proj/pull/9", number=9, head_branch="patchpilot/issue-7-1234abcd",
+                            fork_owner="alice", state="open", head_sha="b" * 40)
+    gh = FakeGH(existing=None)
+    r = P.publish(run, gh, "main")
+    push = [c for c in gh.calls if c[0] == "push"][0]
+    assert push[4] == {"on_top": True, "expect_head": "b" * 40}
+    assert r.status == "updated" and r.pr.number == 9 and r.pr.head_sha == "c" * 40
+    assert ("update", 9) in gh.calls and not any(c[0] == "create" for c in gh.calls if isinstance(c, tuple))
+
+
+def test_first_publish_records_the_pushed_head(run):
+    gh = FakeGH()
+    r = P.publish(run, gh, "main")
+    assert [c for c in gh.calls if c[0] == "push"][0][4] == {"on_top": False, "expect_head": None} and r.pr.head_sha == "c" * 40

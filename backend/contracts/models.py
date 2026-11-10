@@ -7,7 +7,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-CONTRACTS_VERSION = "0.7"   # v0.7 = ReproTest.uncovered; v0.6 = Revise target fix|test; v0.5 = #70 maintainer consent + required ownership answers (PROPOSED); v0.4 = #50
+CONTRACTS_VERSION = "0.8"   # v0.8 = #100 PUBLISH_NOT_ALLOWED, #103 revise from the PR feedback plan; v0.7 = ReproTest.uncovered; v0.6 = Revise target fix|test; v0.5 = #70 maintainer consent + required ownership answers (PROPOSED); v0.4 = #50
 
 
 class StepId(str, Enum):
@@ -213,6 +213,7 @@ class PullRequestRef(BaseModel):
     fork_owner: str | None = None
     compare_url: str | None = None
     state: Literal["open", "merged", "closed"] | None = None   # None = unknown
+    head_sha: str | None = None   # v0.8 (#103): the commit PatchPilot last pushed; the next push goes on top of it
 
 
 class RevisionSummary(BaseModel):
@@ -224,6 +225,8 @@ class RevisionSummary(BaseModel):
     finished_at: datetime | None = None
     revise_target: Literal["fix", "test"] | None = None   # v0.6: what the user asked to change after this revision
     feedback: str | None = None                            # v0.6: the user's reason, kept as history
+    plan_evidence_id: str | None = None   # v0.8 (#103): set when the revision came from the saved PR feedback plan
+    plan_saved_at: datetime | None = None
 
 
 class OwnershipAnswers(BaseModel):
