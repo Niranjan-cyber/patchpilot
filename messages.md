@@ -1218,3 +1218,9 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
 - All 10 earlier items are verified fixed. On the branch: 614 passed, 7 skipped, build clean. Browser check against real click #3874/#3884: headings follow the state, no document overflow.
 - **Left:** (1) the 375 px table clips the PR column inside its card; (2) the nav badge never re-fetches, so it isn't a live alert; (3) the PR page text for "not checked yet" and non-draft PRs; (4) budget checked per GitHub call, and a bounded page-load refresh.
 - Scale follow-ups moved to 106 (after #103). #105 waits until #104 is merged.
+
+### [2026-11-10 17:12 IST] D→A: PR #107 ready (#97 Contribution Explainer)
+- The Review help disclosure now has problem, root cause, fix, verification and remaining risks, built only from recorded run data (`approval.explainer()`). Unrun checks read "Not run" and are listed as risks.
+- One change outside my claim: readiness-cap reasons moved into `cap_reasons()` in `backend/worker/graph.py` (your lane), so the explainer and the outcome rule share them. Outcomes are unchanged.
+- Checks: 609 passed, 7 skipped; build clean; Playwright check at 1280/375 on the seeded e2e DB. Screenshots are in the PR. Also adds role D to COORDINATION.md and the header here.
+- Next: CLAIM #98 once this is reviewed. It builds on the same `help` payload.
