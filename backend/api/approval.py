@@ -192,6 +192,41 @@ def explainer(v: RunView, repo_checks: dict | None, variant: dict | None) -> dic
     }
 
 
+def suggestions(e: dict, fix_files: list[str]) -> dict[str, str]:
+    """#98: a suggested answer per ownership question, from a code template over the explainer's recorded fields only, so it
+    can't claim anything the run didn't record. Shown beside the empty answer fields, never put into them (contracts §2.3)."""
+    p, rc = e["problem"], e["root_cause"]
+    row = {c["id"]: c for c in e["verification"]}
+    runs = lambda c, s: f"{sum(r == s for r in c['runs'])} of {len(c['runs'])} runs"
+    test = p["tests"][0] if p["tests"] else None
+    failure = f" The new test shows it: on the original code it fails with \"{p['failure']}\"." if p["failure"] else ""
+
+    if p["expected"] and p["actual"]:
+        broken = f"The issue expects: {p['expected']}. Instead: {p['actual']}.{failure}"
+    elif p["failure"]:
+        broken = f"The issue doesn't state the expected and actual behaviour.{failure}"
+    else:
+        broken = "Nothing was recorded about the expected and actual behaviour, so describe the bug from the issue and the diff."
+
+    files = ", ".join(fix_files) or "no source files"
+    why = (f"PatchPilot's diagnosis (a claim, check it in the diff): {rc['claim']} The change edits {files}." if rc else
+           f"The cause is unknown: no diagnosis was recorded for this run. The change edits {files}; read it to see why it helps.")
+
+    if not test:
+        proves = "No regression test was recorded, so there is nothing for a test to prove yet."
+    else:
+        rep, fix = row["reproduced"], row["fixed"]
+        before = (f"fails on the original code ({runs(rep, 'failed')})" if rep["status"] == "passed"
+                  else f"was not shown to fail on the original code (reproduction: {rep['status'].replace('_', ' ')})")
+        after = (f"passes with the fix ({runs(fix, 'passed')})" if fix["status"] == "passed"
+                 else f"was not shown to pass with the fix (verification: {fix['status'].replace('_', ' ')})")
+        gaps = [r["text"] for r in e["risks"] if r["kind"] == "uncovered"]
+        proves = (f"{test} {before} and {after}"
+                  + (", so the bug can't come back without this test failing." if rep["status"] == fix["status"] == "passed" else ".")
+                  + (f" It doesn't check: {'; '.join(gaps)}." if gaps else ""))
+    return {"what_was_broken": broken, "why_this_fix": why, "what_the_test_proves": proves}
+
+
 @router.get("/api/runs/{run_id}/approval")
 def approval_context(run_id: str, request: Request):
     import json
@@ -206,15 +241,17 @@ def approval_context(run_id: str, request: Request):
         except ValueError:
             variant = None
         help_ = explainer(v, db.repo_checks(c, run_id), variant if isinstance(variant, dict) else None)
+        fix_files = sorted(changed_files(artifacts.get(v.patch.fix_diff_id).decode("utf-8", "replace")))
+        hints = suggestions(help_, fix_files)
     except Exception:
         logging.getLogger(__name__).exception("explainer failed for run %s", run_id)
-        help_ = None
+        help_ = hints = fix_files = None
     return {"revision": v.revision, "diff": diff, "diff_hash": dh, "evidence_hash": eh, "files": sorted(changed_files(diff)),
             "publish_blockers": v.publish_blockers, "approved": v.approval is not None,
             "pr_title": f"Fix #{v.issue.number}: {v.issue.title}"[:120],
             "pr_summary": summary_prefill(v),
             # v0.5 §2.3: what PatchPilot found, shown as help next to the three own-words questions (never prefilled into them)
-            "help": {"explainer": help_},
+            "help": {"explainer": help_, "suggestions": hints, "fix_files": fix_files},
             "revise_blocked": None if budget_left(run_id) else NO_BUDGET}
 
 

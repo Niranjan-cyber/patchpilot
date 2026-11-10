@@ -3,7 +3,7 @@ from fastapi.testclient import TestClient
 
 from backend import artifacts, db
 from backend.api import approval, main
-from backend.contracts.models import (CheckStatus, IssueSpec, Outcome, Patch, PublishBlocker, RepoPolicy, RunStatus,
+from backend.contracts.models import (CheckStatus, IssueSpec, Location, Outcome, Patch, PublishBlocker, RepoPolicy, RunStatus,
                                       SGReport)
 from backend.github.reader import IssueCheck
 
@@ -259,3 +259,43 @@ def test_citation_paths_are_quoted(ready):
     v.diagnosis = Diagnosis(hypothesis="h", locations=[Location(path="src/a b#1?.py", line=3)])
     db.save_run(c, v)
     assert explainer(b, rid)["root_cause"]["citations"][0]["url"] == "https://github.com/o/r/blob/abc/src/a%20b%231%3F.py#L3"
+
+
+# #98: a visible suggestion per ownership question, from a code template over recorded fields only (no model call)
+def suggestions(b, rid):
+    return b.get(f"/api/runs/{rid}/approval").json()["help"]["suggestions"]
+
+
+def test_without_a_diagnosis_the_suggestion_says_the_cause_is_unknown(ready):
+    s = suggestions(*ready[:2])
+    assert set(s) == set(OWN)   # the same three keys the approval takes
+    assert "unknown" in s["why_this_fix"] and "src/a.py" in s["why_this_fix"]
+    assert "Nothing was recorded" in s["what_was_broken"]   # the fixture recorded no expected/actual/test
+    assert "No regression test was recorded" in s["what_the_test_proves"]
+
+
+def test_suggestions_use_only_recorded_fields(ready):
+    from backend.contracts.models import Diagnosis, IssueSpec, ReproTest, Verification
+    b, rid, _ = ready
+    c = db.connect(); v = db.get_run(c, rid)
+    v.issue = IssueSpec(html_url=URL, repo="o/r", number=1, title="t", expected="x is 2", actual="x is 1")
+    v.diagnosis = Diagnosis(hypothesis="x is assigned 1.", locations=[Location(path="src/a.py", line=1)])
+    v.repro = ReproTest(test_diff_id=v.patch.test_diff_id, test_ids=["tests/test_a.py::test"], expected_failure="assert 1 == 2",
+                        runs_on_base=[CheckStatus.FAILED, CheckStatus.FAILED], uncovered=["negative x"])
+    v.verify = Verification(new_test_runs=[])
+    v.gates = {"G3": CheckStatus.PASSED, "G5": CheckStatus.NOT_RUN}
+    db.save_run(c, v)
+    s = suggestions(b, rid)
+    assert s["what_was_broken"] == ('The issue expects: x is 2. Instead: x is 1. The new test shows it: on the original code it fails '
+                                    'with "assert 1 == 2".')
+    assert s["why_this_fix"] == "PatchPilot's diagnosis (a claim, check it in the diff): x is assigned 1. The change edits src/a.py."
+    assert s["what_the_test_proves"] == ("tests/test_a.py::test fails on the original code (2 of 2 runs) and was not shown to pass "
+                                         "with the fix (verification: not run). It doesn't check: negative x.")
+
+
+def test_ownership_answers_stay_the_users_own(ready):
+    # contracts §2.3: the suggestion is shown, never submitted for the user; the approval keeps the typed answers
+    b, rid, _ = ready
+    ctx = b.get(f"/api/runs/{rid}/approval").json()
+    v = b.post(f"/api/runs/{rid}/approve", json=body(ctx)).json()
+    assert v["approval"]["ownership"] == OWN

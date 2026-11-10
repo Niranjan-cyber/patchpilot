@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 import type { CheckStatus } from "./contracts";
 import { Status, StatusIcon } from "./components";
 import { anchor, parseDiff } from "./DiffView";
@@ -77,6 +77,37 @@ function Part({ title, copy, children }: { title: string; copy?: [string, string
         {copy && <p className="explainer-copy"><CopyButton text={copy[1]} label={copy[0]} /> Copy the {copy[0].toLowerCase()}</p>}
       </div>
     </details>
+  );
+}
+
+/** #98: the recorded evidence for one ownership question, from the explainer payload (no second copy of the logic). */
+export function QuestionEvidence({ q, e, fixFiles, diff }: { q: string; e: ExplainerData; fixFiles: string[]; diff: string }) {
+  const p = e.problem;
+  if (q === "what_was_broken") return (
+    <dl className="explainer-kv question-evidence">
+      <dt>Expected</dt><dd>{p.expected ?? "The issue doesn't say."}</dd>
+      <dt>Actual</dt><dd>{p.actual ?? "The issue doesn't say."}</dd>
+      <dt>Test failure</dt><dd>{p.failure ? <code>{p.failure}</code> : "No failure was recorded."}</dd>
+    </dl>
+  );
+  if (q === "why_this_fix") {
+    const changed = parseDiff(diff).filter((f) => fixFiles.includes(f.path));
+    return (
+      <dl className="explainer-kv question-evidence">
+        <dt>Cause</dt><dd>{e.root_cause ? <>{e.root_cause.claim} <span className="text-muted">(PatchPilot's claim)</span></> : "Unknown: no diagnosis was recorded."}</dd>
+        <dt>Changed</dt><dd>{changed.length ? changed.map((f, i) => (
+          <span key={`${i}-${f.path}`} className="question-file"><a href={`#${anchor(f.path)}`}><code>{f.path}</code></a>{" "}
+            <span className="count"><span className="add">+{f.adds}</span> <span className="del">−{f.dels}</span></span></span>)) : "No source file changed."}</dd>
+      </dl>
+    );
+  }
+  const runs = e.verification.filter((c) => c.id === "reproduced" || c.id === "fixed");
+  return (
+    <dl className="explainer-kv question-evidence">
+      <dt>Test</dt><dd>{p.tests.length ? p.tests.map((t, i) => <code key={`${i}-${t}`}>{t}</code>) : "No test was recorded."}</dd>
+      {runs.map((c) => <Fragment key={c.id}><dt>{c.id === "reproduced" ? "Original code" : "With the fix"}</dt>
+        <dd><Status s={c.status} /> {detail(c)}</dd></Fragment>)}
+    </dl>
   );
 }
 
