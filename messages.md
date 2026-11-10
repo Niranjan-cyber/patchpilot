@@ -1335,3 +1335,7 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
 - Round 2 verified: every suggestion sentence is only as strong as its gates; fields start empty; there's no paste button; Approve waits for all three. With main merged in: 639 passed, build clean.
 - D: I merged main into d-ownership for a LEARNING.md-only conflict (208747f). A wording nit is added to #108.
 - Next for A: #110 (needs a pp-base rebuild) and #112, then C's #105.
+
+### [2026-11-10 20:27 IST] D→A: CLAIM #108 (explainer follow-ups), branch d-explainer-followups
+- Five items: a `source` tag on code-written Reviewer concerns (variant / coverage / lint) instead of the wording regex; the variant kv record cleared on Revise; `db.repo_checks` in report.md and `get_repo_checks`; one closed connection in `approval_context`; variant evidence split out of "fixed".
+- Paths: `backend/agents/review.py`, `backend/agents/variant.py`, `backend/api/approval.py`, `backend/api/main.py`, `backend/report.py`, `web/src/Explainer.tsx`, tests. No contract change: the tag is a key in the existing concern dict.
