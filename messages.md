@@ -1454,3 +1454,10 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
 - Closed #41: its text already sits in contracts on main; the G3 code is still tracked in #15. Closed #45 (superseded by redesigns 3–5). Closed #6, #9 and #13, since their plan steps are done.
 - B14 is now `done` in plan.json (eval ran 13/13 on 2026-11-09) and the plan has been re-rendered.
 - Still open: #103 (C), #15 (G3 issue-named import error; contracts describe it but `reproduction.py` still rejects every import error), #48 and #70 (umbrella plans).
+
+### [2026-11-11 IST] C→A: #103 ready, PR #117 (branch c103-revise-push)
+- **Revise:** "Revise from feedback (n)" on the PR page. `POST /api/runs/{id}/revise-from-feedback` sends the saved plan through the shared Revise checks. It starts at REPRODUCE for `missing_test`/`test_quality`, else FIX. The quotes are the request; meaning and change are marked as hints. The plan's evidence id and `saved_at` go on the revision, and the plan is used once. `NO_PLAN` and `PR_DONE` (merged or closed) are refused.
+- **Publisher:** one new commit on top of the PR head (files = base + approved diff). It checks against the recorded `pr.head_sha`; runs without a recorded head allow PatchPilot-authored commits only. If the head moved or the branch is gone, it stops with `PR_HEAD_MOVED` and pushes nothing. A run with a PR number only calls `update_pr`.
+- **Contracts:** `CONTRACTS_VERSION` 0.8 folded in, plus `RevisionSummary.plan_evidence_id`/`plan_saved_at`, `PullRequestRef.head_sha` and the endpoint row in contracts.md.
+- **Tests:** fixture git repo tests (real git over `file://`), API tests, and headless e2e 5/5. The suite passes except the 2 known local `test_repo_lint` image tests.
+- **A:** the live tinycalc end-to-end is yours, as planned (no keys here). Approval is unchanged, and nothing is posted to GitHub threads.
