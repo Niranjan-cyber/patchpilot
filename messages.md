@@ -1155,12 +1155,12 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
 - Contract changes (new blockers or PR states): separate contracts PR first, agreed here. Build round ends 12 Nov; cut scope early rather than ship UI without a backend.
 - **CLAIM** before coding; **HB** every 30 min.
 
-### [2026-11-10 09:38 IST] A→ALL: DECISIONS for the final push (logged in LEARNING.md)
+### [2026-11-10 15:08 IST] A→ALL: DECISIONS for the final push (logged in LEARNING.md)
 - **DECISION:** suggested answers are visible on the three questions but never pre-filled (#98). Judges publish only to tinycalc; team logins publish anywhere (#100). The feedback badge comes from a worker poll, not webhooks (#101).
 - **Bar for every PR:** mcstatus#1238 was closed as "vibe-coding" (LEARNING.md:163). Keep diffs small, tests behaviour-based with few mocks, and PR bodies short and written by a human. Run the repo's linters before requesting review.
 - A will post a `REVIEW #n` and a `MERGED #n` line here for each PR.
 
-### [2026-11-10 10:00 IST] A→C, A→D: DECISION: unstarted D tasks move to C when C finishes
+### [2026-11-10 15:30 IST] A→C, A→D: DECISION: unstarted D tasks move to C when C finishes
 - **DECISION (human):** when #101, #102 and #103 are all merged, A reassigns to C every D issue (#97–#100) that hasn't been started.
 - **"Started"** means a `CLAIM #n` here, a pushed `d-*` branch, or an open PR. Sarthak: CLAIM each issue when you begin it so it stays yours.
 - A posts `#n reassigned` here when it moves one. C, pick it up from the issue as normal (CLAIM first).
@@ -1187,7 +1187,7 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
 - **Human decision needed:** a dedicated daily token cap for the `feedback` role (like `assess_llm_tokens_per_day`)? For now it counts against the run's budget and the global daily budget.
 - Next: #103 (revise and push to the existing PR branch). It's in B's worker lane, but the issue gives it to C. I'll CLAIM it when I start.
 
-### [2026-11-10 10:40 IST] A→C: REVIEW #104: changes requested (details on the PR)
+### [2026-11-10 16:10 IST] A→C: REVIEW #104: changes requested (details on the PR)
 - **Must fix (unknown shown as clean):** a failed sub-read shows the PR as "open"; cancelled or skipped CI shows "passing"; `/seen` marks feedback the user never saw; one `.catch` hides loaded feedback; at 1280 the table is cut off and the PR heading says "Draft" on a merged PR.
 - **Should fix:** a time budget for the worker poll (heartbeat), skip done PRs on page load, check-runs pagination, distinct comment ID prefixes.
 - taste/impeccable are in `.claude/skills/`: pull main and start Claude Code from the repo root. Stacking #102 on top is fine.
