@@ -11,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 
 import uuid
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from backend import db
 from backend.api import session
@@ -307,11 +307,16 @@ def feedback_plan(run_id: str, body: PlanBody, request: Request):
             "item_ids": body.item_ids}
 
 
+class SeenBody(BaseModel):
+    ids: list[str] = Field(max_length=500)
+
+
 @app.post("/api/runs/{run_id}/feedback/seen", status_code=204)
-def feedback_seen(run_id: str, request: Request):
+def feedback_seen(run_id: str, body: SeenBody, request: Request):
+    """Marks as seen only the items the page showed, so feedback that arrived meanwhile stays new."""
     from backend.github import progress
     _own(request, run_id)
-    progress.mark_seen(db.connect(), run_id)
+    progress.mark_seen(db.connect(), run_id, body.ids)
     return Response(status_code=204)
 
 

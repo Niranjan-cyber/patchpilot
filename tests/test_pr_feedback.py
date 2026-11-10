@@ -10,7 +10,7 @@ from backend.github import pr_feedback as F
 from backend.github import progress as P
 from tests.test_pr_history import N, REPO, github, load, new_run, recorded
 
-FIRST, SECOND, MERGED = "comment:6748392117", "comment:6749701191", "comment:6750005419"
+FIRST, SECOND, MERGED = "issue_comment:6748392117", "issue_comment:6749701191", "issue_comment:6750005419"
 
 
 @pytest.fixture
@@ -127,7 +127,7 @@ def test_api_plan_is_saved_as_artifact_and_owner_scoped(c, monkeypatch):
     out = a.get(f"/api/runs/{v.run_id}/feedback/assist").json()
     assert out["state"] == "ok" and len(out["items"]) == 3 and out["plan"] is None
     assert a.put(f"/api/runs/{v.run_id}/feedback/plan", json={"item_ids": [MERGED]}).status_code == 422   # not a request
-    assert a.put(f"/api/runs/{v.run_id}/feedback/plan", json={"item_ids": ["comment:999"]}).status_code == 422
+    assert a.put(f"/api/runs/{v.run_id}/feedback/plan", json={"item_ids": ["issue_comment:999"]}).status_code == 422
     r = a.put(f"/api/runs/{v.run_id}/feedback/plan", json={"item_ids": [FIRST, SECOND]}).json()
     plan = json.loads(artifacts.get(r["evidence_id"]))
     assert [g["category"] for g in plan["groups"]] == ["code_correctness", "documentation"]

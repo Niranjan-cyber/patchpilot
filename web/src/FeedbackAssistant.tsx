@@ -45,8 +45,11 @@ export default function FeedbackAssistant({ id }: { id: string }) {
     setErr(null);
     api<Assist>(`/api/runs/${id}/feedback/assist`).then((x) => {
       setA(x); setPicked(new Set(x.plan ?? []));
-      return api(`/api/runs/${id}/feedback/seen`, { method: "POST" });
-    }).then(() => window.dispatchEvent(new Event(RUNS_CHANGED))).catch(setErr);
+      // mark seen only what's shown here; a failed "seen" is silent and never hides what loaded
+      api(`/api/runs/${id}/feedback/seen`, { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: x.items.map((i) => i.id) }) })
+        .then(() => window.dispatchEvent(new Event(RUNS_CHANGED))).catch(() => null);
+    }).catch(setErr);
   };
   useEffect(load, [id]);
   if (err) return <div className="notice warn"><p>Couldn't load the feedback: {err.message}</p><button className="linklike" onClick={load}>Try again</button></div>;

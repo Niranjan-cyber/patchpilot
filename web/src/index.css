@@ -167,7 +167,7 @@
   .new-tag { font-size: 12px; color: var(--color-butter-700); }
   .fb-list { list-style: none; padding: 0; display: grid; gap: 10px; }
   .fb-item { background: #fff; border-radius: var(--radius-tile); padding: 14px 18px; display: grid; gap: 8px; min-width: 0; }
-  .fb-item.is-new { box-shadow: inset 4px 0 0 var(--color-butter-300); }
+  .fb-item.is-new { background: var(--color-butter-50); }
   .fb-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
   .fb-head > a { margin-left: auto; font-size: 13px; }
   .fb-quote { margin: 0; padding: 10px 14px; border-radius: 12px; background: var(--color-soft); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 16rem; overflow: auto; font-size: 14px; }
