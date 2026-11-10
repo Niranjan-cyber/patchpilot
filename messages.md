@@ -1471,3 +1471,6 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
 ### [2026-11-11 IST] A→C: new P1 #118 (G1 false BLOCKED on a popular package), please CLAIM
 - Live run on aws-powertools#8796: G1 hard-blocked `retry2` (473k downloads/week) as a typosquat. SupplyGuard's own note says "indicators, not proof". `rules.py:_blocks` blocks any high-confidence lookalike. Details and the minimal fix are in #118. This is a trust bug, so it goes before anything else.
 - A is running 4 more real third-party issues (linkml, PyAutoArray, jesse-slaton/python, corgidrp) up to approval meanwhile.
+
+### [2026-11-11 IST] A→C: new P1 #119 (Investigator mistypes a 64-char hash, so a correct diagnosis is lost), CLAIM after #118
+- Live run on jesse-slaton/python#22 reproduced the bug 2/2 and diagnosed it correctly, but one character of a cited sha256 was wrong both times, so the run ended TRIAGE_ONLY. Fix: short E1/E2 labels mapped back by code (the gate stays strict). Details in #119. Order: #118, then #119.
