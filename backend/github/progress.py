@@ -2,6 +2,7 @@
 A PR status GitHub didn't give us is None ("Status unavailable"), never open/closed as a guess."""
 import json
 import time
+from datetime import datetime
 
 import httpx
 
@@ -11,7 +12,8 @@ from backend.github.reader import GitHubError, _check, _client
 
 FIX = {Outcome.VERIFIED_FIX, Outcome.FIX_NEEDS_ATTENTION}
 FAILED = {"failure", "timed_out", "action_required"}
-DONE = {"merged", "closed"}     # nobody re-reads these (worker poll and page load)
+DONE = {"merged", "closed"}     # re-read only once a day (a closed PR can be reopened)
+DONE_RECHECK = 24 * 3600
 PAGE = 100                      # one page per list; a full page may hide more, so the read counts as partial
 NO_REVIEW = "review_unavailable"   # open PR whose reviews we couldn't read: never shown as plain "open"
 REVIEW = {"CHANGES_REQUESTED": "Changes requested", "APPROVED": "Approved", "COMMENTED": "Review"}
@@ -60,14 +62,17 @@ def feedback(author: str | None, reviews, review_comments, issue_comments, check
     def human(x):
         u = x.get("user") or {}
         return u.get("login") and u["login"] != author and u.get("type") != "Bot"
+    # body/path/line feed the Feedback Assistant (#102); bodies are capped so the stored snapshot stays small
     out = [{"id": f"review:{r['id']}", "kind": "review", "what": REVIEW[r["state"]], "author": r["user"]["login"],
-            "at": r.get("submitted_at"), "url": r.get("html_url")}
+            "at": r.get("submitted_at"), "url": r.get("html_url"), "state": r["state"], "body": (r.get("body") or "")[:4000]}
            for r in reviews or [] if human(r) and r.get("state") in REVIEW and (r["state"] != "COMMENTED" or r.get("body"))]
     out += [{"id": f"{src}:{x['id']}", "kind": "comment", "what": f"Comment on {x['path']}" if x.get("path") else "Comment",
-             "author": x["user"]["login"], "at": x.get("created_at"), "url": x.get("html_url")}
+             "author": x["user"]["login"], "at": x.get("created_at"), "url": x.get("html_url"), "body": (x.get("body") or "")[:4000],
+             "path": x.get("path"), "line": x.get("line") or x.get("original_line")}
             for src, xs in (("review_comment", review_comments), ("issue_comment", issue_comments)) for x in xs or [] if human(x)]
     out += [{"id": f"ci:{r['id']}", "kind": "ci", "what": f"CI failed: {r.get('name')}", "author": None,
-             "at": r.get("completed_at"), "url": r.get("html_url")}
+             "at": r.get("completed_at"), "url": r.get("html_url"), "name": r.get("name"),
+             "body": "\n".join(filter(None, [(r.get("output") or {}).get("title"), (r.get("output") or {}).get("summary")]))[:4000]}
             for r in (check_runs or {}).get("check_runs") or [] if r.get("conclusion") in FAILED]
     return sorted(out, key=lambda f: f["at"] or "")
 
@@ -111,9 +116,9 @@ def snapshot(c, h: httpx.Client, repo: str, n: int, stop: float | None = None) -
     lists_ok = [isinstance(x, list) and len(x) < PAGE for x in (rv, rc, ic)]
     partial = not all(lists_ok) or not isinstance(ck, dict) or (ck.get("total_count") or 0) > len(ck.get("check_runs") or [])
     state = pr_state(pr, rv) if isinstance(rv, list) else pr_state(pr)
-    if state == "open" and not lists_ok[0]:
-        state = NO_REVIEW
-    return {"state": state, "ci": ci_state(ck) if isinstance(ck, dict) else None, "partial": partial,
+    if state in ("open", "approved", "changes_requested") and not lists_ok[0]:
+        state = NO_REVIEW               # reviews failed or filled a page: a decision from page 1 isn't the latest
+    return {"state": state, "ci": ci_state(ck) if isinstance(ck, dict) else None, "partial": partial, "head": sha,
             "last_activity_at": max((f["at"] for f in fb if f["kind"] != "ci" and f["at"]), default=None), "feedback": fb}
 
 
@@ -144,7 +149,7 @@ def refresh(c, runs: list[RunView], *, budget: float | None = None) -> dict[str,
     todo = [v for v in runs if key(v)]
     out = {v.run_id: tracked(c, v.run_id) for v in todo}
     # least recently checked first, so a PR that missed a budget isn't starved by the same PRs every time
-    want = sorted((v for v in todo if out[v.run_id].get("state") not in DONE), key=lambda v: out[v.run_id].get("checked_at") or "")
+    want = sorted((v for v in todo if _due(out[v.run_id])), key=lambda v: out[v.run_id].get("checked_at") or "")
     if not want:
         return out
     stop, limited, read = (time.monotonic() + budget) if budget else None, False, {}
@@ -161,7 +166,10 @@ def refresh(c, runs: list[RunView], *, budget: float | None = None) -> dict[str,
                             limited = True
                         except OutOfTime:
                             break
+                        except Exception as e:     # one odd PR (non-JSON 200, malformed item) never stops the rest
+                            print(f"PR read failed for {k}: {e!r}", flush=True)
                     read[k] = snap
+                _prune(c, v.issue.repo, out[v.run_id].get("head"), (read[k] or {}).get("head"))
                 out[v.run_id] = {**merge(out[v.run_id], read[k]), "checked_at": db.now().isoformat()}
                 db.put_kv(c, f"pr_track:{v.run_id}", json.dumps(out[v.run_id]))
     except Exception:
@@ -172,10 +180,31 @@ def refresh(c, runs: list[RunView], *, budget: float | None = None) -> dict[str,
     return out
 
 
+def _due(t: dict) -> bool:
+    """Open or never-read PRs every time; done ones once a day, or at once if stored before bodies were kept."""
+    if t.get("state") not in DONE:
+        return True
+    if any(f["kind"] != "ci" and "body" not in f for f in t.get("feedback", [])):
+        return True
+    at = t.get("checked_at")
+    return not at or (db.now() - datetime.fromisoformat(at)).total_seconds() > DONE_RECHECK
+
+
+def _prune(c, repo: str, old: str | None, new: str | None) -> None:
+    """Check-runs are cached per head SHA; once the PR's head moves, the old SHA's cached body is dead weight."""
+    if old and new and old != new:
+        c.execute("DELETE FROM kv WHERE key=?", (f"gh_etag:/repos/{repo}/commits/{old}/check-runs?per_page=100",))
+
+
 def poll(c, budget: float = 20) -> None:
-    """Worker, every 10 min: refresh PRs that aren't merged or closed, within a time budget so the job loop and its
-    heartbeat aren't held up (what's left waits for the next tick)."""
-    runs = [RunView.model_validate_json(r[0]) for r in c.execute("SELECT state_json FROM runs").fetchall()]
+    """Worker, every 10 min: refresh PRs within a time budget so the job loop and its heartbeat aren't held up (what's
+    left waits for the next tick). Forgotten runs (no owner) are skipped, and so is a row that doesn't validate."""
+    runs = []
+    for (raw,) in c.execute("SELECT state_json FROM runs WHERE owner_session_hash IS NOT NULL OR owner_account_id IS NOT NULL"):
+        try:
+            runs.append(RunView.model_validate_json(raw))
+        except ValueError:
+            continue
     refresh(c, runs, budget=budget)
 
 

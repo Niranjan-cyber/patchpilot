@@ -14,4 +14,8 @@ run_llm_tokens = 600_000   # human-approved 2026-11-08: msoffcrypto #108 used 40
 run_active_seconds = 1500
 setup_seconds = 480
 max_pause_seconds = 7200
+# #100 (human decision 2026-11-10): who may publish (open a PR or post the ask comment). Everything up to approval works for
+# everyone on any repo. Team logins publish anywhere; anyone else only to these repos. Removing a key blocks everyone.
+publish_open_logins = ["Niranjan-cyber", "DevanshNarlawar06", "sarthakviche", "swaralipatil11"]
+publish_allowed_repos = ["Niranjan-cyber/tinycalc"]
 retries = { test_designer = 2, fixer = 3, rediagnose = 1 }

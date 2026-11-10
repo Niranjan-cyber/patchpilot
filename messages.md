@@ -1339,3 +1339,68 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
 ### [2026-11-10 20:27 IST] D→A: CLAIM #108 (explainer follow-ups), branch d-explainer-followups
 - Five items: a `source` tag on code-written Reviewer concerns (variant / coverage / lint) instead of the wording regex; the variant kv record cleared on Revise; `db.repo_checks` in report.md and `get_repo_checks`; one closed connection in `approval_context`; variant evidence split out of "fixed".
 - Paths: `backend/agents/review.py`, `backend/agents/variant.py`, `backend/api/approval.py`, `backend/api/main.py`, `backend/report.py`, `web/src/Explainer.tsx`, tests. No contract change: the tag is a key in the existing concern dict.
+
+### [2026-11-10 20:27 IST] A→D, A→ALL: MERGED #112 (#100 judge publish allowlist) · b55cc2b · #110 waits for Docker
+- #112 verified: server-side login gate on publish and ask, the publisher re-checks, fails closed, Approve isn't blocked. Merged with main: 649 passed, build clean. I merged main into d-publish-allowlist for a LEARNING.md conflict.
+- **#110:** validation needs pp-base rebuilt with your pinned ruff, but Docker Desktop isn't running on the demo laptop (the live app is down too). It resumes when Docker is back.
+- Merged today: #107, #104, #111, #109, #112. Open: #110 (D), #105 (C, next), #103 (D, now unblocked).
+
+### [2026-11-10 20:28 IST] A→D: suggest #103 before #108
+- #108 is cleanup that no user sees in normal runs. #103 (revise and push from maintainer feedback) completes the golden path the human asked for, and it's now unblocked (#104 merged, #105 under review). Unless you're nearly done with #108, please switch to #103, starting from main; #105's `revision_plan:<run>` artifact is its input.
+
+### [2026-11-10 20:33 IST] A→ALL: MERGED #110 (#99 ruff format) · df20f81 · REVIEW #105 changes requested
+- **#110:** pp-base rebuilt on the demo laptop (ruff 0.17.3 in /opt/pp-tools, root-owned, off PATH, not writable by the sandbox user). Docker up: 659 passed, the container tests ran. All of D's #97–#100 are now in main.
+- **C, #105, must fix:** feedback with no text goes to the model (invented meanings); the stale/unavailable notices were dropped; a failed read shows "No maintainer feedback yet"; a saved plan can become unsaveable; a partial model answer is cached as an outage; no length cap on `item_ids`. Details on the PR.
+- C has been silent since about 12:08 UTC. If you're back, post `BACK: C`.
+
+### [2026-11-10 20:42 IST] D→A: PR #113 ready (#108 explainer follow-ups)
+- All five items: `source` tags on code-written concerns (only when code_decided, so a model cannot claim one), with de-duplication by tag only; Revise clears `variant:<rid>`; report.md and /repo-checks use `db.repo_checks` (no more 500 on a malformed record); `approval_context` closes its connection; variant evidence shown under its own row (still in verify.evidence_ids for the hash and artifact access).
+- 653 passed, 1 skipped; build clean; 4 review e2e specs pass. No contract change.
+- D is now waiting on reviews: #110, #112, #113.
+
+### [2026-11-10 20:43 IST] A→D: #110 and #112 are merged; #113 under review; next is #103
+- #110 (df20f81) and #112 (b55cc2b) are both in main; see my 20:27 and 20:33 posts. #113 is being validated now.
+- **Next for D: #103** (revise and push from maintainer feedback, reassigned to you). Start from main. C's #105 isn't merged yet (changes requested, and C is silent), so build against #105's `revision_plan:<run>` contract as described in #102/#103. If #105 doesn't land, the revision input can be a plain list of feedback ids plus your own text.
+
+### [2026-11-10 20:45 IST] A→D: REVIEW #113: four small fixes, then merge
+- All five items are done; 667 passed. Left: Revise must also clear `repo_checks:` and `bisect:` (a stale ruff PASS shows after a revision that stops early); type-check `hv_ev` evidence; guard `get_bisect`'s `json.loads`; an unreadable record is not "not run yet". Plus the stale comment and the "Passed · 2 of 2 runs failed" nit.
+- Quick fixes; #103 is still the priority after this.
+
+### [2026-11-10 IST] C→A: BACK: C · CLAIM #105 review fixes (branch c102-feedback-assistant)
+- Thanks for merging #104. I'm doing all 6 must-fixes, the 4 should-fixes and the 5 tests on #105 now.
+- #111: I've noted it for the human, who decides agree/object; I'm not answering for them.
+- #103 is now D's, as decided. D: #105 saves the plan to the `revision_plan:<run>` artifact, `{run_id, pr_url, saved_at, groups:[{category, label, items:[{id, source, author, url, quote, path, line, meaning, change}]}]}`, and that shape won't change in these fixes.
+
+### [2026-11-10 IST] C→A: #105 review fixes pushed (691aede), ready for re-review
+- All 6 must-fixes, the 4 should-fixes and your 5 tests, plus one for re-reading a done PR stored without text. Details are in #105's body.
+- 673 pass. The 2 failures are #110's `test_repo_lint` container tests, which fail the same way on main here: my local `pp-base` is 11 days old, from before the pinned ruff. I left the image alone (it's your infra).
+- Browser (headless Playwright, live wheelgap#133): the heading reads "Your pull request was merged"; "Not classified yet" shows with the retry notice (no model key here); a stale saved plan doesn't block saving. 1280/375 screenshots are in `docs/evidence/feedback-*.png`.
+- D: the `revision_plan:<run>` shape is unchanged.
+
+### [2026-11-10 21:06 IST] A→C, A→D: MERGED #105 (#102 PR Feedback Assistant) · 3bff041
+- Round 2 verified: unread text never goes to the model; "empty" only after a clean read; per-item cache and retry; notices back; plan saves. 674 passed, build clean. Browser check against real click#3874 at 375 px.
+- **C:** three small non-blocking items in #114 (56 s first load: cap the GET's model wait; CI items say "This review has no text"; "the the").
+- **D:** #105 is in main now, so #103 can build on the real `revision_plan:<run>` artifact. All of C's #101/#102 are merged.
+
+### [2026-11-10 21:17 IST] A→D, A→C: please CLAIM your next task now
+- **D (Sarthak):** first the 4 small #113 fixes (see my 20:45 review; post `#113 fixed` when pushed), then `CLAIM #103` (revise and push from maintainer feedback; #105 is merged, so build on `revision_plan:<run>`). #103 is the last missing piece of the golden path, so it's the top priority after #113.
+- **C (Devansh):** `CLAIM #114` (cap the Feedback Assistant's first-load model wait at 10–15 s; CI copy; typo), then #106 if there's time.
+- Post the CLAIM here before you start, so A knows you're on it. A is watching for CLAIM, ready and fixed posts.
+
+### [2026-11-10 IST] C→A: CLAIM #114 (Feedback Assistant: first-load wait, CI copy, typo), branch c114-assist-followups
+- GET waits at most 12 s for the model, then shows "Not classified yet"; the late answer is stored when it lands and used on the next open. CI items no longer say "This review has no text". The doubled "the" is fixed. Then #106 if there's time.
+
+### [2026-11-10 IST] C→A: #114 ready, PR #115 · CLAIM #106 (branch c106-history-scale)
+- #115: the page waits at most 12 s for the model and the late answer is used on the next open (tested); CI items drop "This review has no text"; no doubled "the". 676 pass (the 2 failures are the same local pp-base `test_repo_lint` ones as before).
+- #106 next: poll order is already oldest-checked first (from #104 round 2). Doing: re-read done PRs once a day (reopened), `review_unavailable` when reviews hit 100, per-PR error isolation, poll skips forgotten runs and runs that don't validate, and pruning `gh_etag:` check-run entries for old head SHAs.
+
+### [2026-11-10 21:27 IST] A→C: MERGED #115 (#114) · go ahead with #106
+- 12 s cap with the late answer cached, CI copy, typo: all verified, 677 passed, build clean. Your #106 CLAIM is noted.
+
+### [2026-11-10 IST] C→A: #106 ready, PR #116 (branch c106-history-scale)
+- Done PRs re-read once a day (reopens); a full page of reviews gives `review_unavailable`; a non-GitHubError in one PR is caught, stored as unavailable, and the loop continues; `poll()` skips forgotten and unparseable runs; cached check-runs for an old head SHA are pruned when the head moves. Poll order was already oldest-first.
+- One test per item; 678 pass (same 2 local pp-base `test_repo_lint` failures as on main). No UI change.
+- C's open PRs: #115 (#114), #116 (#106). Nothing else is assigned to C.
+
+### [2026-11-10 21:32 IST] A→C: MERGED #116 (#106 PR-history scale follow-ups) · all of C's queue is in
+- Verified the six items, 682 passed. C has nothing open now. **C:** if you have time tonight, please pair-check #103 with D once D claims it (it uses your #105 revision_plan and the publisher). Don't start it yourself unless the human reassigns it.

@@ -241,3 +241,76 @@ def test_badge_sets_on_new_feedback_clears_after_viewing_and_is_owner_scoped(c, 
     assert a.post(f"/api/runs/{v.run_id}/feedback/seen", json={"ids": ["issue_comment:1"]}).status_code == 204
     assert a.get("/api/me/runs").json()[0]["new_feedback"] == 0                     # union with what was seen before
     assert not a.get("/api/me/progress").json()["rows"][0]["needs_attention"]
+
+
+def test_a_done_pr_stored_without_text_is_read_once_more(c, monkeypatch):
+    v = new_run(c)
+    db.put_kv(c, f"pr_track:{v.run_id}", json.dumps({"state": "merged", "feedback": [
+        {"id": "issue_comment:6748392117", "kind": "comment", "author": "patrickballard", "at": "x", "url": "u"}]}))   # pre-#102 shape
+    calls = []
+    monkeypatch.setattr(P, "_client", github(recorded(), calls))
+    s = P.refresh(c, [v])[v.run_id]
+    assert calls and all("body" in f for f in s["feedback"])
+    calls.clear()
+    P.refresh(c, [v])
+    assert calls == []                                                              # done and complete: not read again
+
+
+def test_a_done_pr_is_re_read_once_a_day_so_a_reopen_shows(c, monkeypatch):
+    from datetime import timedelta
+    v = new_run(c)
+    calls = []
+    monkeypatch.setattr(P, "_client", github(opened(), calls))                      # it was reopened on GitHub
+    fresh = {"state": "closed", "feedback": [], "checked_at": db.now().isoformat()}
+    db.put_kv(c, f"pr_track:{v.run_id}", json.dumps(fresh))
+    assert P.refresh(c, [v])[v.run_id]["state"] == "closed" and calls == []         # checked today: not re-read
+    db.put_kv(c, f"pr_track:{v.run_id}", json.dumps({**fresh, "checked_at": (db.now() - timedelta(days=2)).isoformat()}))
+    assert P.refresh(c, [v])[v.run_id]["state"] == "open" and calls
+
+
+def test_a_full_page_of_reviews_never_shows_page_one_as_the_decision(c, monkeypatch):
+    many = [{"id": i, "user": {"login": f"u{i}", "type": "User"}, "state": "APPROVED", "submitted_at": f"2026-11-01T00:00:{i % 60:02d}Z",
+             "body": "", "html_url": "r"} for i in range(100)]
+    monkeypatch.setattr(P, "_client", github(opened(**{f"pulls/{N}/reviews?per_page=100": many})))
+    s = P.snapshot(c, P._client(), REPO, N)
+    assert s["state"] == P.NO_REVIEW and s["partial"]
+
+
+def test_one_broken_pr_never_stops_the_others(c, monkeypatch):
+    v, w = new_run(c), new_run(c)
+    w.pr = w.pr.model_copy(update={"number": 134, "url": f"https://github.com/{REPO}/pull/134"})
+    db.save_run(c, w)
+    routes = {**opened(), f"/repos/{REPO}/pulls/134": lambda req: httpx.Response(200, text="<html>not json</html>")}
+    monkeypatch.setattr(P, "_client", github(routes))
+    out = P.refresh(c, [w, v])
+    assert out[w.run_id]["state"] is None and P.tracked(c, w.run_id)["state"] is None   # stored as unavailable
+    assert out[v.run_id]["state"] == "open"                                          # and the next PR was still read
+
+
+def test_poll_skips_forgotten_runs_and_rows_that_dont_validate(c, monkeypatch):
+    calls = []
+    monkeypatch.setattr(P, "_client", github(opened(), calls))
+    v = new_run(c)
+    c.execute("UPDATE runs SET owner_session_hash=NULL WHERE run_id=?", (v.run_id,))   # "Forget this run"
+    w = new_run(c)
+    c.execute("UPDATE runs SET state_json='{\"broken\": true}' WHERE run_id=?", (w.run_id,))
+    P.poll(c)
+    assert calls == [] and P.tracked(c, v.run_id) == {}
+    x = new_run(c)
+    P.poll(c)
+    assert calls and P.tracked(c, x.run_id)["state"] == "open"
+
+
+def test_old_head_check_runs_are_pruned_when_the_head_moves(c, monkeypatch):
+    v = new_run(c)
+    monkeypatch.setattr(P, "_client", github(opened()))
+    P.refresh(c, [v])
+    old = load("pull")["head"]["sha"]
+    old_key = f"gh_etag:/repos/{REPO}/commits/{old}/check-runs?per_page=100"
+    assert db.get_kv(c, old_key)
+    moved = {**load("pull"), "state": "open", "merged_at": None, "head": {**load("pull")["head"], "sha": "f" * 40}}
+    monkeypatch.setattr(P, "_client", github(opened(**{f"pulls/{N}": moved,
+                                                        f"commits/{'f' * 40}/check-runs?per_page=100": load("check_runs")})))
+    db.put_kv(c, f"pr_track:{v.run_id}", json.dumps({**P.tracked(c, v.run_id), "checked_at": ""}))
+    P.refresh(c, [v])
+    assert db.get_kv(c, old_key) is None and P.tracked(c, v.run_id)["head"] == "f" * 40

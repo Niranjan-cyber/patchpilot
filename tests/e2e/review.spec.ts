@@ -103,3 +103,26 @@ test("#97: an inconclusive hidden variant says so, never 'not run' or 'reason no
   await expect(li).toContainText("Unclear: the hidden variant's run didn't give a clean pass or fail.");
   await expect(li).not.toContainText("reason wasn't recorded");
 });
+
+test("#100: outside the demo repo, Review and Connect say publishing is limited, and Approve still works", async ({ page, context }) => {
+  test.skip(!PP_TOKEN, "needs scripts/seed_review_run.py");
+  await context.addCookies([{ name: "pp_sid", value: PP_TOKEN, url: BASE }]);
+  const limited = "Publishing from this demo is limited to the demo repository.";
+  for (const width of [1280, 375]) {
+    await page.setViewportSize({ width, height: 860 });
+    await page.goto(`${BASE}/runs/${PP_RUN}/review`);   // the seed is pallets/click, not tinycalc, and nobody is signed in
+    await expect(page.getByText(limited)).toBeVisible();
+    for (const box of ["I read every change below", "I understand what it changes and why", "The pull request may say that AI helped write it"])
+      await page.getByLabel(box).check();
+    await page.getByLabel("What was broken?").fill("divide(1, 0) returned 0 instead of raising.");
+    await page.getByLabel("Why does this change fix it?").fill("The try/except that swallowed the error is gone.");
+    await page.getByLabel("What does the new test prove?").fill("It fails on the old code and passes with the fix.");
+    await expect(page.getByRole("button", { name: "Approve this change" })).toBeEnabled();   // judges can still approve
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.screenshot({ path: `tests/e2e/screenshots/allowlist-review-${width}.png` });
+    await page.goto(`${BASE}/connect?run=${PP_RUN}`);
+    await expect(page.getByText(limited)).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+    await page.screenshot({ path: `tests/e2e/screenshots/allowlist-connect-${width}.png` });
+  }
+});

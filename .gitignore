@@ -13,3 +13,4 @@ playwright-report/
 eval/results.json
 .playwright-mcp/
 .cache/
+.claude/settings.local.json

@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { api, ApiError, useRun } from "./api";
+import { api, ApiError, PUBLISH_LIMITED, useRun } from "./api";
 import { Loading, StatusIcon } from "./components";
 import { Modal } from "./ui";
+import FeedbackAssistant from "./FeedbackAssistant";
 import { RUNS_CHANGED } from "./Progress";
 
 type Me = { signed_in: boolean; login: string | null; oauth_ready: boolean };
@@ -22,6 +23,10 @@ export function Connect() {
   const [err, setErr] = useState<ApiError | null>(null);
   const [busy, setBusy] = useState(false);
   useEffect(() => { api<Me>("/api/me").then(setMe).catch(setErr); }, []);
+  // #100: the server decides per signed-in login; shown before the click (the server refuses it anyway)
+  const [limited, setLimited] = useState(false);
+  useEffect(() => { if (run) api<{ publish_blockers: string[] }>(`/api/runs/${run}`)
+    .then((r) => setLimited(r.publish_blockers.includes("publish_not_allowed"))).catch(() => setLimited(false)); }, [run, me?.login]);
   const [consented, setConsented] = useState(false);
   const publish = async () => {
     setBusy(true); setErr(null);
@@ -34,6 +39,7 @@ export function Connect() {
       {run && <p className="issue-ref"><Link to={`/runs/${run}`}>Back to the run</Link></p>}
       <h1>{me?.signed_in ? `Connected as ${me.login}` : "Connect GitHub to publish"}</h1>
       {e && <p className="notice warn">{ERR[e] ?? "Something went wrong. Please try again."}</p>}
+      {limited && <p className="notice warn">{PUBLISH_LIMITED}</p>}
       {!me?.signed_in && (
         <div className="card">
           <p>We'll ask GitHub for permission to:</p>
@@ -51,14 +57,14 @@ export function Connect() {
           </div>
         </div>
       )}
-      {me?.signed_in && run && <AskFirst run={run} />}
+      {me?.signed_in && run && <AskFirst run={run} limited={limited} />}
       {me?.signed_in && run && <ConsentCard run={run} onChange={setConsented} />}
       {me?.signed_in && run && (
         <div className="card">
           <h2>Then, if they say yes: open the pull request</h2>
           {!consented && <p className="hint">Available once a maintainer's yes (or your reason) is recorded above.</p>}
           <p>We'll check that nothing changed upstream, re-apply your approved change on a clean copy, and open a draft pull request. If you can't push to the repository, we use your fork.</p>
-          <div className="row"><button className="secondary-btn" onClick={publish} disabled={busy || !consented}>{busy ? "Starting…" : "Publish draft pull request"}</button></div>
+          <div className="row"><button className="secondary-btn" onClick={publish} disabled={busy || !consented || limited}>{busy ? "Starting…" : "Publish draft pull request"}</button></div>
         </div>
       )}
       {err && <p className="notice warn">{err.message}</p>}
@@ -151,7 +157,7 @@ function ConsentCard({ run, onChange }: { run: string; onChange: (ok: boolean) =
 type Ask = { draft: string | null; pending: boolean; url?: string; error?: string };
 
 /** Ask the maintainer on the issue before opening a PR (human decision 2026-11-09, after mcstatus #1238 was closed unasked). */
-function AskFirst({ run }: { run: string }) {
+function AskFirst({ run, limited }: { run: string; limited: boolean }) {
   const [st, setSt] = useState<Ask | null>(null);
   const [text, setText] = useState("");
   const [err, setErr] = useState<ApiError | null>(null);
@@ -172,7 +178,7 @@ function AskFirst({ run }: { run: string }) {
       {st.url ? <p className="notice">Comment posted. <a href={st.url}>Open it on GitHub</a> and wait for a reply before opening the pull request.</p> : <>
         <label>Your comment (edit it so it sounds like you)
           <textarea rows={6} value={text} onChange={(e) => setText(e.target.value)} maxLength={2000} /></label>
-        <div className="row"><button onClick={() => setConfirm(true)} disabled={st.pending || text.trim().length < 20}>{st.pending ? "Posting…" : "Post this comment on the issue"}</button></div>
+        <div className="row"><button onClick={() => setConfirm(true)} disabled={st.pending || text.trim().length < 20 || limited}>{st.pending ? "Posting…" : "Post this comment on the issue"}</button></div>
       </>}
       {st.error && <p className="notice warn">{st.error}</p>}
       {err && <p className="notice warn">{err.message}</p>}
@@ -187,50 +193,23 @@ function AskFirst({ run }: { run: string }) {
   );
 }
 
-type Feedback = { state: string | null; ci: string | null; last_activity_at: string | null; tracked: boolean;
-  items: { id: string; kind: "review" | "comment" | "ci"; what: string; author: string | null; at: string | null; url: string | null; new: boolean }[] };
-
-/** #101: what maintainers and CI said, as last read from GitHub. Marks seen only the items it showed, so anything that
- * arrives meanwhile keeps its badge; a failed "seen" is silent and never hides feedback that loaded. */
-function useFeedback(id: string) {
-  const [f, setF] = useState<Feedback | null>(null);
+/** The PR's state as last read from GitHub (stored; no GitHub call), for the heading. The assistant below marks "seen". */
+function usePrState(id: string) {
+  const [f, setF] = useState<{ state: string | null; tracked: boolean } | null>(null);
   const [err, setErr] = useState(false);
-  useEffect(() => {
-    api<Feedback>(`/api/runs/${id}/feedback`).then((x) => {
-      setF(x);
-      api(`/api/runs/${id}/feedback/seen`, { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids: x.items.map((i) => i.id) }) })
-        .then(() => window.dispatchEvent(new Event(RUNS_CHANGED))).catch(() => null);
-    }).catch(() => setErr(true));
+  useEffect(() => {   // re-read after the assistant refreshes the PR from GitHub (it signals RUNS_CHANGED)
+    const load = () => { api<{ state: string | null; tracked: boolean }>(`/api/runs/${id}/feedback`).then((x) => { setF(x); setErr(false); }).catch(() => setErr(true)); };
+    load();
+    window.addEventListener(RUNS_CHANGED, load);
+    return () => window.removeEventListener(RUNS_CHANGED, load);
   }, [id]);
   return { f, err };
-}
-
-function MaintainerFeedback({ f, err }: { f: Feedback | null; err: boolean }) {
-  if (err) return <p className="notice warn">Couldn't load feedback from GitHub. Status unavailable.</p>;
-  if (!f) return <p className="hint">Loading feedback…</p>;
-  if (!f.tracked) return <p className="hint">We haven't checked this pull request on GitHub yet. My runs checks it when you open it, and we check again every 10 minutes.</p>;
-  return (<>
-    {f.state === null && <p className="notice warn">GitHub didn't answer on the last check, so the pull request status is unavailable. The feedback below is from the check before.</p>}
-    {f.state === "review_unavailable" && <p className="notice warn">We couldn't read the reviews on the last check, so the review status is unavailable. Earlier feedback is kept below.</p>}
-    {!f.items.length ? <p className="hint">No maintainer feedback yet.</p> : (
-      <ul className="feedback-list">
-        {f.items.map((i) => (
-          <li key={i.id} className={i.new ? "is-new" : undefined}>
-            <span className={`badge ${i.kind === "ci" ? "badge-bad" : "badge-warn"}`}>{i.what}</span>
-            <span>{i.author ?? "GitHub Actions"}{i.at && <span className="hint">, {new Date(i.at).toLocaleString()}</span>}</span>
-            {i.new && <strong className="new-tag">New</strong>}
-            {i.url && <a href={i.url}>Open on GitHub</a>}
-          </li>
-        ))}
-      </ul>)}
-  </>);
 }
 
 export function PrOpened() {
   const { id = "" } = useParams();
   const { run, events, error } = useRun(id);
-  const fb = useFeedback(id);
+  const fb = usePrState(id);
   const st = fb.f?.state;          // what GitHub says now; the publish event only knows what we opened
   const fin = [...events].reverse().find((e) => e.type === "publish.finished")?.payload as Record<string, string> | undefined;
   if (error) return <section className="panel failed"><h1>Couldn't load this run</h1><p>{error.message}</p><Link className="button secondary" to="/my-runs">My runs</Link></section>;
@@ -268,7 +247,7 @@ export function PrOpened() {
         {run.pr?.fork_owner && <p className="hint">From your fork, {run.pr.fork_owner}/{run.issue.repo.split("/")[1]}.</p>}
       </div>
       <h2>Maintainer feedback</h2>
-      <MaintainerFeedback {...fb} />
+      <FeedbackAssistant id={id} />
       {st !== "merged" && st !== "closed" && <>
       <h2>What happens next</h2>
       <ol className="next">
