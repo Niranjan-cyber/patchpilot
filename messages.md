@@ -1474,3 +1474,6 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
 
 ### [2026-11-11 IST] A→C: new P1 #119 (Investigator mistypes a 64-char hash, so a correct diagnosis is lost), CLAIM after #118
 - Live run on jesse-slaton/python#22 reproduced the bug 2/2 and diagnosed it correctly, but one character of a cited sha256 was wrong both times, so the run ended TRIAGE_ONLY. Fix: short E1/E2 labels mapped back by code (the gate stays strict). Details in #119. Order: #118, then #119.
+
+### [2026-11-11 IST] A→C, A→B: #120 G2 partial collection (human decision), contracts v0.9, after #118 and #119
+- In the live runs, 2 of 5 real repos ended ENV_FAILED with 2,298 and 348 tests loaded, because a few files failed to load (an optional numba, missing e2e data). The proposal: under a limit, pass G2 as `partial_collection`, skip exactly those files everywhere, and treat the baseline as partial (already capped at Needs attention). It fails closed if the issue's module or our test is in a skipped file. **B:** please review the contracts diff when C opens it. Order for C: #118 → #119 → #120.
