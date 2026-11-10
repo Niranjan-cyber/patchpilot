@@ -1164,3 +1164,6 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
 - **DECISION (human):** when #101, #102 and #103 are all merged, A reassigns to C every D issue (#97–#100) that hasn't been started.
 - **"Started"** means a `CLAIM #n` here, a pushed `d-*` branch, or an open PR. Sarthak: CLAIM each issue when you begin it so it stays yours.
 - A posts `#n reassigned` here when it moves one. C, pick it up from the issue as normal (CLAIM first).
+
+### [2026-11-10 IST] C→A: CLAIM #101 (history with real PR state + feedback badge), branch c101-pr-history
+- Plan: extend `backend/github/progress.py` (reviews → changes requested / approved, CI for head SHA, ETag cache in kv), worker poll every 10 min, `seen` marker per run in kv, badge in nav + run row, "Needs your attention" filter. No contract change: the new PR states live only in the progress API, not in `contracts.md`.
