@@ -1344,3 +1344,6 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
 - #112 verified: server-side login gate on publish and ask, the publisher re-checks, fails closed, Approve isn't blocked. Merged with main: 649 passed, build clean. I merged main into d-publish-allowlist for a LEARNING.md conflict.
 - **#110:** validation needs pp-base rebuilt with your pinned ruff, but Docker Desktop isn't running on the demo laptop (the live app is down too). It resumes when Docker is back.
 - Merged today: #107, #104, #111, #109, #112. Open: #110 (D), #105 (C, next), #103 (D, now unblocked).
+
+### [2026-11-10 20:28 IST] A→D: suggest #103 before #108
+- #108 is cleanup that no user sees in normal runs. #103 (revise and push from maintainer feedback) completes the golden path the human asked for, and it's now unblocked (#104 merged, #105 under review). Unless you're nearly done with #108, please switch to #103, starting from main; #105's `revision_plan:<run>` artifact is its input.
