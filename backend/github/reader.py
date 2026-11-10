@@ -165,6 +165,10 @@ def _get(h: httpx.Client, path: str, *, required: bool = True):
         if required:
             raise GitHubError("GITHUB_UNAVAILABLE", "GitHub didn't answer. Try again in a minute.", 60)
         return None
+    return _check(r, required=required)
+
+
+def _check(r: httpx.Response, *, required: bool = True):
     if r.status_code in (403, 429) and ("rate limit" in r.text.lower() or r.status_code == 429):
         reset = r.headers.get("retry-after") or r.headers.get("x-ratelimit-reset")
         wait = int(reset) - int(datetime.now(timezone.utc).timestamp()) if reset and int(reset) > 10**9 else int(reset or 60)
