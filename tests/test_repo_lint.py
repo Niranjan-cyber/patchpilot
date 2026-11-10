@@ -9,6 +9,7 @@ import pytest
 
 from backend import db
 from backend.agents import lint as L
+from backend.sandbox import docker
 from backend.sandbox.docker import Result
 
 BEFORE = """@@PP_TOOL ruff check|python -m ruff check --no-cache --output-format concise -- mcstatus/bedrock.py
@@ -168,3 +169,36 @@ def test_report_and_api_show_rows_and_never_call_a_missing_check_passed(sandbox)
     text = "\n".join(repo_checks_section(rid))
     assert "| ruff format | FAIL | 1 |" in text and "| flake8 | NOT_RUN | - |" in text and "| mypy | BLOCKED | 2 |" in text
     assert TestClient(main.app, base_url="https://testserver").get(f"/api/runs/{rid}/repo-checks").status_code == 404   # owner only
+
+
+# #99 (wheelgap#133: our test file would have failed `ruff format`, but the row only said "not run" because the repo's env had no
+# ruff). Real pp-base container, no network, the repo installs no ruff: PatchPilot's own pinned ruff must run the format check.
+def _in_pp_base(files: dict[str, str], *paths: str) -> dict[str, dict]:
+    import shlex
+    import uuid
+    write = "".join(f"printf %s {shlex.quote(body)} > {shlex.quote(p)}\n" for p, body in files.items())
+    r = docker.run("pp-base:3.12", write + L.TOOLS + f"\nlint {' '.join(shlex.quote(p) for p in paths)}\n",
+                   name=f"pp-test-lint-{uuid.uuid4().hex[:6]}", timeout=120)
+    return {row["tool"]: row for row in L.rows("", r.out)}
+
+
+needs_pp_base = pytest.mark.skipif(not shutil.which("docker") or docker._docker("image", "inspect", "pp-base:3.12").code,
+                                   reason="needs Docker and pp-base:3.12")
+
+
+@needs_pp_base
+def test_ruff_format_fails_a_badly_formatted_file_even_when_the_repo_installs_no_ruff():
+    rows = _in_pp_base({"pyproject.toml": "[tool.ruff]\nline-length = 100\n", "a.py": "x=[1,2 ,3]\n"}, "a.py")
+    assert rows["ruff format"]["status"] == "FAIL" and rows["ruff format"]["new"] == ["a.py: would reformat"]
+    assert "/opt/pp-tools/bin/ruff format --check" in rows["ruff format"]["command"]
+
+
+@needs_pp_base
+def test_ruff_format_passes_a_clean_file():
+    rows = _in_pp_base({"ruff.toml": "line-length = 100\n", "a.py": "x = [1, 2, 3]\n"}, "a.py")
+    assert rows["ruff format"]["status"] == "PASS"
+
+
+@needs_pp_base
+def test_no_ruff_config_means_no_format_row():
+    assert "ruff format" not in _in_pp_base({"a.py": "x=[1,2 ,3]\n"}, "a.py")   # not detected: never shown as a pass

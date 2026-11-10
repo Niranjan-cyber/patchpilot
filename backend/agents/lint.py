@@ -33,7 +33,13 @@ lint() {
     if python -m ruff --version >/dev/null 2>&1; then
       run "ruff check" python -m ruff check --no-cache --output-format concise -- "$@"
       run "ruff format" python -m ruff format --check --no-cache -- "$@"
-    else miss ruff; fi
+    else
+      miss ruff
+      # #99: formatting is the check a new test file fails most (wheelgap#133), so it runs with PatchPilot's pinned ruff
+      # (infra/Dockerfile.base) when the repo's env has none. Before and after use the same binary, so only the change counts.
+      if [ -x /opt/pp-tools/bin/ruff ]; then run "ruff format" /opt/pp-tools/bin/ruff format --check --no-cache -- "$@"
+      else miss "ruff format"; fi
+    fi
   fi
   if cfg '^\[tool\.black' || said 'black'; then
     if python -m black --version >/dev/null 2>&1; then run "black" python -m black --check -- "$@"; else miss black; fi

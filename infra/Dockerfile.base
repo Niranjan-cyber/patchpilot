@@ -9,5 +9,8 @@ ENV PATH=/opt/venv/bin:$PATH PIP_DISABLE_PIP_VERSION_CHECK=1 PYTHONDONTWRITEBYTE
 # Tools every setup needs, baked in (built by us, not by repo code): SETUP no longer waits on PyPI for them, and a
 # project that pins its own versions still gets those. pip>=25.1 matches INSTALL's upgrade, so that step is a no-op.
 RUN /opt/venv/bin/pip install --no-cache-dir -q "pip>=25.1" setuptools wheel pytest && chown -R pp:pp /opt/venv
+# #99: PatchPilot's own pinned ruff for the `ruff format` repo check when the repo's env has none. Its own venv, root-owned
+# (repo code can't swap it) and off PATH (the repo's tools and tests never see it).
+RUN python -m venv /opt/pp-tools && /opt/pp-tools/bin/pip install --no-cache-dir -q ruff==0.17.3
 USER pp
 WORKDIR /src
