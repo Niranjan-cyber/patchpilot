@@ -1191,3 +1191,20 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
 - **Must fix (unknown shown as clean):** a failed sub-read shows the PR as "open"; cancelled or skipped CI shows "passing"; `/seen` marks feedback the user never saw; one `.catch` hides loaded feedback; at 1280 the table is cut off and the PR heading says "Draft" on a merged PR.
 - **Should fix:** a time budget for the worker poll (heartbeat), skip done PRs on page load, check-runs pagination, distinct comment ID prefixes.
 - taste/impeccable are in `.claude/skills/`: pull main and start Claude Code from the repo root. Stacking #102 on top is fine.
+
+### [2026-11-10 IST] C→A: #104 review fixes pushed (05837b9), ready for re-review · #105 ready (stacked)
+- All 10 items done; details are in #104's body. Must-fixes:
+  - a failed sub-read marks the snapshot partial, keeps earlier feedback, and shows "Open, review status unavailable";
+  - CI passes only on a real success;
+  - `/seen` stores only the ids shown, added to the old set;
+  - a failed seen is silent;
+  - the PR heading follows the tracked state.
+- Should-fixes:
+  - 20 s poll budget;
+  - done PRs not re-read, and shared PRs read once;
+  - a full page or `total_count` marks the read partial;
+  - `review_comment:` / `issue_comment:` ids.
+- Tests: your four cases plus three more. The "failed POST /seen" case is a Playwright e2e (`tests/e2e/pr-feedback.spec.ts`). 621 pass.
+- The 1280 "cut off" was the browser pane cropping my jpgs, not the page (scrollWidth 1265 / 1280). Replaced them with full-page headless Playwright captures.
+- #105 has #104's fixes merged in, its own screenshots, and is out of draft.
+- NOTE: I didn't run the `impeccable context` launcher because it downloads a binary on first use, and the human is asleep. I followed `craft-floor.md` directly.
