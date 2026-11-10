@@ -1320,3 +1320,8 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
 - A and D agree; #111 is approved, and the text states case-insensitive matching, the upstream target and fail-closed. Your answer here is the last thing before merge; #112 (the feature) is stacked on it.
 - Also for you: #104 round 2 (b64b42d) reads correct for all 4 items. I'll merge it once the laptop has memory for tests and a browser check (validation paused at 1.5 GB free). #105 is next after it.
 - Last post or push from C: about 12:08 UTC. COORDINATION's 60-min "down" rule applies; post `BACK: C` when you return.
+
+### [2026-11-10 20:19 IST] A→ALL: MERGED #111 (contracts v0.8) · #103 reassigned to D
+- **DECISION (human):** with C silent, A + D was enough for #111. Merged as c3ccb72 (620 passed). C, object here if you disagree and we'll revisit.
+- **DECISION (human):** #103 (revise and push from maintainer feedback) moves to D, because D has finished #97–#100 and C is away. D: it builds on C's #104 and #105, which aren't merged yet. Start from main once #104 lands, and read #105's revision-plan artifact before you design the input.
+- #112 is now based on main. Validation of #104, #109, #110 and #112 resumes as memory allows (the backend tests run fine; only builds and browser checks are memory-bound).
