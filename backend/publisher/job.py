@@ -6,6 +6,15 @@ from backend.publisher import tokens
 from backend.publisher.publisher import GitHubWriter, PublishRefused, ask, publish
 
 
+def _allowed(c, rid: str, v) -> None:
+    """#100: checked again here, for the account whose token is about to be used, before any GitHub call."""
+    from backend.config import PUBLISH_LIMITED, may_publish
+    aid = db.get_kv(c, f"publish_account:{rid}")
+    row = c.execute("SELECT login FROM accounts WHERE id=?", (int(aid),)).fetchone() if aid else None
+    if not may_publish(row[0] if row else None, v.issue.repo):
+        raise PublishRefused("PUBLISH_BLOCKED", PUBLISH_LIMITED)
+
+
 def _token(c, rid: str) -> str | None:
     aid = db.get_kv(c, f"publish_account:{rid}")
     row = c.execute("SELECT token_enc FROM accounts WHERE id=?", (int(aid),)).fetchone() if aid else None
@@ -34,6 +43,7 @@ def run_ask(job: dict) -> None:
     try:
         if not token:
             raise PublishRefused("AUTH_REQUIRED", "Your GitHub connection expired. Connect GitHub again.")
+        _allowed(c, rid, v)
         out = {"url": ask(v, GitHubWriter(token), db.get_kv(c, f"ask_body:{rid}") or "")}
     except PublishRefused as e:
         out = {"error": str(e)}
@@ -54,6 +64,7 @@ def run_publish(job: dict) -> None:
     try:
         if not token:
             raise PublishRefused("AUTH_REQUIRED", "Your GitHub connection expired. Connect GitHub again.")
+        _allowed(c, rid, v)
         default_branch = reader.check_issue(v.issue.html_url, extract_model=False).default_branch or "main"
         db.emit(c, rid, "publish.progress", "publish", v.revision, stage="apply")
         res = publish(v, GitHubWriter(token), default_branch)

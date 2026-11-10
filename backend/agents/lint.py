@@ -33,7 +33,13 @@ lint() {
     if python -m ruff --version >/dev/null 2>&1; then
       run "ruff check" python -m ruff check --no-cache --output-format concise -- "$@"
       run "ruff format" python -m ruff format --check --no-cache -- "$@"
-    else miss ruff; fi
+    else
+      miss ruff
+      # #99: formatting is the check a new test file fails most (wheelgap#133), so it runs with PatchPilot's pinned ruff
+      # (infra/Dockerfile.base) when the repo's env has none. Before and after use the same binary, so only the change counts.
+      if [ -x /opt/pp-tools/bin/ruff ]; then run "ruff format" /opt/pp-tools/bin/ruff format --check --no-cache -- "$@"
+      else miss "ruff format"; fi
+    fi
   fi
   if cfg '^\[tool\.black' || said 'black'; then
     if python -m black --version >/dev/null 2>&1; then run "black" python -m black --check -- "$@"; else miss black; fi
@@ -59,19 +65,24 @@ RUN_HOOKS = {"ruff", "ruff-format", "ruff-check", "black", "flake8", "mypy", "py
 # "path:12:5: msg", "path:12: error: msg", "  /src/path:12:5 - error: msg", "Would reformat: path"
 _LOC = re.compile(r"^\s*(?:/src/|\./)?(?P<file>[^\s:]+\.pyi?):\d+(?::\d+)?:?\s*(?:-\s*)?(?P<msg>.+)$")
 _FMT = re.compile(r"^(?:Would reformat|would reformat):?\s*(?:/src/|\./)?(?P<file>\S+\.pyi?)$")
+# newer ruff (seen in 0.17.3) instead prints "unformatted: File would be reformatted" and then " --> path:1:2" (#99)
+_UNFORMATTED, _ARROW = "unformatted:", re.compile(r"^\s*-->\s*(?:/src/|\./)?(?P<file>\S+\.pyi?):\d+")
 
 
 def parse(out: str) -> dict[str, dict]:
     """tool -> {command, exit_code, problems: Counter of (file, message) without line numbers, last: the last output line}.
     Line numbers are dropped so a moved line isn't a new problem."""
-    res, tool = {}, None
+    res, tool, unformatted = {}, None, False
     for line in out.splitlines():
         if line.startswith(SEP):
             name, _, cmd = line[len(SEP):].partition("|")
             tool = name.strip(); res[tool] = {"command": cmd.strip(), "exit_code": None, "problems": Counter(), "last": ""}
         elif line.startswith(EXIT) and tool:
             res[tool]["exit_code"] = int(line[len(EXIT):].strip() or -1); tool = None
+        elif tool and unformatted and (m := _ARROW.match(line)):
+            res[tool]["problems"][(m.group("file"), "would reformat")] += 1; unformatted = False
         elif tool:
+            unformatted = line.startswith(_UNFORMATTED)
             if (m := _LOC.match(line) or _FMT.match(line)):
                 res[tool]["problems"][(m.group("file"), m.groupdict().get("msg") or "would reformat")] += 1
             elif line.strip():

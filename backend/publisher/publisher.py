@@ -49,16 +49,8 @@ def _changed(diff: str) -> list[str]:
 
 def _repo_checks(run_id: str) -> tuple[str, list[str]]:
     """(Tests sentence, limitation lines) from kv repo_checks:<run_id> (#70 item 3). Missing = "not checked", never passed."""
-    import json
     from backend import db
-    try:
-        raw = db.get_kv(db.connect(), f"repo_checks:{run_id}")
-        rows = (json.loads(raw) if raw else {}).get("checks")
-        if not (isinstance(rows, list) and all(isinstance(c, dict) and isinstance(c.get("tool"), str)
-                                               and isinstance(c.get("status"), str) for c in rows)):
-            rows = None   # a malformed record is "not checked", never a crash in the middle of publishing
-    except Exception:
-        rows = None
+    rows = (db.repo_checks(db.connect(), run_id) or {}).get("checks")   # malformed = "not checked", never a crash mid-publish
     if not rows:
         return "The repository's own linters and type checkers were not checked.", []
     ran = [f"{c['tool']} ({'no new problems' if c['status'] == 'PASS' else 'new problems'})" for c in rows if c["status"] in ("PASS", "FAIL")]

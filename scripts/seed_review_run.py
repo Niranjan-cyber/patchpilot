@@ -19,15 +19,17 @@ tok = secrets.token_urlsafe(32); h = hashlib.sha256(tok.encode()).hexdigest(); t
 with db.tx(c):
     c.execute("INSERT INTO sessions(id_hash,ip_hash,created_at,last_seen_at) VALUES(?,?,?,?)", (h, None, t, t))
 v = db.create_run(c, IssueSpec(html_url="https://github.com/pallets/click/issues/3888", repo="pallets/click", number=3888,
-                               title="divide() returns 0 instead of raising (seeded sample)"), "2247b35e" * 5, owner_session_hash=h)
+                               title="divide() returns 0 instead of raising (seeded sample)",
+                               expected="divide(1, 0) raises ZeroDivisionError", actual="divide(1, 0) returns 0"), "2247b35e" * 5, owner_session_hash=h)
 v.status, v.outcome, v.readiness = RunStatus.AWAITING_APPROVAL, Outcome.VERIFIED_FIX, "Ready for human review"
 v.gates = {g: CheckStatus.PASSED for g in ("G1", "G2", "G3", "G4", "G5", "G6")}
 v.publish_blockers = [PublishBlocker.NOT_APPROVED]
 v.patch = Patch(fix_diff_id=artifacts.put(FIX), test_diff_id=artifacts.put(TEST), attempt=1, policy_result=CheckStatus.PASSED)
 v.repro = ReproTest(test_diff_id=v.patch.test_diff_id, test_ids=["tests/test_issue_1.py::test_divide_by_zero_raises"],
-                    expected_failure="DID NOT RAISE", runs_on_base=[CheckStatus.FAILED, CheckStatus.FAILED])
-v.verify = Verification(new_test_runs=[CheckStatus.PASSED, CheckStatus.PASSED], container_id="seed")
-v.baseline = TestRun(pass_set=["tests/test_ops.py::test_add"])
+                    expected_failure="DID NOT RAISE", runs_on_base=[CheckStatus.FAILED, CheckStatus.FAILED],
+                    uncovered=["dividing by 0.0 (a float)"])
+v.verify = Verification(new_test_runs=[CheckStatus.PASSED, CheckStatus.PASSED], container_id="seed", hidden_variant=CheckStatus.PASSED)
+v.baseline = TestRun(pass_set=["tests/test_ops.py::test_add"], evidence_ids=[artifacts.put("seed: 1 passed")])
 v.diagnosis = Diagnosis(locations=[Location(path="tinycalc/ops.py", line=12)],
                         hypothesis="divide() catches ZeroDivisionError and returns 0, hiding the error from callers.")
 v.supplyguard = SGReport(report_id=artifacts.put("seed"), status=CheckStatus.PASSED)

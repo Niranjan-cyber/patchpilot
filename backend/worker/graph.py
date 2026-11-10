@@ -9,7 +9,7 @@ from langgraph.types import interrupt
 
 from backend import db
 from backend.config import ROOT
-from backend.contracts.models import (CheckStatus, EndReason, PublishBlocker, RunStatus, StepId, StepState, decide_outcome,
+from backend.contracts.models import (CheckStatus, EndReason, PublishBlocker, RunStatus, StepId, StepState, cap_reasons, decide_outcome,
                                       end_blockers, readiness, status_after_analysis)
 from backend.worker.nodes import NODES, ORDER, StepContext
 
@@ -20,7 +20,6 @@ HEADLINE_RUNNING = {
     StepId.FIX: "Writing a small fix…", StepId.VERIFY: "Checking the fix in a brand-new sandbox…",
     StepId.REVIEW: "Reviewing the fix for shortcuts…",
 }
-UNCLEAR = {"unclear_type", "needs_info", "model_unavailable"}   # contracts §2.1: the issue never says what the right behaviour is
 STOP_EARLY = {"G1": {CheckStatus.BLOCKED}, "G2": {CheckStatus.FAILED}, "G3": {CheckStatus.FAILED},
               "G4": {CheckStatus.FAILED}, "G5": {CheckStatus.FAILED}}
 
@@ -125,7 +124,7 @@ def finish(state: S) -> S:
     c = db.connect(); run = db.get_run(c, state["run_id"])
     end = EndReason(state.get("end_reason") or EndReason.COMPLETED.value)
     gates = {k: CheckStatus(v) for k, v in run.gates.items()}
-    capped = bool(run.supplyguard and run.supplyguard.status == CheckStatus.INCONCLUSIVE) or bool(run.baseline and run.baseline.partial)         or bool(run.assessment and UNCLEAR & set(run.assessment.decision_reasons))   # #41: our test was the only definition of "right"
+    capped = bool(cap_reasons(run))
     outcome = decide_outcome(gates, end, review_concerns=bool(run.review and run.review.lowers_readiness),
                              readiness_capped=capped, diagnosis_valid=run.diagnosis is not None,
                              stopped_during_diagnose=state.get("stopped_at") == StepId.DIAGNOSE.value)

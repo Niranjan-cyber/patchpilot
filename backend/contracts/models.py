@@ -46,6 +46,9 @@ class PublishBlocker(str, Enum):
     DEPS_INCONCLUSIVE = "deps_inconclusive"; ISSUE_CHANGED = "issue_changed"
     NOT_APPROVED = "not_approved"; NOT_SIGNED_IN = "not_signed_in"
     NO_MAINTAINER_CONSENT = "no_maintainer_consent"   # v0.5 (#70): clearable; never blocks Approve or the ask comment
+    # v0.8 (#100): computed per request from the signed-in login and the run's repo, never stored on a run, so Approve
+    # is never blocked by it; a team login or the demo repo clears it. Blocks publishing and the ask comment.
+    PUBLISH_NOT_ALLOWED = "publish_not_allowed"
 
 
 PERMANENT_BLOCKERS = {
@@ -359,6 +362,18 @@ def decide_outcome(gates: dict[str, CheckStatus], end_reason: EndReason, *, revi
     if end_reason == EndReason.SYSTEM_ERROR:
         return Outcome.SYSTEM_ERROR
     return Outcome.STOPPED
+
+
+UNCLEAR = {"unclear_type", "needs_info", "model_unavailable"}   # contracts §2.1: the issue never says what the right behaviour is
+
+
+def cap_reasons(run: RunView) -> list[str]:
+    """Why readiness is capped at "Needs attention" (the Review screen's explainer lists these)."""
+    caps = {"supplyguard_inconclusive": bool(run.supplyguard and run.supplyguard.status == CheckStatus.INCONCLUSIVE),
+            "baseline_partial": bool(run.baseline and run.baseline.partial),
+            # #41: our test was the only definition of "right"
+            "issue_unclear": bool(run.assessment and UNCLEAR & set(run.assessment.decision_reasons))}
+    return [k for k, on in caps.items() if on]
 
 
 def readiness(outcome: Outcome, *, capped: bool = False) -> str:
