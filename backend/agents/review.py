@@ -143,7 +143,8 @@ def review(ctx: StepContext) -> GateResult:
     concerns = [c if "level" in c else finding(c, code_decided=True) for c in concerns]   # code-decided: level from severity
     run.review = ReviewResult(concerns=concerns, lowers_readiness=any(c["severity"] in ("high", "medium") for c in concerns))
     db.save_run(db.connect(), run)
-    ev = artifacts.put(render(run))
+    from backend.sandbox.steps import skipped_files
+    ev = artifacts.put(render(run, skipped=skipped_files(ctx.run_id)))
     ctx.scratch["headline"] = ("A reviewer checked the fix for shortcuts and scope creep: no concerns." if not concerns else
                                f"A reviewer raised {len(concerns)} concern{'s' if len(concerns) != 1 else ''}; see the report.")
     return GateResult(gate="G6", status=CheckStatus.PASSED, reason="template_report", evidence_ids=[ev])

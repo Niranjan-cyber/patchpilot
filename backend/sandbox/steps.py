@@ -17,7 +17,7 @@ from backend.config import ROOT, limits
 from backend.contracts.models import CheckStatus, EnvProfile, GateResult, PublishBlocker, SGReport, StepId, TestRun
 from backend.sandbox import docker
 from backend.sandbox.rules import (baseline_sets, evaluate_setup, junit_outcomes, map_supplyguard, pyproject_requirements,
-                                    release_tag_before, setup_requirements)
+                                    release_tag_before, setup_requirements, uncollectable_files)
 from backend.worker import nodes
 from backend.worker.nodes import StepContext
 
@@ -181,7 +181,11 @@ python -m pytest --collect-only -q -p no:cacheprovider > /tmp/collect.log 2>&1; 
 # a repo's addopts changes our -q: "-v" gives a tree + "N tests collected", "-q" gives -qq ("file.py: N" lines only)
 n=$(grep -oE '[0-9]+(/[0-9]+)? tests? collected' /tmp/collect.log | tail -1 | cut -d' ' -f1 | cut -d/ -f1)   # "2/3 tests collected (1 deselected)": the selected count
 [ -n "$n" ] || n=$(awk '/::/{c++} /^[^ ].*: [0-9]+$/{s+=$NF} END{print (c ? c : s+0)}' /tmp/collect.log)
-echo "COLLECTED=$n"; tail -c 5000 /tmp/collect.log
+echo "COLLECTED=$n"
+# #120: the files that failed to load (pytest's short summary), and how many test files did load (-q ids or -qq counts)
+grep -oE '^ERROR [^ ]+\.py' /tmp/collect.log | cut -d' ' -f2 | sort -u | sed 's/^/UNCOLLECTABLE=/'
+echo "TEST_FILES=$(grep -oE '^[^ :]+\.py(::|: [0-9]+$)' /tmp/collect.log | sed -E 's/(::|: [0-9]+)$//' | sort -u | wc -l)"
+tail -c 5000 /tmp/collect.log
 """
 
 
@@ -191,14 +195,20 @@ def setup(ctx: StepContext) -> GateResult:
     r = docker.run("pp-base:3.12", INSTALL, name=name, network=docker.SETUP_NET, timeout=limits()["setup_seconds"],
                    snapshot_volume=snap(ctx.run_id), read_only=False, keep=True, log_path="/tmp/install.log")
     num = lambda k: int(m.group(1)) if (m := re.search(rf"{k}=(\d+)", r.out)) else -1
-    status, reason = evaluate_setup(num("INSTALL_EXIT"), r.timed_out, num("COLLECT_EXIT"), num("COLLECTED"))
+    skip = uncollectable_files(r.out)
+    named = len(re.findall(r"^UNCOLLECTABLE=", r.out, re.M))   # a name we won't pass to --ignore fails closed
+    status, reason = evaluate_setup(num("INSTALL_EXIT"), r.timed_out, num("COLLECT_EXIT"), num("COLLECTED"),
+                                    uncollectable=len(skip) if len(skip) == named else 0, test_files=max(num("TEST_FILES"), 0))
     ev = artifacts.put(r.out)
+    db.put_kv(db.connect(), f"uncollectable:{ctx.run_id}", json.dumps(skip if reason == "partial_collection" else []))
     if status == CheckStatus.PASSED:
         docker.commit(name, image(ctx.run_id))
         ctx.run.env = EnvProfile(python_version="3.12", install_cmds=re.findall(r"^\+ (.+)$", r.out, re.M),
                                  image_id=image(ctx.run_id))
         db.save_run(db.connect(), ctx.run)
-        ctx.scratch["headline"] = f"Installed the project in a fresh sandbox and found {num('COLLECTED')} tests."
+        ctx.scratch["headline"] = f"Installed the project in a fresh sandbox and found {num('COLLECTED')} tests." + (
+            f" {len(skip)} test file{'s' if len(skip) > 1 else ''} couldn't load, so {'they are' if len(skip) > 1 else 'it is'} skipped."
+            if reason == "partial_collection" else "")
     else:
         ctx.scratch["headline"] = {"install_timeout": "Installing took longer than 8 minutes, so we stopped.",
                                    "install_failed": "We couldn't install this project. The install log shows why.",
@@ -216,12 +226,21 @@ def _pytest(rid: str, args: str) -> tuple[dict[str, bool], str]:
     return junit_outcomes(xml.strip()), log
 
 
+def skipped_files(rid: str) -> list[str]:
+    """#120: test files G2 found couldn't load; every full-suite run skips exactly these."""
+    return json.loads(db.get_kv(db.connect(), f"uncollectable:{rid}") or "[]")
+
+
+def ignore_args(rid: str) -> str:
+    return "".join(f" --ignore={shlex.quote(f)}" for f in skipped_files(rid))
+
+
 def baseline(ctx: StepContext) -> None:
-    first, log1 = _pytest(ctx.run_id, "")
+    first, log1 = _pytest(ctx.run_id, ignore_args(ctx.run_id))
     failing = [t for t, ok in first.items() if not ok]
     rerun, log2 = _pytest(ctx.run_id, " ".join(shlex.quote(t) for t in failing[:200])) if failing else ({}, "")
     p, f, fl = baseline_sets(first, rerun)
-    ctx.run.baseline = TestRun(pass_set=p, fail_set=f, flaky_set=fl, partial=not first,
+    ctx.run.baseline = TestRun(pass_set=p, fail_set=f, flaky_set=fl, partial=not first or bool(skipped_files(ctx.run_id)),
                                evidence_ids=[artifacts.put(log1 + log2)])
     db.save_run(db.connect(), ctx.run)
     ctx.scratch["headline"] = (f"{len(p)} existing tests pass. {len(f)} already fail and {len(fl)} are flaky (not caused by us)."
