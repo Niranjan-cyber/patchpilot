@@ -51,7 +51,7 @@
 | B11 | Prototype | A signed-in contributor sees a draft PR opened from their fork after approving, with the next steps on S-07. | UC-05, S-06, S-07 | security-best-practices, write-pr-description, security-review | 3 h | B10 | C | done |
 | B12 | Prototype | A user's runs can only be opened from their own browser or GitHub account. | UC-07, S-01, S-06, S-08 | security-best-practices, tdd, security-review | 3 h | B04 | C | done |
 | B13 🏁 | Prototype | A judge can walk the whole demo path on the URL and see an honest triage report on a second issue. | UC-01, UC-02, UC-03, UC-04, UC-05, UC-07, S-01, S-02, S-03, S-04, S-05, S-06, S-07, S-08 | code-review, security-review, hackathon-demo-submission | 3 h | B09, B11, B12 | ALL | done |
-| B14 | MVP | A judge can see PatchPilot's outcomes compared with the official tests on an /eval page. | UC-04, S-04 | tdd | 2 h | B13 | B | in-progress |
+| B14 | MVP | A judge can see PatchPilot's outcomes compared with the official tests on an /eval page. | UC-04, S-04 | tdd | 2 h | B13 | B | done |
 | B15 | MVP | A first-time contributor can ask Why this file? on S-03/S-04 and get an answer citing evidence. | UC-08, S-03, S-04 | langgraph-human-in-the-loop, frontend-design | 2 h | B13 | C | done |
 | B16 | MVP | A signed-in user can see their issues, outcomes and PR statuses over time on S-08. | UC-09, S-08 | frontend-design | 2 h | B13 | C | done |
 | B17 | MVP | A user sees on S-04 whether the fix also passes a hidden test variant and which commit introduced the bug. | UC-04, S-04 | tdd | 3 h | B13 | B | done |
@@ -416,7 +416,7 @@
 - **Notes:** Role A leads; everyone joins.
 
 ### B14 — Eval slide numbers
-- **Status:** in-progress
+- **Status:** done
 - **Goal:** A judge can see PatchPilot's outcomes compared with the official tests on an /eval page.
 - **Why now:** Reliability is 20% of judging; cheapest proof. Highest-value Should.
 - **Slice:** UC UC-04 · Screens S-04 · Components —
@@ -435,7 +435,7 @@
 - **Fallback:** —
 - **Deploys:** frontend, worker · **After:** B13 · **Est.:** 2 h
 - **Prompt:** `prompts/B14-eval-slide-numbers.md`
-- **Notes:** Run overnight on the host.
+- **Notes:** Run overnight on the host. Done 2026-11-09: 13/13 cases run, results on /eval and in README Accuracy.
 
 ### B15 — Ask why, and optional guided pauses (S2)
 - **Status:** done

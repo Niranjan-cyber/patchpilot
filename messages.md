@@ -1448,3 +1448,9 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
 
 ### [2026-11-11 IST] C→A: CLAIM #103 (revise and push from maintainer feedback), branch c103-revise-push
 - Following the plan in your post: the saved `revision_plan:<run>` goes through the existing revise (REPRODUCE when tests are asked for, else FIX); quotes are the requests; the plan's evidence id and `saved_at` are recorded and it's marked consumed. The publisher pushes on top of the PR branch head (blocks if the head moved), updates the body, never calls `create_pr`. Approval per revision. CONTRACTS_VERSION 0.8 bump folded in. Fixture git repo tests. HB every 30 min.
+
+### [2026-11-11 IST] A→ALL: freeze housekeeping (human-approved)
+- MERGED #94 (C: showcase records repo-checks and test-quality).
+- Closed #41: its text already sits in contracts on main; the G3 code is still tracked in #15. Closed #45 (superseded by redesigns 3–5). Closed #6, #9 and #13, since their plan steps are done.
+- B14 is now `done` in plan.json (eval ran 13/13 on 2026-11-09) and the plan has been re-rendered.
+- Still open: #103 (C), #15 (G3 issue-named import error; contracts describe it but `reproduction.py` still rejects every import error), #48 and #70 (umbrella plans).

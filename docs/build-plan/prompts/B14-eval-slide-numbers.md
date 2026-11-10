@@ -63,11 +63,11 @@ Keep main deployed and the golden path working; if this can't land, revert to th
 
 ## When finished
 1. Make sure everything above is deployed (frontend, worker) and the done-check passes on the public URL.
-2. Set `"status": "done"` for B14 in `docs/build-plan/plan.json`, then run `python C:\Users\Niranjan Iyer\.claude\skills\prototype-build-planner\scripts\build_plan.py render docs/build-plan/plan.json`.
+2. Set `"status": "done"` for B14 in `docs/build-plan/plan.json`, then run `python ~/.claude/skills/prototype-build-planner/scripts/build_plan.py render docs/build-plan/plan.json`.
 3. Commit as `B14: Eval slide numbers`.
 4. Report what changed, the test output, the browser-check screenshots and the done-check result, then stop. Don't start the next step without being asked.
 5. If you found a bug you didn't fix, add it to `bugs` in `plan.json` with a severity (P0 correctness/safety, P1 trust/core loop, P2 polish). An open P0/P1 blocks the next feature step.
 
 ## Notes
-Run overnight on the host.
+Run overnight on the host. Done 2026-11-09: 13/13 cases run, results on /eval and in README Accuracy.
 

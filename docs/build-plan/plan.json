@@ -1312,7 +1312,7 @@
       "id": "B14",
       "title": "Eval slide numbers",
       "phase": "mvp",
-      "status": "in-progress",
+      "status": "done",
       "milestone": null,
       "kind": "feature",
       "goal": "A judge can see PatchPilot's outcomes compared with the official tests on an /eval page.",
@@ -1370,7 +1370,7 @@
       ],
       "track": "B",
       "fallback": "",
-      "notes": "Run overnight on the host."
+      "notes": "Run overnight on the host. Done 2026-11-09: 13/13 cases run, results on /eval and in README Accuracy."
     },
     {
       "id": "B15",
