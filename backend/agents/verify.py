@@ -10,7 +10,7 @@ from backend.config import limits
 from backend.contracts.models import CheckStatus, GateResult, Verification
 from backend.sandbox import docker
 from backend.sandbox.rules import junit_outcomes
-from backend.sandbox.steps import image, snap
+from backend.sandbox.steps import ignore_args, image, snap
 from backend.worker.nodes import StepContext
 
 
@@ -89,7 +89,7 @@ def _verify_once(ctx: StepContext) -> GateResult:
     # space would split it into two pytest arguments, so the second run would target nothing and
     # a verified fix would be reported flaky.
     files = " ".join(shlex.quote(f) for f in sorted({t.split("::")[0] for t in new_ids}))
-    suite, log1, c1 = _fresh_run(ctx.run_id, diffs, "")              # full suite: new test + regressions
+    suite, log1, c1 = _fresh_run(ctx.run_id, diffs, ignore_args(ctx.run_id))   # full suite: new test + regressions (#120: minus files that never loaded)
     second, log2, c2 = _fresh_run(ctx.run_id, diffs, files)          # second, independent run of the new test
     status, reason, regs = evaluate_g5(new_ids, run.baseline.pass_set if run.baseline else [], suite, second)
     ev = [artifacts.put(log1), artifacts.put(log2)]

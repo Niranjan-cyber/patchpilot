@@ -66,12 +66,28 @@ def map_supplyguard(exit_code: int | None, report: dict | None, today: date | No
     return CheckStatus.PASSED, "no_malicious_packages", findings
 
 
-def evaluate_setup(install_code: int, install_timed_out: bool, collect_code: int, collected: int) -> tuple[CheckStatus, str]:
-    """G2: install exit 0 within the time cap AND pytest collection exit 0 with >= 1 test."""
+MAX_UNCOLLECTABLE, MAX_UNCOLLECTABLE_SHARE = 10, 0.2   # #120, contracts v0.9
+
+
+def uncollectable_files(out: str) -> list[str]:
+    """Test files pytest couldn't load (UNCOLLECTABLE= lines from the setup script). Repo-controlled names that later go
+    to pytest as --ignore, so only plain relative .py paths are kept."""
+    return [p for p in re.findall(r"^UNCOLLECTABLE=(.*)$", out, re.M)
+            if re.fullmatch(r"[A-Za-z0-9_][A-Za-z0-9_./-]*\.py", p) and ".." not in p.split("/")]
+
+
+def evaluate_setup(install_code: int, install_timed_out: bool, collect_code: int, collected: int,
+                   uncollectable: int = 0, test_files: int = 0) -> tuple[CheckStatus, str]:
+    """G2: install exit 0 within the time cap AND pytest collection exit 0 with >= 1 test. v0.9 (#120): collection exit 2
+    still passes as partial_collection when the named files that failed to load are few (<= 10 and <= 20% of test files);
+    those files are skipped in every later full-suite run and the baseline counts as partial."""
     if install_timed_out:
         return CheckStatus.FAILED, "install_timeout"
     if install_code != 0:
         return CheckStatus.FAILED, "install_failed"
+    if collect_code == 2 and collected >= 1 and 0 < uncollectable <= MAX_UNCOLLECTABLE \
+            and uncollectable <= MAX_UNCOLLECTABLE_SHARE * (test_files + uncollectable):
+        return CheckStatus.PASSED, "partial_collection"
     if collect_code not in (0,) or collected < 1:
         return CheckStatus.FAILED, "no_tests_collected" if collect_code in (0, 5) else "collection_error"
     return CheckStatus.PASSED, "installed_and_collected"

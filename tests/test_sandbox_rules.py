@@ -2,7 +2,8 @@ from datetime import date
 
 import pytest
 from backend.contracts.models import CheckStatus as C
-from backend.sandbox.rules import baseline_sets, evaluate_setup, junit_outcomes, map_supplyguard, release_tag_before
+from backend.sandbox.rules import (baseline_sets, evaluate_setup, junit_outcomes, map_supplyguard, release_tag_before,
+                                   uncollectable_files)
 
 
 def proj(**kw):
@@ -68,6 +69,23 @@ def test_g2():
     assert evaluate_setup(0, True, 0, 0)[1] == "install_timeout"
     assert evaluate_setup(0, False, 5, 0)[1] == "no_tests_collected"
     assert evaluate_setup(0, False, 2, 0)[1] == "collection_error"
+
+
+def test_g2_a_few_uncollectable_files_pass_as_partial_collection():
+    # #120: PyAutoArray#687 (2,298 tests, 1 file needs the optional numba) and corgidrp#1087 (the e2e data files)
+    assert evaluate_setup(0, False, 2, 2298, uncollectable=1, test_files=180) == (C.PASSED, "partial_collection")
+    assert evaluate_setup(0, False, 2, 348, uncollectable=10, test_files=60) == (C.PASSED, "partial_collection")
+    assert evaluate_setup(0, False, 2, 348, uncollectable=11, test_files=200)[1] == "collection_error"   # more than 10 files
+    assert evaluate_setup(0, False, 2, 40, uncollectable=3, test_files=5)[1] == "collection_error"      # more than 20%
+    assert evaluate_setup(0, False, 2, 0, uncollectable=1, test_files=9)[1] == "collection_error"       # nothing collected
+    assert evaluate_setup(0, False, 2, 50)[1] == "collection_error"     # errors we couldn't name: fail closed
+    assert evaluate_setup(0, False, 4, 50, uncollectable=1, test_files=9)[1] == "collection_error"      # usage error, not 2
+
+
+def test_uncollectable_files_are_read_from_the_collect_summary():
+    out = ("COLLECT_EXIT=2\nUNCOLLECTABLE=tests/e2e_tests/astrom_e2e.py\nUNCOLLECTABLE=tests/e2e_tests/kgain_e2e.py\n"
+           "UNCOLLECTABLE=-rf\nUNCOLLECTABLE=../etc/x.py\nUNCOLLECTABLE=tests/a b.py\nTEST_FILES=60\n")
+    assert uncollectable_files(out) == ["tests/e2e_tests/astrom_e2e.py", "tests/e2e_tests/kgain_e2e.py"]   # odd paths dropped
 
 
 XML = """<testsuites><testsuite>

@@ -8,7 +8,8 @@ GATES = [("G0", "Issue eligibility"), ("G1", "Dependency safety check (SupplyGua
          ("G5", "Fresh-sandbox verification: new test passes 2/2, no regressions"), ("G6", "Report matches recorded results")]
 
 
-def render(v: RunView, narrative: str | None = None) -> str:
+def render(v: RunView, narrative: str | None = None, skipped: list[str] = ()) -> str:
+    """skipped (#120): test files that never loaded, so their tests weren't run (kv uncollectable:<run>)."""
     g = lambda k: WORD.get(v.gates.get(k, CheckStatus.NOT_RUN), "not run")
     L = [f"# PatchPilot report: {v.issue.repo} #{v.issue.number}", "",
          f"**{v.issue.title}**  ", f"Issue: {v.issue.html_url}  ", f"Base commit: `{v.base_sha}`  ",
@@ -44,7 +45,9 @@ def render(v: RunView, narrative: str | None = None) -> str:
         b = v.baseline
         L += ["## Existing tests (before any change)", f"- Passed: {len(b.pass_set)}", f"- Already failing (not caused by us): {len(b.fail_set)}",
               *[f"  - `{t}`" for t in b.fail_set[:20]], f"- Flaky: {len(b.flaky_set)}", *([f"  - `{t}`" for t in b.flaky_set[:20]]),
-              *(["- Partial: some results couldn't be read."] if b.partial else []), ""]
+              *([f"- Skipped: {len(skipped)} test file(s) couldn't load (missing optional packages or data), so their tests weren't run:",
+                 *[f"  - `{f}`" for f in skipped]] if skipped else []),
+              *(["- Partial: some results couldn't be read."] if b.partial and not skipped else []), ""]
     if v.repro:
         L += ["## Reproduction", f"- Test: {', '.join(f'`{t}`' for t in v.repro.test_ids)}", f"- Expected failure: {v.repro.expected_failure}",
               f"- On the original code: {', '.join(WORD[s] for s in v.repro.runs_on_base) or 'not run'}",

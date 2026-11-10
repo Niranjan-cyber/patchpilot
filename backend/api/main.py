@@ -455,7 +455,8 @@ def report(run_id: str, request: Request):
     from fastapi.responses import PlainTextResponse
     from backend.report import render
     v = get_run(run_id, request)
-    return PlainTextResponse(render(v), media_type="text/markdown",
+    skipped = json.loads(db.get_kv(db.connect(), f"uncollectable:{v.run_id}") or "[]")   # #120, read-only (no sandbox import)
+    return PlainTextResponse(render(v, skipped=skipped), media_type="text/markdown",
                              headers={"Content-Disposition": f'attachment; filename="patchpilot-report-{run_id[:8]}.md"'})
 
 
