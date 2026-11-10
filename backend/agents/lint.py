@@ -156,6 +156,6 @@ def run_checks(rid: str, test_diff: str, fix_diff: str) -> dict:
 
 def review_concerns(rid: str, test_diff: str, fix_diff: str) -> list[dict]:
     res = run_checks(rid, test_diff, fix_diff)
-    return [{"severity": "medium", "text": f"The repo's {c['tool']} reports {c['new_count']} new problem{'s' if c['new_count'] != 1 else ''} in "
+    return [{"severity": "medium", "source": "lint", "tool": c["tool"], "text": f"The repo's {c['tool']} reports {c['new_count']} new problem{'s' if c['new_count'] != 1 else ''} in "
              f"the changed files, so its CI would likely fail: " + "; ".join(c["new"][:3])[:600]}
             for c in res["checks"] if c["status"] == "FAIL"]

@@ -396,13 +396,12 @@ def get_bisect(run_id: str, request: Request):
 @app.get("/api/runs/{run_id}/repo-checks")
 def get_repo_checks(run_id: str, request: Request):
     """#70 item 3: the repo's own checks, one row per tool (owner-checked). Not run yet -> checks null, never "passed"."""
-    import json
     if not _is_real(run_id):
         _fixture(run_id)
         return {"checks": None, "files": [], "reason": "sample_run"}
     _own(request, run_id)
-    raw = db.get_kv(db.connect(), f"repo_checks:{run_id}")
-    return json.loads(raw) if raw else {"checks": None, "files": [], "reason": "not_run_yet"}
+    # #108: the validated reader; a malformed record reads as unknown (checks null), never as rows
+    return db.repo_checks(db.connect(), run_id) or {"checks": None, "files": [], "reason": "not_run_yet"}
 
 
 @app.get("/api/runs/{run_id}/report.md")

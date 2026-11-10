@@ -123,3 +123,29 @@ def test_hidden_variant_error_is_not_run_with_reason(tmp_path, monkeypatch):
     assert db.get_run(db.connect(), v.run_id).verify.hidden_variant == CheckStatus.NOT_RUN       # never left None
     assert json.loads(db.get_kv(db.connect(), f"variant:{v.run_id}"))["reason"] == "error: RuntimeError"
     assert "not_run" in events[-1]["message"]
+
+
+
+def test_the_variant_record_keeps_its_own_evidence(tmp_path, monkeypatch):
+    # #108: the explainer lists these under the variant row; they stay in verify.evidence_ids too (hash + artifact access)
+    import json
+    from backend import db
+    from backend.agents import variant as V
+    from backend.contracts.models import IssueSpec
+    from backend.worker.nodes import StepContext
+    monkeypatch.setattr(db, "DB_PATH", str(tmp_path / "app.db"))
+    v = db.create_run(db.connect(), IssueSpec(html_url="https://github.com/o/r/issues/1", repo="o/r", number=1, title="t"), "s")
+    v.verify = Verification(new_test_runs=[CheckStatus.PASSED] * 2, evidence_ids=["fix-run"])
+    db.save_run(db.connect(), v)
+    monkeypatch.setattr(V, "_hidden_variant", lambda rid: (CheckStatus.FAILED, "fix_fails_hidden_variant", ["var-run"]))
+    V.hidden_variant(StepContext(v.run_id, v, lambda *a, **p: None))
+    assert json.loads(db.get_kv(db.connect(), f"variant:{v.run_id}"))["evidence"] == ["var-run"]
+    assert db.get_run(db.connect(), v.run_id).verify.evidence_ids == ["fix-run", "var-run"]
+
+
+def test_code_written_concerns_are_tagged_and_the_tag_survives_finding():
+    from backend.agents.review import finding
+    tagged = review_concern(Verification(hidden_variant=CheckStatus.FAILED))
+    assert tagged["source"] == "variant" and finding(tagged, code_decided=True)["source"] == "variant"
+    assert "source" not in finding({"severity": "low", "text": "x", "source": "made-up"}, code_decided=True)   # only our own sources
+    assert "source" not in finding({"severity": "high", "text": "x", "source": "variant"})   # a model can't tag its own concern

@@ -28,7 +28,7 @@ def variant_result(on_base: str, on_fix: str) -> tuple[CheckStatus, str]:
 def review_concern(v: Verification | None) -> dict | None:
     """For the Reviewer: a FAILED hidden variant is a high concern. Anything else adds nothing (never a pass)."""
     if v and v.hidden_variant == CheckStatus.FAILED:
-        return {"severity": "high", "text": "The fix passes the visible test but fails a hidden variant of it, so it may only "
+        return {"severity": "high", "source": "variant", "text": "The fix passes the visible test but fails a hidden variant of it, so it may only "
                                             "handle the exact case in the test."}
     return None
 
@@ -71,7 +71,7 @@ def hidden_variant(ctx: StepContext) -> CheckStatus:
         run.verify.hidden_variant = status
         run.verify.evidence_ids = [*run.verify.evidence_ids, *ev]
         db.save_run(db.connect(), run)
-    db.put_kv(db.connect(), f"variant:{rid}", json.dumps({"status": status.value, "reason": reason}))
+    db.put_kv(db.connect(), f"variant:{rid}", json.dumps({"status": status.value, "reason": reason, "evidence": ev}))   # #108: shown under the variant row
     ctx.emit("step.progress", "verify", message=f"Hidden test variant: {status.value}" + (f" ({REASON.get(reason, reason)})." if REASON.get(reason, reason) else "."))
     return status
 

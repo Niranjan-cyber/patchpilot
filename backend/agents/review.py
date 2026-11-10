@@ -38,6 +38,7 @@ Fix diff:
 
 
 # #70 item 9: the plan's levels next to the stored severity, which readiness reads (high/medium lower it, contracts G6)
+SOURCES = {"variant", "coverage", "lint"}   # concerns written by code, never by the model
 LEVEL_SEVERITY = {"BLOCKER": "high", "IMPORTANT": "medium", "SUGGESTION": "low", "ACCEPTED_TRADEOFF": "low"}
 SEVERITY_LEVEL = {"high": "BLOCKER", "medium": "IMPORTANT", "low": "SUGGESTION"}
 DIMENSIONS = {"correctness", "regression_risk", "scope", "test_quality", "conventions", "compatibility", "maintainability",
@@ -74,6 +75,10 @@ def finding(c: dict, paths: set[str] | None = None, *, code_decided: bool = Fals
     for k in ("evidence", "action"):
         if str(c.get(k) or "").strip():
             out[k] = str(c[k]).strip()[:300]
+    if code_decided and c.get("source") in SOURCES:   # #108: which code check wrote it (a model can't claim one)
+        out["source"] = c["source"]
+        if c["source"] == "lint" and c.get("tool"):
+            out["tool"] = str(c["tool"])
     return out
 
 
@@ -121,7 +126,7 @@ def review(ctx: StepContext) -> GateResult:
     if (hv := review_concern(run.verify)):   # B17: a failed hidden variant can only lower readiness
         concerns = [*concerns, {"dimension": "test_quality", **hv}]
     if (gap := run.repro and run.repro.uncovered):   # code-decided (gitingest-115): a fix can pass a test that skips part of the issue
-        concerns = [*concerns, {"severity": "medium", "dimension": "test_quality", "text": (f"The test designer didn't claim its test checks {len(gap)} of the things the "
+        concerns = [*concerns, {"severity": "medium", "dimension": "test_quality", "source": "coverage", "text": (f"The test designer didn't claim its test checks {len(gap)} of the things the "
                                 "issue expects, so passing it may not prove the bug is fixed. Not claimed: " + "; ".join(gap))[:300]}]
     from backend.agents.fix import UNFINISHED
     if run.patch.policy_reason == UNFINISHED:   # code-decided: an edit the fixer never called finished can't be "Ready"

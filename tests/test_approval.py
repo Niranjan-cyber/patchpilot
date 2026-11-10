@@ -230,7 +230,7 @@ def test_each_risk_is_listed_once(ready, monkeypatch):
     v.repro = ReproTest(test_diff_id=v.patch.test_diff_id, test_ids=["t"], expected_failure="e", uncovered=["floats"])
     v.baseline = TestRun(pass_set=["t1"], partial=True)
     v.gates = {**v.gates, "G2": CheckStatus.INCONCLUSIVE, "G3": CheckStatus.PASSED, "G4": CheckStatus.PASSED}
-    v.review = ReviewResult(concerns=[review_concern(v.verify), {"text": f"{COVERAGE_NOTE} its test checks 1 of the things: floats"},
+    v.review = ReviewResult(concerns=[review_concern(v.verify), {"source": "coverage", "text": f"{COVERAGE_NOTE} its test checks 1 of the things: floats"},
                                       *lint.review_concerns(rid, "", ""), {"severity": "medium", "text": "Renames a public function."}])
     db.save_run(c, v)
     db.put_kv(c, f"repo_checks:{rid}", '{"checks": [{"tool": "ruff", "status": "FAIL", "note": "2 new problems"}], "files": [], "reason": null}')
@@ -248,7 +248,7 @@ def test_a_stale_variant_reason_is_not_shown(ready):
     db.save_run(c, v)
     db.put_kv(c, f"variant:{rid}", '{"status": "passed", "reason": "ok"}')
     row = next(r for r in explainer(b, rid)["verification"] if r["id"] == "hidden_variant")
-    assert row == {"id": "hidden_variant", "status": "not_run", "reason": None}
+    assert row == {"id": "hidden_variant", "status": "not_run", "reason": None, "evidence": []}
     db.put_kv(c, f"variant:{rid}", '{"status": "not_run", "reason": "no_variant_written"}')
     assert next(r for r in explainer(b, rid)["verification"] if r["id"] == "hidden_variant")["reason"] == "no_variant_written"
 
@@ -401,3 +401,46 @@ def test_failing_suggestions_leave_the_explainer(ready, monkeypatch):
     monkeypatch.setattr(approval, "suggestions", lambda *a: 1 / 0)
     h = b.get(f"/api/runs/{rid}/approval").json()["help"]
     assert h["suggestions"] is None and h["explainer"]["verification"]
+
+
+
+# #108: code-written concerns carry a source tag; the explainer filters on the tag, never on wording
+def test_a_reworded_concern_is_still_listed_once_and_untagged_text_is_never_hidden(ready):
+    from backend.contracts.models import ReviewResult, Verification
+    b, rid, _ = ready
+    c = db.connect(); v = db.get_run(c, rid)
+    v.verify = Verification(new_test_runs=[CheckStatus.PASSED] * 2, hidden_variant=CheckStatus.FAILED)
+    v.review = ReviewResult(concerns=[
+        {"severity": "high", "source": "variant", "text": "Any new wording for the variant failure."},           # tagged: shown as the row
+        {"severity": "high", "text": "The fix passes the visible test but fails a hidden variant (model's own words)."}])   # untagged: kept
+    db.save_run(c, v)
+    assert [r["text"] for r in explainer(b, rid)["risks"] if r["kind"] == "review"] == [
+        "The fix passes the visible test but fails a hidden variant (model's own words)."]
+
+
+def test_revise_clears_the_previous_variant_record(ready):
+    b, rid, _ = ready
+    db.put_kv(db.connect(), f"variant:{rid}", '{"status": "not_run", "reason": "no_variant_written", "evidence": []}')
+    assert b.post(f"/api/runs/{rid}/revise", json={"feedback": "keep the public name"}).status_code == 200
+    assert db.get_kv(db.connect(), f"variant:{rid}") is None   # the next attempt can't show this attempt's reason
+
+
+def test_variant_evidence_is_listed_under_the_variant_not_the_fix(ready):
+    from backend.contracts.models import Verification
+    b, rid, _ = ready
+    c = db.connect(); v = db.get_run(c, rid)
+    fix_ev, var_ev = "sha256:" + "a" * 64, "sha256:" + "b" * 64
+    v.verify = Verification(new_test_runs=[CheckStatus.PASSED] * 2, hidden_variant=CheckStatus.FAILED, evidence_ids=[fix_ev, var_ev])
+    db.save_run(c, v)
+    db.put_kv(c, f"variant:{rid}", f'{{"status": "failed", "reason": "fix_fails_hidden_variant", "evidence": ["{var_ev}"]}}')
+    rows = {r["id"]: r for r in explainer(b, rid)["verification"]}
+    assert rows["fixed"]["evidence"] == [fix_ev] and rows["hidden_variant"]["evidence"] == [var_ev]
+
+
+@pytest.mark.parametrize("bad", ["not json", "[1]", '{"checks": [{"status": "PASS"}]}'])
+def test_a_malformed_repo_checks_record_never_500s_the_report_or_the_api(ready, bad):
+    b, rid, _ = ready
+    db.put_kv(db.connect(), f"repo_checks:{rid}", bad)
+    r = b.get(f"/api/runs/{rid}/report.md")
+    assert r.status_code == 200 and "Not checked" in r.text
+    assert b.get(f"/api/runs/{rid}/repo-checks").json()["checks"] is None   # unknown, never a list of passes

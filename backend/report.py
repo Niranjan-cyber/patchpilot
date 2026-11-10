@@ -173,13 +173,11 @@ def existing_work_section(run_id: str) -> list[str]:
 
 def repo_checks_section(run_id: str) -> list[str]:
     """#70 item 3: one line per tool with its command and exit code. Missing evidence says "not checked", never passed."""
-    import json
     from backend import db
-    try:
-        raw = db.get_kv(db.connect(), f"repo_checks:{run_id}")
+    try:   # db.repo_checks: missing or malformed = None ("not checked"), never a 500 on the report (#108)
+        res = db.repo_checks(db.connect(), run_id)
     except Exception:
-        raw = None
-    res = json.loads(raw) if raw else None
+        res = None
     if not res or res.get("checks") is None:
         return ["## Repository checks", "- Not checked: the repo's own linters and type checkers didn't run for this change.", ""]
     if not res["checks"]:
