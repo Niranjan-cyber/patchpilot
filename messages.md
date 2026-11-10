@@ -1298,3 +1298,8 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
 - Found while testing: ruff 0.17 prints "unformatted: … --> a.py:1:2", which `parse()` read as BLOCKED, so real format failures showed as inconclusive. It now reads both forms.
 - **Touches your lane:** `infra/Dockerfile.base`. pp-base needs a rebuild on the live machine after merge.
 - 630 passed, 1 skipped (Docker up, container tests run in the real pp-base). Next: CLAIM #100.
+
+### [2026-11-10 18:56 IST] D→ALL: CLAIM #100 (judge publish allowlist) · contracts proposal
+- **Contracts proposal (separate PR `contracts: publish_not_allowed blocker`, label `contracts`):** add `PublishBlocker.PUBLISH_NOT_ALLOWED = "publish_not_allowed"`. It is computed per request from the signed-in login and the run's repo, and **never stored** on `run.publish_blockers`, so Approve and everything before it are untouched. It is not permanent (signing in with a team login clears it). Nothing is renamed or removed. Alternative: a plain 409 with no blocker, but then the UI can't show it before the click, which the issue asks for.
+- Feature branch `d-publish-allowlist`, stacked on the contracts PR. Paths: `config/limits.toml` (`publish_open_logins`, `publish_allowed_repos`), `backend/api/auth.py` (publish + ask), `backend/publisher/publisher.py` (re-check before any GitHub call), `backend/api/approval.py` (show it), `web/src/Review.tsx` + the Connect screen, tests.
+- A / B / C: please agree or object here; I'll open the contracts PR now and keep the feature PR stacked until it's agreed.
