@@ -218,6 +218,7 @@ def _ok_resp(text="ok"):
 @pytest.fixture
 def three_models(tmpdb, monkeypatch):
     monkeypatch.setattr(G, "_out", {})
+    monkeypatch.setattr(G, "_missing", set())
     monkeypatch.setattr(__import__("time"), "sleep", lambda s: None)
     monkeypatch.setenv("PP_AGENT_MODELS", "gemini/gemini-3.5-flash,groq/openai/gpt-oss-120b")
     monkeypatch.setenv("PP_SHORT_MODEL", "groq/openai/gpt-oss-120b")
@@ -236,6 +237,29 @@ def test_quota_on_gemini_falls_back_to_groq(three_models):
         return _ok_resp("from groq")
     assert G.complete([{"role": "user", "content": "x"}], run_id="r", role="x", _completion=fake) == "from groq"
     assert [m.split("/")[0] for m in seen] == ["gemini", "groq"]
+
+
+def test_a_model_the_provider_no_longer_has_falls_through_to_the_next(three_models):
+    # run 00d075ff rev 1: Nebius dropped deepseek-ai/DeepSeek-V4.1-Flash; the NotFoundError crashed the run (SYSTEM_ERROR)
+    class NotFoundError(Exception): pass
+    seen = []
+    def fake(model, **k):
+        seen.append(model)
+        if model.startswith("gemini"): raise NotFoundError("The model `gemini-3.5-flash` does not exist.")
+        return _ok_resp("from groq")
+    assert G.complete([{"role": "user", "content": "x"}], run_id="r", role="x", _completion=fake) == "from groq"
+    assert [m.split("/")[0] for m in seen] == ["gemini", "groq"]
+    assert G.complete([{"role": "user", "content": "x"}], run_id="r", role="x", _completion=fake) == "from groq"
+    assert len(seen) == 3                                   # the missing model isn't asked again
+
+
+def test_every_model_missing_pauses_with_an_unknown_time(three_models):
+    class NotFoundError(Exception): pass
+    def gone(model, **k): raise NotFoundError("does not exist")
+    for _ in range(2):   # 2nd call: every model is already known missing
+        with pytest.raises(G.QuotaPause) as q:
+            G.complete([{"role": "user", "content": "x"}], run_id="r", role="x", _completion=gone)
+        assert q.value.resume_at is None                    # never a guessed time (contracts §6)
 
 
 def test_overload_and_quota_fall_through_to_local(three_models):
