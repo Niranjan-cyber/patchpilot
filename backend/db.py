@@ -129,6 +129,21 @@ def get_kv(c, key: str) -> str | None:
     return r[0] if r else None
 
 
+def repo_checks(c, run_id: str) -> dict | None:
+    """kv repo_checks:<run_id> (#70 item 3) if it is well formed; missing or malformed = None ("not checked", never a crash)."""
+    try:
+        rec = json.loads(get_kv(c, f"repo_checks:{run_id}") or "null")
+    except ValueError:
+        return None
+    if not isinstance(rec, dict):
+        return None
+    rows = rec.get("checks")
+    if not (rows is None or isinstance(rows, list) and all(isinstance(r, dict) and isinstance(r.get("tool"), str)
+                                                           and isinstance(r.get("status"), str) for r in rows)):
+        return None
+    return rec
+
+
 ACTIVE = ("queued", "running", "paused", "interrupted", "revising", "publishing")
 
 

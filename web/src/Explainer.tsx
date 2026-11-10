@@ -1,13 +1,13 @@
 import type { ReactNode } from "react";
 import type { CheckStatus } from "./contracts";
-import { Status } from "./components";
+import { Status, StatusIcon } from "./components";
 import { anchor, parseDiff } from "./DiffView";
 import { NOCHECK, VREASON } from "./ExtraChecks";
 import { CopyButton } from "./ui";
 
 // #97: built by backend/api/approval.py explainer() from what the run recorded; statuses are never upgraded here
 type Check = { id: "reproduced" | "fixed" | "baseline" | "hidden_variant" | "repo_check"; status: CheckStatus; tool?: string | null;
-  note?: string | null; reason?: string | null; runs?: CheckStatus[]; regressions?: string[]; partial?: boolean | null;
+  note?: string | null; reason?: string | null; unsupported?: boolean; runs?: CheckStatus[]; regressions?: string[]; partial?: boolean | null;
   counts?: { passed: number; failed: number; flaky: number } | null; evidence?: string[] };
 type Risk = { kind: "review"; severity?: string; text?: string; location?: string } | ({ kind: "check" } & Check)
   | { kind: "cap"; reason: string } | { kind: "uncovered"; text: string } | { kind: "coverage_not_checked" };
@@ -28,6 +28,12 @@ const label = (c: Check) => c.id === "repo_check" ? (c.tool ? `Repository check:
   reproduced: "The new test fails on the original code", fixed: "The new test passes with the fix",
   baseline: "Existing tests on the original code", hidden_variant: "Hidden test variant" }[c.id];
 
+// a reason we have no words for (e.g. "error: ValueError") is never shown raw
+const why = (map: Record<string, string>, reason?: string | null) =>
+  reason ? map[reason] ?? (reason.startsWith("error") ? "it stopped with an unexpected error" : "the reason wasn't recorded") : null;
+const WORD: Record<string, string> = { passed: "Passed", failed: "Failed", inconclusive: "Inconclusive", not_run: "Not run", blocked: "Blocked" };
+const word = (c: Check) => (c.unsupported ? "Unsupported" : WORD[c.status] ?? c.status);
+
 const ofRuns = (runs: CheckStatus[] | undefined, want: CheckStatus) =>
   runs?.length ? `${runs.filter((r) => r === want).length} of ${runs.length} runs ${want === "failed" ? "failed" : "passed"}.` : "No runs recorded.";
 
@@ -39,13 +45,20 @@ function detail(c: Check): string {
   if (c.id === "baseline") return c.counts ? `${c.counts.passed} passed, ${c.counts.failed} failed, ${c.counts.flaky} flaky${c.partial ? " (only part of the suite ran)" : ""}.` : "No run recorded.";
   if (c.id === "hidden_variant") return c.status === "passed" ? "The fix also passes a variant of the test it never saw."
     : c.status === "failed" ? "The fix fails a variant of the test it never saw, so it may only handle the exact tested case."
-    : `Not run${c.reason ? `: ${VREASON[c.reason] ?? c.reason}` : ""}.`;
-  return c.tool ? c.note ?? "" : (c.reason && NOCHECK[c.reason]) || "Status unavailable.";
+    : `Not run${c.reason ? `: ${why(VREASON, c.reason)}` : ""}.`;
+  if (c.tool) return c.note ?? "";
+  return c.reason ? NOCHECK[c.reason] ?? `Not run: ${why(NOCHECK, c.reason)}.` : "Status unavailable.";
 }
+
+// one line per check, in the same words on screen and in the copied text
+const line = (c: Check) => {
+  const d = detail(c);
+  return `${label(c)}: ${d.startsWith(word(c)) ? d : `${word(c)}.${d ? ` ${d}` : ""}`}`;   // never "Not run. Not run yet."
+};
 
 function riskText(r: Risk): ReactNode {
   if (r.kind === "review") return <>{r.text}{r.location && <> (<code>{r.location}</code>)</>}</>;
-  if (r.kind === "check") return <>{label(r)}: {r.status === "failed" ? "failed. " : r.status === "not_run" ? "" : "unclear. "}{detail(r)}</>;
+  if (r.kind === "check") return line(r);
   if (r.kind === "cap") return CAP[r.reason] ?? r.reason;
   if (r.kind === "uncovered") return <>The test doesn't check: {r.text}</>;
   return "We didn't check whether the test covers everything the issue expects.";
@@ -53,7 +66,7 @@ function riskText(r: Risk): ReactNode {
 
 const Evidence = ({ ids }: { ids: string[] }) => ids.length ? (
   <p className="hint">Recorded evidence: {ids.map((id, j) => (
-    <a key={id} href={`/api/artifacts/${encodeURIComponent(id)}`}>{j ? ", " : ""}evidence {j + 1}</a>))}</p>) : null;
+    <a key={`${j}-${id}`} href={`/api/artifacts/${encodeURIComponent(id)}`}>{j ? ", " : ""}evidence {j + 1}</a>))}</p>) : null;
 
 function Part({ title, copy, children }: { title: string; copy?: [string, string]; children: ReactNode }) {
   return (
@@ -77,7 +90,7 @@ export default function Explainer({ e, diff }: { e: ExplainerData; diff: string 
       <p className="hint">Read the change with this in mind, then answer the questions in your own words.</p>
 
       <Part title="Problem" copy={["Test evidence", [...e.problem.tests, e.problem.failure && `Fails on the original code with: ${e.problem.failure}`,
-        ...tests.map((c) => `${label(c)}: ${c.status}. ${detail(c)}`)].filter(Boolean).join("\n")]}>
+        ...tests.map(line)].filter(Boolean).join("\n")]}>
         <dl className="explainer-kv">
           <dt>Expected</dt><dd>{e.problem.expected ?? "The issue doesn't say."}</dd>
           <dt>Actual</dt><dd>{e.problem.actual ?? "The issue doesn't say."}</dd>
@@ -91,13 +104,14 @@ export default function Explainer({ e, diff }: { e: ExplainerData; diff: string 
         ...e.root_cause.citations.map((c) => c.url)].join("\n")] : undefined}>
         {e.root_cause ? <>
           <p><strong>PatchPilot's diagnosis (a claim):</strong> {e.root_cause.claim}</p>
-          {e.root_cause.citations.length > 0 && <ul className="explainer-list">{e.root_cause.citations.map((c) => (
-            <li key={c.url}><a href={c.url} target="_blank" rel="noreferrer"><code>{c.path}{c.line ? `:${c.line}` : ""}</code></a> at the tested commit</li>))}</ul>}
+          {e.root_cause.citations.length > 0 && <ul className="explainer-list">{e.root_cause.citations.map((c, i) => (
+            <li key={`${i}-${c.url}`}><a href={c.url} target="_blank" rel="noreferrer"><code>{c.path}{c.line ? `:${c.line}` : ""}</code></a> at the tested commit</li>))}</ul>}
           <Evidence ids={e.root_cause.evidence} />
         </> : <p>No diagnosis was recorded for this run.</p>}
       </Part>
 
-      <Part title="Fix" copy={["Fix summary", files.map((f) => `${f.path} (+${f.adds} −${f.dels})`).join("\n")]}>
+      <Part title="Fix" copy={["Fix summary", [...files.map((f) => `${f.path} (+${f.adds} −${f.dels})`),
+        `Only these files changed: ${WORD[e.fix.only_these_files] ?? e.fix.only_these_files}.`].join("\n")]}>
         <ul className="explainer-list">{files.map((f) => (
           <li key={f.path}><a href={`#${anchor(f.path)}`}><code>{f.path}</code></a> <span className="count"><span className="add">+{f.adds}</span> <span className="del">−{f.dels}</span></span></li>))}</ul>
         <p><Status s={e.fix.only_these_files} /> Only these files changed</p>
@@ -106,7 +120,8 @@ export default function Explainer({ e, diff }: { e: ExplainerData; diff: string 
 
       <Part title="Verification">
         <ul className="explainer-list">{e.verification.map((c, i) => (
-          <li key={i}><Status s={c.status} /> <strong>{label(c)}</strong>: {detail(c)}{c.evidence && <Evidence ids={c.evidence} />}</li>))}</ul>
+          <li key={i}>{c.unsupported ? <span className="status status-not_run"><StatusIcon s="not_run" size={12} />Unsupported</span> : <Status s={c.status} />}{" "}
+            <strong>{label(c)}</strong>{detail(c) && <>: {detail(c)}</>}{c.evidence && <Evidence ids={c.evidence} />}</li>))}</ul>
       </Part>
 
       <Part title={`Remaining risks (${e.risks.length})`}>

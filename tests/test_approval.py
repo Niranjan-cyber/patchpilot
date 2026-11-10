@@ -196,3 +196,66 @@ def test_explainer_cites_the_pinned_commit_and_explains_needs_attention(ready):
 def test_explainer_is_owner_only(ready):
     b, rid, _ = ready
     assert TestClient(main.app, base_url="https://testserver").get(f"/api/runs/{rid}/approval").status_code == 404
+
+
+@pytest.mark.parametrize("bad", ["not json", "[1, 2]", '{"checks": [{"status": "PASS"}]}', '{"checks": "x"}'])
+def test_a_malformed_record_never_blocks_the_diff(ready, bad):
+    b, rid, _ = ready
+    db.put_kv(db.connect(), f"repo_checks:{rid}", bad)
+    db.put_kv(db.connect(), f"variant:{rid}", bad)
+    r = b.get(f"/api/runs/{rid}/approval")
+    assert r.status_code == 200 and "+x = 2" in r.json()["diff"]
+    rows = [c for c in r.json()["help"]["explainer"]["verification"] if c["id"] == "repo_check"]
+    assert rows == [{"id": "repo_check", "tool": None, "status": "not_run", "reason": "not_run_yet"}]   # malformed = not checked
+
+
+def test_a_failing_explainer_leaves_approval_working(ready, monkeypatch):
+    b, rid, _ = ready
+    monkeypatch.setattr(approval, "explainer", lambda *a: 1 / 0)
+    r = b.get(f"/api/runs/{rid}/approval")
+    assert r.status_code == 200 and r.json()["help"]["explainer"] is None and r.json()["diff_hash"]
+
+
+def test_each_risk_is_listed_once(ready, monkeypatch):
+    # the Reviewer's code-written concerns, made by their real producers, restate facts the explainer already lists
+    from backend.agents import lint
+    from backend.agents.variant import review_concern
+    from backend.contracts.models import ReproTest, ReviewResult, TestRun, Verification
+    from backend.publisher.publisher import COVERAGE_NOTE
+    monkeypatch.setattr(lint, "run_checks", lambda *a: {"checks": [{"tool": "ruff", "status": "FAIL", "new_count": 2, "new": ["E1", "E2"]}]})
+    b, rid, _ = ready
+    c = db.connect(); v = db.get_run(c, rid)
+    v.verify = Verification(new_test_runs=[CheckStatus.PASSED] * 2, hidden_variant=CheckStatus.FAILED)
+    v.repro = ReproTest(test_diff_id=v.patch.test_diff_id, test_ids=["t"], expected_failure="e", uncovered=["floats"])
+    v.baseline = TestRun(pass_set=["t1"], partial=True)
+    v.gates = {**v.gates, "G2": CheckStatus.INCONCLUSIVE, "G3": CheckStatus.PASSED}
+    v.review = ReviewResult(concerns=[review_concern(v.verify), {"text": f"{COVERAGE_NOTE} its test checks 1 of the things: floats"},
+                                      *lint.review_concerns(rid, "", ""), {"severity": "medium", "text": "Renames a public function."}])
+    db.save_run(c, v)
+    db.put_kv(c, f"repo_checks:{rid}", '{"checks": [{"tool": "ruff", "status": "FAIL", "note": "2 new problems"}], "files": [], "reason": null}')
+    risks = explainer(b, rid)["risks"]
+    causes = [r.get("id") or r.get("reason") or r["kind"] for r in risks]
+    assert sorted(causes) == ["baseline_partial", "hidden_variant", "repo_check", "review", "uncovered"]
+    assert [r["text"] for r in risks if r["kind"] == "review"] == ["Renames a public function."]
+
+
+def test_a_stale_variant_reason_is_not_shown(ready):
+    from backend.contracts.models import Verification
+    b, rid, _ = ready
+    c = db.connect(); v = db.get_run(c, rid)
+    v.verify = Verification(hidden_variant=None)   # a revision cleared it; kv still holds the old attempt's result
+    db.save_run(c, v)
+    db.put_kv(c, f"variant:{rid}", '{"status": "passed", "reason": "ok"}')
+    row = next(r for r in explainer(b, rid)["verification"] if r["id"] == "hidden_variant")
+    assert row == {"id": "hidden_variant", "status": "not_run", "reason": None}
+    db.put_kv(c, f"variant:{rid}", '{"status": "not_run", "reason": "no_variant_written"}')
+    assert next(r for r in explainer(b, rid)["verification"] if r["id"] == "hidden_variant")["reason"] == "no_variant_written"
+
+
+def test_citation_paths_are_quoted(ready):
+    from backend.contracts.models import Diagnosis, Location
+    b, rid, _ = ready
+    c = db.connect(); v = db.get_run(c, rid)
+    v.diagnosis = Diagnosis(hypothesis="h", locations=[Location(path="src/a b#1?.py", line=3)])
+    db.save_run(c, v)
+    assert explainer(b, rid)["root_cause"]["citations"][0]["url"] == "https://github.com/o/r/blob/abc/src/a%20b%231%3F.py#L3"

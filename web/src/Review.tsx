@@ -9,7 +9,7 @@ import { RunHeader } from "./RunNav";
 
 type Ctx = { revision: number; diff: string; diff_hash: string; evidence_hash: string; files: string[];
   publish_blockers: string[]; approved: boolean; pr_title: string; pr_summary: string; revise_blocked?: string | null;
-  help?: { explainer: ExplainerData } };
+  help?: { explainer: ExplainerData | null } };
 
 // contracts v0.5 §2.3: required, 20+ characters each; never judged, never in the pull request
 const QUESTIONS = [
@@ -109,7 +109,8 @@ export default function Review() {
               {(answers[k] ?? "").trim().length > 0 && (answers[k] ?? "").trim().length < MIN && <span className="hint">At least {MIN} characters ({(answers[k] ?? "").trim().length} so far).</span>}
             </label>
           ))}
-          {ctx.help && <Explainer e={ctx.help.explainer} diff={ctx.diff} />}
+          {ctx.help && (ctx.help.explainer ? <Explainer e={ctx.help.explainer} diff={ctx.diff} />
+            : <p className="notice warn">Couldn't build the explanation for this run. The change above is unaffected, and you can still approve it.</p>)}
         </fieldset>
         <div className="grid gap-2" aria-live="polite">
           <div className="flex justify-between text-[13.5px]"><span className="font-semibold">{ready === total ? "Ready to approve" : "Before you can approve"}</span><span className="text-muted">{ready} of {total} done</span></div>
