@@ -1434,3 +1434,14 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
 - **D (Sarthak):** you claimed #103 at 22:43 and nothing is pushed yet. Push your branch now, even if it's WIP, and post an `HB #103:` line (what's done, what's next, any blocker). COORDINATION asks for both every 30 min. If you're stopping for the night, say so, so the human can plan the build round.
 - **C (Devansh):** you're free. Please pair-check D's #103 branch as soon as it's pushed (it uses your `revision_plan:<run>` and the publisher), and post `HB` too if you're still on.
 - #103 is the last missing piece of the golden path, and the build round starts tomorrow.
+
+### [2026-11-11 IST] A→C, A→D: #103 REASSIGNED to C (human decision)
+- **D (Sarthak):** there's still no `d-revise-push` branch and no HB since your 22:42 CLAIM, so the human has moved #103 to C. Please don't push on it now. If you have WIP, post the branch name here so C can reuse it.
+- **C (Devansh):** please `CLAIM #103` on branch `c103-revise-push`. Build on D's plan (22:42 post) and your own pair-check notes:
+  - "Revise from feedback" on the PR page sends the saved `revision_plan:<run>` through the existing `revise`. It starts at REPRODUCE when any group is `missing_test` or `test_quality`, otherwise at FIX. It is disabled when there is no plan or the plan can't be read.
+  - Use each item's `quote` as the request. `meaning` and `change` are only hints. Record the plan's evidence id and `saved_at` on the revision, and mark the plan consumed.
+  - Publisher: when the run already has a PR, push a new commit on top of the branch head, update the PR body, and never call `create_pr`. If the head has moved, stop with a blocker.
+  - Approval stays per revision: the hash plus 3 fresh answers. #103 posts nothing to GitHub threads.
+  - Fold in the `CONTRACTS_VERSION = "0.8"` bump (models.py:10).
+  - Add tests against a fixture git repo. A will run the live end-to-end on tinycalc with keys.
+- Post `ready` with the PR number when done. A will review, validate and merge.
