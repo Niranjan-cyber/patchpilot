@@ -1,21 +1,22 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { motion } from "motion/react";
-import { api, ApiError, useRun } from "./api";
+import { api, ApiError, PUBLISH_LIMITED, useRun } from "./api";
 import { Loading } from "./components";
 import { DiffView } from "./DiffView";
-import Explainer, { type ExplainerData } from "./Explainer";
+import Explainer, { QuestionEvidence, type ExplainerData } from "./Explainer";
 import { RunHeader } from "./RunNav";
 
 type Ctx = { revision: number; diff: string; diff_hash: string; evidence_hash: string; files: string[];
   publish_blockers: string[]; approved: boolean; pr_title: string; pr_summary: string; revise_blocked?: string | null;
-  help?: { explainer: ExplainerData | null } };
+  help?: { explainer: ExplainerData | null; suggestions: Record<string, string> | null; fix_files: string[] | null } };
 
-// contracts v0.5 §2.3: required, 20+ characters each; never judged, never in the pull request
+// contracts v0.5 §2.3: required, 20+ characters each; never judged, never in the pull request.
+// #98: each shows its evidence and a visible suggestion; the field always starts empty and nothing copies the suggestion in.
 const QUESTIONS = [
-  ["what_was_broken", "What was broken?", "e.g. Dividing by zero returned None instead of raising an error."],
-  ["why_this_fix", "Why does this change fix it?", "e.g. It now checks for zero first and raises ZeroDivisionError, as the docs say."],
-  ["what_the_test_proves", "What does the new test prove?", "e.g. It fails on the old code and passes with the fix, so the bug can't come back unnoticed."],
+  ["what_was_broken", "What was broken?", "Maintainers first check that you understand the bug itself, not only the fix."],
+  ["why_this_fix", "Why does this change fix it?", "This is what reviewers ask about most: why this change works, and why here."],
+  ["what_the_test_proves", "What does the new test prove?", "A test is only worth keeping if you can say what it protects against."],
 ] as const;
 const MIN = 20;
 
@@ -29,6 +30,8 @@ const BLOCKER: Record<string, string> = {
   deps_inconclusive: "We couldn't fully check this project's dependencies, so publishing is turned off. You can re-check them.",
   repo_forbids_ai: "This repository doesn't accept AI-assisted pull requests. You can keep the report and diff.",
   issue_changed: "Since your run started, the issue was closed or someone linked a pull request to it.",
+  // #100: per viewer, never stored; Approve still works, only publishing is limited
+  publish_not_allowed: PUBLISH_LIMITED,
   upstream_changed: "Files in this change were edited upstream after we tested, so we won't publish a change that was never tested against that code.",
 };
 
@@ -60,7 +63,7 @@ export default function Review() {
   if (!ctx) return err ? <section className="panel failed"><h1>Couldn't open the change</h1><p>{err.message}</p><Link className="button secondary" to={`/runs/${id}`}>Back to the run</Link></section>
     : <Loading label="Loading the exact change…" />;
 
-  const hard = ctx.publish_blockers.filter((b) => !["not_approved", "not_signed_in", "issue_changed", "no_maintainer_consent"].includes(b));
+  const hard = ctx.publish_blockers.filter((b) => !["not_approved", "not_signed_in", "issue_changed", "no_maintainer_consent", "publish_not_allowed"].includes(b));
   const allTicked = BOXES.every(([k]) => boxes[k]);
   const answered = QUESTIONS.every(([k]) => (answers[k] ?? "").trim().length >= MIN);
   const ready = BOXES.filter(([k]) => boxes[k]).length + QUESTIONS.filter(([k]) => (answers[k] ?? "").trim().length >= MIN).length;
@@ -102,12 +105,22 @@ export default function Review() {
         <fieldset>
           <legend>In your own words (required)</legend>
           <p className="hint">Maintainers may ask you about this change, so make sure you can explain it. A rough answer is fine. These stay in your report, not in the pull request.</p>
-          {QUESTIONS.map(([k, q, eg]) => (
-            <label key={k}>{q}
-              <textarea rows={2} value={answers[k] ?? ""} placeholder={eg} maxLength={1000}
+          {QUESTIONS.map(([k, q, why]) => (
+            <div key={k} className="question">
+              <label htmlFor={`q-${k}`}>{q}</label>
+              <p className="hint" id={`q-${k}-why`}>{why}</p>
+              {ctx.help?.explainer && <QuestionEvidence q={k} e={ctx.help.explainer} fixFiles={ctx.help.fix_files ?? []} diff={ctx.diff} />}
+              {ctx.help?.suggestions && (
+                <div className="suggestion" id={`q-${k}-hint`}>
+                  <p className="suggestion-label">Suggestion from PatchPilot, based on this run's evidence. Write your own.</p>
+                  <p>{ctx.help.suggestions[k]}</p>
+                </div>
+              )}
+              <textarea id={`q-${k}`} rows={3} value={answers[k] ?? ""} placeholder="Your answer" maxLength={1000}
+                aria-describedby={`q-${k}-why${ctx.help?.suggestions ? ` q-${k}-hint` : ""}`}
                 onChange={(e) => setAnswers({ ...answers, [k]: e.target.value })} />
               {(answers[k] ?? "").trim().length > 0 && (answers[k] ?? "").trim().length < MIN && <span className="hint">At least {MIN} characters ({(answers[k] ?? "").trim().length} so far).</span>}
-            </label>
+            </div>
           ))}
           {ctx.help && (ctx.help.explainer ? <Explainer e={ctx.help.explainer} diff={ctx.diff} />
             : <p className="notice warn">Couldn't build the explanation for this run. The change above is unaffected, and you can still approve it.</p>)}

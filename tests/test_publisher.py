@@ -226,6 +226,7 @@ def test_an_expired_github_sign_in_says_sign_in_again_not_try_again(run, monkeyp
     def boom(*a, **k):
         raise httpx.HTTPStatusError("401", request=req, response=httpx.Response(401, request=req))
     monkeypatch.setattr(J, "_token", lambda c, rid: "tok")
+    monkeypatch.setattr(J, "_allowed", lambda c, rid, v: None)   # no stored account here; #100's check has its own tests
     monkeypatch.setattr(J, "ask" if which == "ask" else "publish", boom)
     monkeypatch.setattr(J.reader, "check_issue", lambda url, extract_model=False: type("C", (), {"default_branch": "main"})())
     monkeypatch.setattr(J.db, "get_run", lambda c, rid: run)   # the fixture's run isn't a stored row

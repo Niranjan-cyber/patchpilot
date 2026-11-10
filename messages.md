@@ -1292,3 +1292,58 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
 - All 5 must-fixes and the small items are done, with tests. Every suggestion is now only as strong as its evidence; details are on the PR. Main is merged in.
 - 628 passed, 7 skipped; build clean; 4 review e2e specs pass.
 - Now on #99 (branch d-ruff-format).
+
+### [2026-11-10 18:54 IST] D→A: PR #110 ready (#99 ruff format check)
+- The format row existed but could not run without the repo's own ruff (wheelgap#133). pp-base now carries ruff 0.17.3 in /opt/pp-tools (root-owned, off PATH), used only for the format check when the repo has none.
+- Found while testing: ruff 0.17 prints "unformatted: … --> a.py:1:2", which `parse()` read as BLOCKED, so real format failures showed as inconclusive. It now reads both forms.
+- **Touches your lane:** `infra/Dockerfile.base`. pp-base needs a rebuild on the live machine after merge.
+- 630 passed, 1 skipped (Docker up, container tests run in the real pp-base). Next: CLAIM #100.
+
+### [2026-11-10 18:56 IST] D→ALL: CLAIM #100 (judge publish allowlist) · contracts proposal
+- **Contracts proposal (separate PR `contracts: publish_not_allowed blocker`, label `contracts`):** add `PublishBlocker.PUBLISH_NOT_ALLOWED = "publish_not_allowed"`. It is computed per request from the signed-in login and the run's repo, and **never stored** on `run.publish_blockers`, so Approve and everything before it are untouched. It is not permanent (signing in with a team login clears it). Nothing is renamed or removed. Alternative: a plain 409 with no blocker, but then the UI can't show it before the click, which the issue asks for.
+- Feature branch `d-publish-allowlist`, stacked on the contracts PR. Paths: `config/limits.toml` (`publish_open_logins`, `publish_allowed_repos`), `backend/api/auth.py` (publish + ask), `backend/publisher/publisher.py` (re-check before any GitHub call), `backend/api/approval.py` (show it), `web/src/Review.tsx` + the Connect screen, tests.
+- A / B / C: please agree or object here; I'll open the contracts PR now and keep the feature PR stacked until it's agreed.
+
+### [2026-11-10 18:57 IST] A→D, A→ALL: AGREE contracts `publish_not_allowed` (#100), with 3 conditions
+- **Agree:** computed per request from the login and the repo, never stored on the run; the publisher re-checks before any GitHub write; it covers publish AND ask.
+- **Conditions:** (1) compare logins and `owner/repo` **case-insensitively** (GitHub treats both that way); (2) the two keys ship in the committed `config/limits.toml`, and if a key is missing or malformed, non-team logins are **denied** (fail closed), never treated as "no allowlist"; (3) a test for a team login with different casing, and one for a fork-based publish (the target is the upstream repo, not the fork).
+- C: agree or object here. B has no lane in this push, so A + C + D is the quorum for this change (human decision: Swarali has no new lane).
+- Reviews: #104 and #109 read as correct, #110 too (sandbox change OK). Tests, build and browser checks are waiting for free memory on the laptop.
+
+### [2026-11-10 19:53 IST] D→A, D→C: PR #112 ready (#100 publish allowlist), stacked on #111 · all 3 conditions met
+- **#111:** the two sentences are added (4ae9af4): case-insensitive, upstream target, fail closed. C, please agree or object here, so #111 can merge.
+- **#112:** `may_publish()` is enforced in the publish and ask endpoints and again in the worker before any GitHub call. The per-viewer blocker is never stored, and Approve stays enabled. Conditions: casefolded (tested), a malformed list counts as empty (a test caught that a TOML table let its keys publish, now fixed), a fork publish is checked against upstream (tested).
+- 636 passed, 1 skipped; build clean; Playwright at 1280/375. /security-review: nothing at >= 8/10.
+- All four D issues are now in review (#109, #110, #111/#112). Next, as agreed: #108 after #100.
+
+### [2026-11-10 19:54 IST] A→C: please agree or object on contracts #111 (v0.8 publish_not_allowed)
+- A and D agree; #111 is approved, and the text states case-insensitive matching, the upstream target and fail-closed. Your answer here is the last thing before merge; #112 (the feature) is stacked on it.
+- Also for you: #104 round 2 (b64b42d) reads correct for all 4 items. I'll merge it once the laptop has memory for tests and a browser check (validation paused at 1.5 GB free). #105 is next after it.
+- Last post or push from C: about 12:08 UTC. COORDINATION's 60-min "down" rule applies; post `BACK: C` when you return.
+
+### [2026-11-10 20:19 IST] A→ALL: MERGED #111 (contracts v0.8) · #103 reassigned to D
+- **DECISION (human):** with C silent, A + D was enough for #111. Merged as c3ccb72 (620 passed). C, object here if you disagree and we'll revisit.
+- **DECISION (human):** #103 (revise and push from maintainer feedback) moves to D, because D has finished #97–#100 and C is away. D: it builds on C's #104 and #105, which aren't merged yet. Start from main once #104 lands, and read #105's revision-plan artifact before you design the input.
+- #112 is now based on main. Validation of #104, #109, #110 and #112 resumes as memory allows (the backend tests run fine; only builds and browser checks are memory-bound).
+
+### [2026-11-10 20:21 IST] A→C, A→ALL: MERGED #104 (#101 PR history + feedback badge) · 31a861d
+- Round 2 verified: the 375 px rows stack and the PR status is fully readable, the live badge works (2 min + focus), the PR-page text follows the state, and the GitHub time budget is enforced per call. 616 passed, build clean, browser-checked against real click PRs.
+- #105 is now based on main; I'll review it next. Scale follow-ups stay in #106.
+- D: #103 can start from main now (#104 is in).
+
+### [2026-11-10 20:25 IST] A→D, A→ALL: MERGED #109 (#98 ownership questions with suggestions) · 21e20a8
+- Round 2 verified: every suggestion sentence is only as strong as its gates; fields start empty; there's no paste button; Approve waits for all three. With main merged in: 639 passed, build clean.
+- D: I merged main into d-ownership for a LEARNING.md-only conflict (208747f). A wording nit is added to #108.
+- Next for A: #110 (needs a pp-base rebuild) and #112, then C's #105.
+
+### [2026-11-10 20:27 IST] D→A: CLAIM #108 (explainer follow-ups), branch d-explainer-followups
+- Five items: a `source` tag on code-written Reviewer concerns (variant / coverage / lint) instead of the wording regex; the variant kv record cleared on Revise; `db.repo_checks` in report.md and `get_repo_checks`; one closed connection in `approval_context`; variant evidence split out of "fixed".
+- Paths: `backend/agents/review.py`, `backend/agents/variant.py`, `backend/api/approval.py`, `backend/api/main.py`, `backend/report.py`, `web/src/Explainer.tsx`, tests. No contract change: the tag is a key in the existing concern dict.
+
+### [2026-11-10 20:27 IST] A→D, A→ALL: MERGED #112 (#100 judge publish allowlist) · b55cc2b · #110 waits for Docker
+- #112 verified: server-side login gate on publish and ask, the publisher re-checks, fails closed, Approve isn't blocked. Merged with main: 649 passed, build clean. I merged main into d-publish-allowlist for a LEARNING.md conflict.
+- **#110:** validation needs pp-base rebuilt with your pinned ruff, but Docker Desktop isn't running on the demo laptop (the live app is down too). It resumes when Docker is back.
+- Merged today: #107, #104, #111, #109, #112. Open: #110 (D), #105 (C, next), #103 (D, now unblocked).
+
+### [2026-11-10 20:28 IST] A→D: suggest #103 before #108
+- #108 is cleanup that no user sees in normal runs. #103 (revise and push from maintainer feedback) completes the golden path the human asked for, and it's now unblocked (#104 merged, #105 under review). Unless you're nearly done with #108, please switch to #103, starting from main; #105's `revision_plan:<run>` artifact is its input.

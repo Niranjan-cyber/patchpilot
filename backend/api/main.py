@@ -11,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 
 import uuid
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from backend import db
 from backend.api import session
@@ -217,7 +217,8 @@ def get_run(run_id: str, request: Request):
         v = db.get_run(db.connect(), run_id)
         if not v:
             raise ApiErr(404, "NOT_FOUND", "This run isn't available.")
-        return v
+        from backend.api.approval import for_viewer
+        return v.model_copy(update={"publish_blockers": for_viewer(v, request)})
     return RunView.model_validate_json((_fixture(run_id) / "state.json").read_text(encoding="utf-8"))
 
 
@@ -237,9 +238,12 @@ def my_runs(request: Request):
     sid, a = session.current(request), session.account(request)
     if not sid:
         return []
+    from backend.github import progress
+    c = db.connect()
     return [{"run_id": v.run_id, "title": v.issue.title, "repo": v.issue.repo, "number": v.issue.number,
              "status": v.status, "outcome": v.outcome, "readiness": v.readiness, "created_at": v.created_at,
-             "pr_url": v.pr.url if v.pr else None} for v in db.list_runs(db.connect(), sid, a["id"] if a else None)]
+             "pr_url": v.pr.url if v.pr else None, "new_feedback": len(progress.new_feedback(c, v.run_id))}
+            for v in db.list_runs(c, sid, a["id"] if a else None)]
 
 
 @app.get("/api/me/progress")
@@ -247,8 +251,38 @@ def my_progress(request: Request):
     """B16 / S-08: owner's runs with PatchPilot facts and live GitHub PR status side by side (unknown stays unknown)."""
     from backend.github import progress
     sid, a = session.current(request), session.account(request)
-    runs = db.list_runs(db.connect(), sid, a["id"] if a else None) if sid else []
-    return {"signed_in": a is not None, **progress.summary(runs, progress.fetch_pr_states(runs))}
+    c = db.connect()
+    runs = db.list_runs(c, sid, a["id"] if a else None) if sid else []
+    snaps = progress.refresh(c, runs, budget=8)   # page load re-reads GitHub (bounded); the worker also polls every 10 min
+    gh = {progress.key(v): snaps[v.run_id].get("state") for v in runs if v.run_id in snaps}
+    extra = {rid: {"ci": s.get("ci"), "last_activity_at": s.get("last_activity_at"),
+                   "new_feedback": len(progress.new_feedback(c, rid, s))} for rid, s in snaps.items()}
+    return {"signed_in": a is not None, **progress.summary(runs, gh, extra)}
+
+
+@app.get("/api/runs/{run_id}/feedback")
+def run_feedback(run_id: str, request: Request):
+    """#101: maintainer activity on this run's PR as last read from GitHub, and what's new since the owner last looked."""
+    from backend.github import progress
+    _own(request, run_id)
+    c = db.connect()
+    s = progress.tracked(c, run_id)
+    new = {f["id"] for f in progress.new_feedback(c, run_id, s)}
+    return {"state": s.get("state"), "ci": s.get("ci"), "last_activity_at": s.get("last_activity_at"),
+            "items": [{**f, "new": f["id"] in new} for f in s.get("feedback", [])], "tracked": bool(s)}
+
+
+class SeenBody(BaseModel):
+    ids: list[str] = Field(max_length=500)
+
+
+@app.post("/api/runs/{run_id}/feedback/seen", status_code=204)
+def feedback_seen(run_id: str, body: SeenBody, request: Request):
+    """Marks as seen only the items the page showed, so feedback that arrived meanwhile stays new."""
+    from backend.github import progress
+    _own(request, run_id)
+    progress.mark_seen(db.connect(), run_id, body.ids)
+    return Response(status_code=204)
 
 
 @app.delete("/api/runs/{run_id}/access", status_code=204)
