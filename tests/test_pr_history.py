@@ -162,6 +162,46 @@ def test_merged_prs_are_not_re_read_and_shared_prs_are_read_once(c, monkeypatch)
     assert P.refresh(c, [v, w])[v.run_id]["state"] == "merged" and calls == []      # done: stored state, no reads
 
 
+def test_budget_is_checked_before_every_github_call(c, monkeypatch):
+    import time as t
+    calls, routes = [], opened()
+
+    def slow(path):
+        def h(req):
+            t.sleep(0.25)
+            return httpx.Response(200, json=routes[path])
+        return h
+    monkeypatch.setattr(P, "_client", github({k: slow(k) for k in routes}, calls))
+    v = new_run(c)
+    out = P.refresh(c, [v], budget=0.6)                                            # room for ~2 of the 5 reads
+    assert 1 <= len(calls) <= 3                                                     # stopped mid-PR, not after it
+    assert out[v.run_id]["state"] is None                                           # unavailable for now...
+    assert P.tracked(c, v.run_id) == {}                                             # ...and not stored: the next tick retries
+
+
+def test_a_pr_that_missed_the_budget_is_read_first_next_time(c, monkeypatch):
+    v, w = new_run(c), new_run(c)
+    w.pr = w.pr.model_copy(update={"number": 134, "url": f"https://github.com/{REPO}/pull/134"})
+    db.save_run(c, w)
+    order = []
+
+    def one_per_call(c_, h, repo, n, stop=None):          # time for one PR per refresh
+        if order and order[-1][1] == "call":
+            raise P.OutOfTime(str(n))
+        order.append((n, "call"))
+        return {"state": "open", "ci": None, "partial": False, "last_activity_at": None, "feedback": []}
+    monkeypatch.setattr(P, "_client", github({}))
+    monkeypatch.setattr(P, "snapshot", one_per_call)
+    first = P.refresh(c, [v, w], budget=8)
+    order.append((None, "next"))
+    second = P.refresh(c, [v, w], budget=8)
+    read = [n for n, k in order if k == "call"]
+    assert len(read) == 2 and read[0] != read[1]                                    # the other PR goes first next time
+    assert {first[v.run_id]["state"], first[w.run_id]["state"]} == {"open", None}
+    assert {second[v.run_id]["state"], second[w.run_id]["state"]} == {"open", None}
+    assert P.tracked(c, v.run_id)["state"] == P.tracked(c, w.run_id)["state"] == "open"   # both stored after two loads
+
+
 def test_poll_stops_at_its_time_budget(c, monkeypatch):
     calls = []
     monkeypatch.setattr(P, "_client", github(opened(), calls))

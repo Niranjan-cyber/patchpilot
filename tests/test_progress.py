@@ -1,8 +1,6 @@
 """B16: My progress. Counts never conflate outcomes; GitHub PR status is fetched, never guessed."""
 from datetime import datetime, timezone
 
-import pytest
-
 from backend.contracts.models import IssueSpec, Outcome, PullRequestRef, RunStatus, RunView
 from backend.github import progress as P
 
@@ -51,11 +49,12 @@ def test_api_progress_is_owner_scoped_and_reports_unknown(tmp_path, monkeypatch)
     from backend import db
     from backend.api import main
     monkeypatch.setattr(db, "DB_PATH", str(tmp_path / "app.db"))
-    monkeypatch.setattr(P, "refresh", lambda c, runs: {v.run_id: {"state": None, "ci": None} for v in runs if v.pr})
+    monkeypatch.setattr(P, "refresh", lambda c, runs, **k: {v.run_id: {"state": None, "ci": None} for v in runs if v.pr})
     a, b = (TestClient(main.app, base_url="https://testserver") for _ in range(2))
     assert a.get("/api/me/progress").json()["state"] == "empty"            # no cookie yet
     from backend.api import session
-    a.cookies.set("pp_sid", "tok-a"); b.cookies.set("pp_sid", "tok-b")
+    a.cookies.set("pp_sid", "tok-a")
+    b.cookies.set("pp_sid", "tok-b")
     c = db.connect()
     for tok in ("tok-a", "tok-b"):
         with db.tx(c):

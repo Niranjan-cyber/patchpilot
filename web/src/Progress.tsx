@@ -49,8 +49,8 @@ export default function ProgressView() {
         <div className="stat"><strong>{c.pr_merged}</strong><span>merged on GitHub</span></div>
       </div>
       {p.state === "partial" && (
-        <p className="notice warn">GitHub didn't tell us the status of {c.pr_status_unknown} pull request{c.pr_status_unknown > 1 ? "s" : ""}.
-          They show "Status unavailable" and aren't counted as merged. <button className="linklike" onClick={load}>Check again</button></p>
+        <p className="notice warn">GitHub didn't tell us the full status of {c.pr_status_unknown} pull request{c.pr_status_unknown > 1 ? "s" : ""}.
+          {c.pr_status_unknown > 1 ? " They're" : " It's"} marked unavailable below and not counted as merged. <button className="linklike" onClick={load}>Check again</button></p>
       )}
       <div className="row history-filter" role="group" aria-label="Show">
         <button className={attention ? "secondary" : ""} aria-pressed={!attention} onClick={() => setAttention(false)}>All runs</button>
@@ -64,12 +64,12 @@ export default function ProgressView() {
           <tbody>
             {rows.map((r) => (
               <tr key={r.run_id}>
-                <td><Link to={`/runs/${r.run_id}`}>{r.title}</Link><br />
+                <td data-label="Issue"><Link to={`/runs/${r.run_id}`}>{r.title}</Link><br />
                   <span className="hint"><a href={r.issue_url}>{r.repo} #{r.number}</a>, {new Date(r.created_at).toLocaleDateString()}</span></td>
-                <td>{r.patchpilot.readiness ?? (r.patchpilot.status === "awaiting_approval" ? "Needs your approval" : "Still working")}
+                <td data-label="PatchPilot">{r.patchpilot.readiness ?? (r.patchpilot.status === "awaiting_approval" ? "Needs your approval" : "Still working")}
                   {r.patchpilot.pr_url && <><br /><a href={r.patchpilot.pr_url}>Pull request opened</a></>}
                   {!r.patchpilot.pr_url && r.patchpilot.compare_url && <><br /><a href={r.patchpilot.compare_url}>Branch pushed (open the PR yourself)</a></>}</td>
-                <td>{!r.has_pr ? <span className="hint">No pull request</span> : <>
+                <td data-label="Pull request on GitHub" className="pr-cell">{!r.has_pr ? <span className="hint">No pull request</span> : <>
                   {r.github_pr_status ? <span className={`gh-${r.github_pr_status}`}>{GH[r.github_pr_status]}</span>
                     : <span className="hint">Status unavailable</span>}
                   {r.ci && <span className={`ci ci-${r.ci}`}> · {CI[r.ci]}</span>}

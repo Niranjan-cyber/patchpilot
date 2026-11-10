@@ -72,11 +72,19 @@ def feedback(author: str | None, reviews, review_comments, issue_comments, check
     return sorted(out, key=lambda f: f["at"] or "")
 
 
-def _cget(c, h: httpx.Client, path: str):
-    """Conditional GET: a 304 reuses the stored body and doesn't count against GitHub's rate limit."""
+class OutOfTime(Exception):
+    """The caller's time budget ran out before this GitHub call."""
+
+
+def _cget(c, h: httpx.Client, path: str, stop: float | None = None):
+    """Conditional GET: a 304 reuses the stored body and doesn't count against GitHub's rate limit.
+    stop (monotonic deadline): no call starts after it, and none may run past it."""
+    left = stop - time.monotonic() if stop else 10
+    if left <= 0:
+        raise OutOfTime(path)
     old = json.loads(db.get_kv(c, f"gh_etag:{path}") or "null")
     try:
-        r = h.get(path, headers={"If-None-Match": old["etag"]} if old else {})
+        r = h.get(path, headers={"If-None-Match": old["etag"]} if old else {}, timeout=min(10, left))
     except httpx.HTTPError:
         return None
     if r.status_code == 304 and old:
@@ -87,18 +95,18 @@ def _cget(c, h: httpx.Client, path: str):
     return body
 
 
-def snapshot(c, h: httpx.Client, repo: str, n: int) -> dict:
+def snapshot(c, h: httpx.Client, repo: str, n: int, stop: float | None = None) -> dict:
     """Everything is read with the read-only token. A missing PR read is "unavailable". A failed or truncated sub-read
     marks the snapshot partial (refresh keeps the earlier feedback) and never makes the PR look cleaner than it is."""
-    pr = _cget(c, h, f"/repos/{repo}/pulls/{n}")
+    pr = _cget(c, h, f"/repos/{repo}/pulls/{n}", stop)
     if not isinstance(pr, dict) or "state" not in pr:
         return {"state": None, "ci": None}
     author = (pr.get("user") or {}).get("login")
-    rv = _cget(c, h, f"/repos/{repo}/pulls/{n}/reviews?per_page=100")
-    rc = _cget(c, h, f"/repos/{repo}/pulls/{n}/comments?per_page=100")
-    ic = _cget(c, h, f"/repos/{repo}/issues/{n}/comments?per_page=100")
+    rv = _cget(c, h, f"/repos/{repo}/pulls/{n}/reviews?per_page=100", stop)
+    rc = _cget(c, h, f"/repos/{repo}/pulls/{n}/comments?per_page=100", stop)
+    ic = _cget(c, h, f"/repos/{repo}/issues/{n}/comments?per_page=100", stop)
     sha = (pr.get("head") or {}).get("sha")
-    ck = _cget(c, h, f"/repos/{repo}/commits/{sha}/check-runs?per_page=100") if sha else None
+    ck = _cget(c, h, f"/repos/{repo}/commits/{sha}/check-runs?per_page=100", stop) if sha else None
     fb = feedback(author, rv, rc, ic, ck)
     lists_ok = [isinstance(x, list) and len(x) < PAGE for x in (rv, rc, ic)]
     partial = not all(lists_ok) or not isinstance(ck, dict) or (ck.get("total_count") or 0) > len(ck.get("check_runs") or [])
@@ -131,11 +139,12 @@ def merge(prev: dict, snap: dict | None) -> dict:
 
 def refresh(c, runs: list[RunView], *, budget: float | None = None) -> dict[str, dict]:
     """Re-read each PR once (runs sharing a PR share the read) and store it per run. Merged/closed PRs aren't re-read.
-    Rate limited -> the rest are "unavailable" now, keeping their last feedback. budget (s): stop and leave the rest
-    as they were, for the worker's next tick."""
+    Rate limited -> the rest are "unavailable" now, keeping their last feedback. budget (s): no GitHub call runs past
+    it; PRs not finished in time are returned as "unavailable" but not stored, so the next tick or load retries them."""
     todo = [v for v in runs if key(v)]
     out = {v.run_id: tracked(c, v.run_id) for v in todo}
-    want = [v for v in todo if out[v.run_id].get("state") not in DONE]
+    # least recently checked first, so a PR that missed a budget isn't starved by the same PRs every time
+    want = sorted((v for v in todo if out[v.run_id].get("state") not in DONE), key=lambda v: out[v.run_id].get("checked_at") or "")
     if not want:
         return out
     stop, limited, read = (time.monotonic() + budget) if budget else None, False, {}
@@ -144,21 +153,22 @@ def refresh(c, runs: list[RunView], *, budget: float | None = None) -> dict[str,
             for v in want:
                 k = key(v)
                 if k not in read:
-                    if stop and time.monotonic() > stop:
-                        break
                     snap = None
                     if not limited:
                         try:
-                            snap = snapshot(c, h, v.issue.repo, v.pr.number)
+                            snap = snapshot(c, h, v.issue.repo, v.pr.number, stop)
                         except GitHubError:
                             limited = True
+                        except OutOfTime:
+                            break
                     read[k] = snap
-                out[v.run_id] = merge(out[v.run_id], read[k])
+                out[v.run_id] = {**merge(out[v.run_id], read[k]), "checked_at": db.now().isoformat()}
                 db.put_kv(c, f"pr_track:{v.run_id}", json.dumps(out[v.run_id]))
     except Exception:
-        for v in want:
-            if key(v) not in read:
-                out[v.run_id] = merge(out[v.run_id], None)
+        pass
+    for v in want:
+        if key(v) not in read:          # not reached in time (or the client failed): unavailable for now, not stored
+            out[v.run_id] = merge(out[v.run_id], None)
     return out
 
 

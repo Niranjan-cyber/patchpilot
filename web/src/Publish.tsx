@@ -261,7 +261,8 @@ export function PrOpened() {
         <p className="lede">On {run.issue.repo}, for issue #{run.issue.number}. {st === "merged" ? "A maintainer merged it."
           : st === "closed" ? "A maintainer closed it without merging. That isn't automatically a failure."
           : st === "draft" ? "It's a draft, so nothing merges until a maintainer decides."
-          : st ? "A maintainer decides whether to merge it." : fb.f || fb.err ? "We couldn't read its current status on GitHub." : "Checking its status on GitHub…"}</p>
+          : st ? "A maintainer decides whether to merge it." : fb.err || fb.f?.tracked ? "We couldn't read its current status on GitHub."
+          : "Checking GitHub…"}</p>
         <a className="button" href={fin.pr_url}>Open on GitHub</a>
         <p className="pr-url"><code>{fin.pr_url}</code></p>
         {run.pr?.fork_owner && <p className="hint">From your fork, {run.pr.fork_owner}/{run.issue.repo.split("/")[1]}.</p>}
@@ -271,8 +272,9 @@ export function PrOpened() {
       {st !== "merged" && st !== "closed" && <>
       <h2>What happens next</h2>
       <ol className="next">
+        {st === "draft" && <>
         <li>Open your draft pull request on GitHub and read it once more.</li>
-        <li>When you're happy, click <strong>Ready for review</strong> on GitHub.</li>
+        <li>When you're happy, click <strong>Ready for review</strong> on GitHub.</li></>}
         <li>A maintainer may ask for changes. That's normal.</li>
         <li>If they do, come back and use <Link to={`/runs/${id}/review`}>Revise</Link>; we'll update the same pull request.</li>
       </ol></>}
