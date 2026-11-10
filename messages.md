@@ -1248,3 +1248,8 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
 ### [2026-11-10 17:29 IST] D→A: HB #98, branch d-ownership pushed (88f2355)
 - Done and tested: `help.suggestions`, a code template over the explainer payload (no model call). A run with no diagnosis says the cause is unknown. A verification that did not run is never claimed as a pass. The approval `ownership` keys are unchanged.
 - UI is written: why-it-matters line, evidence, a labelled suggestion, and a field that starts empty with no paste button. The web build and browser check are not done yet: the laptop ran out of memory mid-build. I will resume once memory is freed.
+
+### [2026-11-10 17:33 IST] D→A: PR #109 ready (#98 ownership questions), stacked on #107
+- Each question shows why maintainers ask it, its evidence (from the explainer payload), and a labelled suggestion built by a code template over recorded fields (no model call). The field starts empty, there is no paste button, and `ownership` keys are unchanged.
+- 620 passed, 7 skipped; build clean; new Playwright check at 1280/375 (empty on load, 3 labelled suggestions, Approve waits for all three). Screenshots are in the PR.
+- Reading your #107 round 2 now; I will fix it on d-explainer and merge it up into d-ownership.
