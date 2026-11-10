@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { api, ApiError } from "./api";
 import { RUNS_CHANGED } from "./Progress";
 
@@ -44,12 +45,16 @@ export default function FeedbackAssistant({ id }: { id: string }) {
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [saved, setSaved] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [planned, setPlanned] = useState(0);      // requests in the saved plan (what Revise uses), not the current ticks
+  const [revising, setRevising] = useState(false);
+  const nav = useNavigate();
   const load = () => {
     setErr(null);
     api<Assist>(`/api/runs/${id}/feedback/assist`).then((x) => {
       setA(x);
       const can = new Set(x.items.filter(pickable).map((i) => i.id));
-      setPicked(new Set((x.plan ?? []).filter((k) => can.has(k))));   // a saved id no longer on the PR can't block a save
+      setPicked(new Set((x.plan ?? []).filter((k) => can.has(k))));
+      setPlanned(x.plan?.length ?? 0);   // a saved id no longer on the PR can't block a save
       window.dispatchEvent(new Event(RUNS_CHANGED));                       // the heading re-reads the state this just refreshed
       // seen = what's shown here, plus the older items the "latest 20" notice covers; a failed "seen" is silent
       api(`/api/runs/${id}/feedback/seen`, { method: "POST", headers: { "Content-Type": "application/json" },
@@ -65,12 +70,19 @@ export default function FeedbackAssistant({ id }: { id: string }) {
   const act = a.items.filter((i) => i.category !== "non_actionable");
   const rest = a.items.filter((i) => i.category === "non_actionable");
   const hidden = a.hidden_ids?.length ?? 0;
+  const done = a.pr_state === "merged" || a.pr_state === "closed";
   const toggle = (k: string) => { const s = new Set(picked); s.has(k) ? s.delete(k) : s.add(k); setPicked(s); setSaved(null); };
   const save = () => {
     setSaving(true);
     api<{ evidence_id: string }>(`/api/runs/${id}/feedback/plan`, { method: "PUT", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ item_ids: [...picked] }) }).then(() => setSaved(`Saved ${picked.size} request${picked.size > 1 ? "s" : ""}.`))
+      body: JSON.stringify({ item_ids: [...picked] }) }).then(() => { setSaved(`Saved ${picked.size} request${picked.size > 1 ? "s" : ""}.`); setPlanned(picked.size); })
       .catch((e: ApiError) => setSaved(e.message)).finally(() => setSaving(false));
+  };
+  // #103: the saved plan goes through Revise; you review and approve the new change before anything is pushed
+  const revise = () => {
+    setRevising(true);
+    api(`/api/runs/${id}/revise-from-feedback`, { method: "POST" }).then(() => { window.dispatchEvent(new Event(RUNS_CHANGED)); nav(`/runs/${id}`); })
+      .catch((e: ApiError) => { setSaved(e.message); setRevising(false); });
   };
   return (
     <div className="fb">
@@ -85,9 +97,13 @@ export default function FeedbackAssistant({ id }: { id: string }) {
         <ul className="fb-list">{rest.map((i) => <Request key={i.id} i={i} picked={false} toggle={() => null} />)}</ul></details>}
       {act.some(pickable) && <div className="fb-plan">
         <h3>Revision plan</h3>
-        <p className="hint">Tick the requests to work on. The plan is saved for Revise; nothing is posted to GitHub.</p>
-        <div className="row"><button onClick={save} disabled={!picked.size || saving}>{saving ? "Saving…" : `Save plan (${picked.size})`}</button>
+        <p className="hint">Tick the requests to work on and save the plan. Revise works on the saved plan, then you review and approve
+          the new change before it's pushed to this pull request. Nothing is posted to GitHub threads.</p>
+        <div className="row"><button className="secondary-btn" onClick={save} disabled={!picked.size || saving}>{saving ? "Saving…" : `Save plan (${picked.size})`}</button>
+          {!done && <button onClick={revise} disabled={!planned || revising}>{revising ? "Starting the revision…" : `Revise from feedback${planned ? ` (${planned})` : ""}`}</button>}
           {saved && <span role="status">{saved}</span>}</div>
+        {done ? <p className="hint">This pull request is {a.pr_state}, so Revise isn't offered. Start a new run to change it.</p>
+          : !planned && <p className="hint">Save a plan first.</p>}
       </div>}
     </div>
   );

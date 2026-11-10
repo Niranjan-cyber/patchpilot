@@ -483,3 +483,65 @@ def test_an_unreadable_lint_record_says_so_not_not_run_yet(ready):
     row = next(r for r in explainer(b, rid)["verification"] if r["id"] == "repo_check")
     assert row["reason"] == "unreadable"
     assert "it ran, but its result couldn't be read" in b.get(f"/api/runs/{rid}/report.md").text
+
+
+def _plan(c, rid, groups):
+    import json
+    eid = artifacts.put(json.dumps({"run_id": rid, "pr_url": "https://github.com/o/r/pull/9", "saved_at": "2026-11-11T10:00:00+00:00",
+                                    "groups": groups}))
+    db.put_kv(c, f"revision_plan:{rid}", eid)
+    return eid
+
+
+def _item(quote, **kw):
+    return {"id": "review_comment:1", "source": "review", "author": "maint", "url": None, "quote": quote, "path": None, "line": None,
+            "meaning": None, "change": None, **kw}
+
+
+def test_revise_from_feedback_needs_a_readable_plan(ready):
+    b, rid, _ = ready
+    r = b.post(f"/api/runs/{rid}/revise-from-feedback")
+    assert r.status_code == 409 and r.json()["code"] == "NO_PLAN"
+    db.put_kv(db.connect(), f"revision_plan:{rid}", artifacts.put("not json"))
+    assert b.post(f"/api/runs/{rid}/revise-from-feedback").json()["code"] == "NO_PLAN"
+    assert db.get_run(db.connect(), rid).revision == 0   # nothing started
+
+
+def test_revise_from_feedback_uses_the_quotes_records_the_plan_and_uses_it_once(ready):
+    b, rid, _ = ready
+    eid = _plan(db.connect(), rid, [{"category": "code_correctness", "label": "Code correctness",
+                                     "items": [_item("Please keep the old name as an alias.", path="src/a.py", line=3,
+                                                     meaning="wants backward compatibility", change="add alias")]}])
+    v = b.post(f"/api/runs/{rid}/revise-from-feedback").json()
+    last = v["revisions"][-1]
+    assert v["status"] == "revising" and v["revision"] == 1 and last["revise_target"] == "fix"
+    assert last["plan_evidence_id"] == eid and last["plan_saved_at"].startswith("2026-11-11T10:00")
+    assert "maint (src/a.py:3): Please keep the old name as an alias." in last["feedback"]
+    assert "Hint: wants backward compatibility; add alias" in last["feedback"]
+    assert db.get_kv(db.connect(), f"revision_plan:{rid}") is None          # consumed
+    assert b.post(f"/api/runs/{rid}/revise-from-feedback").status_code == 409
+
+
+@pytest.mark.parametrize("cat", ["missing_test", "test_quality"])
+def test_a_plan_that_asks_for_tests_starts_at_reproduce(ready, cat):
+    b, rid, _ = ready
+    _plan(db.connect(), rid, [{"category": "documentation", "label": "", "items": [_item("Add a docstring.")]},
+                              {"category": cat, "label": "", "items": [_item("Test the empty input too.")]}])
+    assert b.post(f"/api/runs/{rid}/revise-from-feedback").json()["revisions"][-1]["revise_target"] == "test"
+
+
+def test_revise_from_feedback_keeps_the_revise_rules(ready):
+    b, rid, _ = ready
+    c = db.connect(); v = db.get_run(c, rid); v.status = RunStatus.RUNNING; db.save_run(c, v)
+    _plan(c, rid, [{"category": "code_correctness", "label": "", "items": [_item("Rename it.")]}])
+    assert b.post(f"/api/runs/{rid}/revise-from-feedback").json()["code"] == "NOT_REVISABLE"
+    assert db.get_kv(db.connect(), f"revision_plan:{rid}")    # not consumed by a refused request
+
+
+@pytest.mark.parametrize("state", ["merged", "closed"])
+def test_no_revise_from_feedback_on_a_done_pr(ready, state):
+    b, rid, _ = ready
+    c = db.connect()
+    _plan(c, rid, [{"category": "code_correctness", "label": "", "items": [_item("Rename it.")]}])
+    db.put_kv(c, f"pr_track:{rid}", '{"state": "%s"}' % state)
+    assert b.post(f"/api/runs/{rid}/revise-from-feedback").json()["code"] == "PR_DONE"

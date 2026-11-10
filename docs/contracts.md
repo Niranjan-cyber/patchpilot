@@ -1,4 +1,4 @@
-# PatchPilot: Shared Contracts (v0.8, 2026-11-10: per-viewer publish allowlist blocker; v0.7, 2026-11-09: test coverage of the issue's conditions; v0.6 Revise can rewrite the test; v0.5 #70; v0.4 merged in #50 on 2026-11-08)
+# PatchPilot: Shared Contracts (v0.8, 2026-11-10: per-viewer publish allowlist blocker, 2026-11-11: #103 revise from PR feedback; v0.7, 2026-11-09: test coverage of the issue's conditions; v0.6 Revise can rewrite the test; v0.5 #70; v0.4 merged in #50 on 2026-11-08)
 
 This file is the boundary between the four build lanes: **(1) sandbox + setup + baseline, (2) agent roles + gates, (3) GitHub reader/publisher + auth, (4) React UI + event polling.** Lanes build against these types and fixtures, not against each other's code.
 
@@ -149,11 +149,11 @@ class RunState(BaseModel):
     budget: Budget                    # tokens_used/limit, active_seconds/limit, paused_since
     pause: PauseInfo | None           # reason, provider, resume_at: datetime | None (None = unknown)
     publish_blockers: list[PublishBlocker]
-    revisions: list[RevisionSummary]  # per revision: outcome, end_reason, diff_hash, evidence_ids, finished_at; v0.6: revise_target, feedback (why the next revision started)
+    revisions: list[RevisionSummary]  # per revision: outcome, end_reason, diff_hash, evidence_ids, finished_at; v0.6: revise_target, feedback (why the next revision started); v0.8 (#103): plan_evidence_id, plan_saved_at when it came from the PR feedback plan
     details_expired_at: datetime | None  # set by retention (§9)
     approval: Approval | None
     consent: ConsentEvidence | None   # v0.5 (#70), §2.2; about the issue, so it survives Revise
-    pr: PullRequestRef | None         # url, number, head_branch, fork_owner, state (from GitHub)
+    pr: PullRequestRef | None         # url, number, head_branch, fork_owner, state (from GitHub); v0.8 (#103): head_sha = the commit PatchPilot last pushed
     created_at: datetime; updated_at: datetime
 ```
 
@@ -286,6 +286,7 @@ data: {"v":1,"run_id":"…","seq":42,"ts":"2026-11-11T10:42:07Z","type":"step.fi
 | GET | `/healthz` | DB writable, worker heartbeat fresh, Docker reachable |
 | POST | `/api/runs/{id}/stop` | ends analysis with `user_stopped`; outcome by §1.2; never publishable |
 | POST | `/api/runs/{id}/revise` | `{feedback, target: "fix" or "test", default "fix"}` → revision +1, approval voided, back to FIX (`fix`) or REPRODUCE (`test`, v0.6). The target and feedback are kept in `revisions[]`; the Test designer sees the feedback and the rejected test, the Fixer sees feedback only for `fix` |
+| POST | `/api/runs/{id}/revise-from-feedback` | v0.8 (#103), no body. Reads the saved `revision_plan:<run>` (409 `NO_PLAN` if missing or unreadable) and starts the same Revise: `target=test` when any group is `missing_test` or `test_quality`, else `fix`. The request text is each item's quote (the maintainer's words), with the assistant's meaning and change only as hints; for a plan both the Test designer and the Fixer see it. The plan's evidence id and `saved_at` go on the revision and the plan is consumed (used once). Approval stays per revision. Publishing a revision of a run that already has a branch pushes one new commit on top of it, whose files are base + the approved diff; if the branch head isn't the commit PatchPilot last pushed (or, with none recorded, has another author's commits) or the branch is gone, it stops with `PR_HEAD_MOVED` and pushes nothing. A run with a PR number only ever updates that PR; nothing is posted to GitHub threads |
 | POST | `/api/runs/{id}/approve` | `{revision, diff_hash, evidence_hash, checklist, explanation: str \| null (≤ 2,000 chars), ownership (v0.5, required, §2.3), pr_title, pr_summary}` (§5) |
 | POST | `/api/runs/{id}/keep-report` | "Keep report only" → FINISHED |
 | POST | `/api/runs/{id}/rerun` | new run on the latest default-branch commit (counts against limits) |

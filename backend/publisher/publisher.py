@@ -12,6 +12,11 @@ from backend.api import approval
 from backend.api.approval import exact_diff, hashes
 from backend.contracts.models import PublishBlocker, PullRequestRef, RunView
 
+GIT_HOST = "https://github.com"   # tests point this at a local fixture repo
+BOT_EMAIL = "patchpilot@users.noreply.github.com"
+HEAD_MOVED = ("Someone else pushed to this pull request's branch since PatchPilot's last push, so we stopped instead of "
+              "overwriting their commits. Nothing was published. Start a new run from the latest code if you still need it.")
+
 AI_NOTE = ("This pull request was prepared with PatchPilot, an AI-assisted bug-fix tool. A human reviewed and approved "
            "this exact diff before it was opened. Please review it like any other contribution.")
 
@@ -199,8 +204,13 @@ class GitHubWriter:
     def update_pr(self, repo: str, number: int, title: str, body: str) -> dict:
         return self.h.patch(f"/repos/{repo}/pulls/{number}", json={"title": title, "body": body}).raise_for_status().json()
 
-    def push_branch(self, target_repo: str, base_sha: str, upstream: str, branch: str, diff: str, message: str) -> None:
-        """Clean checkout at base_sha OUTSIDE the sandbox, apply the approved diff, push.
+    def push_branch(self, target_repo: str, base_sha: str, upstream: str, branch: str, diff: str, message: str,
+                    on_top: bool = False, expect_head: str | None = None) -> str:
+        """Clean checkout at base_sha OUTSIDE the sandbox, apply the approved diff, push; returns the pushed commit.
+        on_top (#103, the run already published this branch): the new commit's parent is the branch's current head and
+        its files are exactly base + the approved diff, so the PR keeps its history. The head must be expect_head
+        (the commit we last pushed) or, for runs published before head_sha was kept, made only of PatchPilot commits;
+        otherwise PublishRefused("PR_HEAD_MOVED") and nothing is pushed.
         The token goes only into git's environment config, never argv (C review #5: process list, CalledProcessError)."""
         d = tempfile.mkdtemp(prefix="pp-pub-")
         env = {**os.environ, "GIT_TERMINAL_PROMPT": "0", "GIT_CONFIG_COUNT": "1", "GIT_CONFIG_KEY_0": "http.extraHeader",
@@ -210,14 +220,29 @@ class GitHubWriter:
                                                   input=inp.encode("utf-8") if inp is not None else None,
                                                   capture_output=True, check=True, env=env)
         try:
-            git("init", "-q"); git("remote", "add", "origin", f"https://github.com/{target_repo}.git")
-            git("fetch", "-q", "--depth", "1", f"https://github.com/{upstream}.git", base_sha)
+            git("init", "-q"); git("remote", "add", "origin", f"{GIT_HOST}/{target_repo}.git")
+            git("fetch", "-q", "--depth", "1", f"{GIT_HOST}/{upstream}.git", base_sha)
             git("checkout", "-q", "-b", branch, "FETCH_HEAD")
             git("apply", "--index", "-", inp=diff)
-            git("-c", "user.name=PatchPilot", "-c", "user.email=patchpilot@users.noreply.github.com", "commit", "-qm", message)
+            ident = ("-c", "user.name=PatchPilot", "-c", f"user.email={BOT_EMAIL}")
             # C review #3: lease against the branch's CURRENT remote sha ("" = must not exist yet), so re-publish after Revise works
             remote = git("ls-remote", "origin", f"refs/heads/{branch}").stdout.decode().split()
-            git("push", "-q", f"--force-with-lease=refs/heads/{branch}:{remote[0] if remote else ''}", "origin", f"HEAD:refs/heads/{branch}")
+            head = remote[0] if remote else ""
+            if on_top:
+                if not head:
+                    raise PublishRefused("PR_HEAD_MOVED", HEAD_MOVED)   # branch deleted: not ours to recreate silently
+                # shortcut: with no recorded head, only the PR's last 100 commits are checked for other authors
+                git("fetch", "-q", "--depth", "100", "origin", f"refs/heads/{branch}")
+                authors = set(git("log", "--format=%ae", f"{base_sha}..{head}").stdout.decode().split())
+                if (expect_head or head) != head or authors - {BOT_EMAIL}:
+                    raise PublishRefused("PR_HEAD_MOVED", HEAD_MOVED)
+                tree = git("write-tree").stdout.decode().strip()
+                new = git(*ident, "commit-tree", tree, "-p", head, "-m", message).stdout.decode().strip()
+            else:
+                git(*ident, "commit", "-qm", message)
+                new = git("rev-parse", "HEAD").stdout.decode().strip()
+            git("push", "-q", f"--force-with-lease=refs/heads/{branch}:{head}", "origin", f"{new}:refs/heads/{branch}")
+            return new
         finally:
             shutil.rmtree(d, ignore_errors=True)
 
@@ -233,18 +258,24 @@ def publish(v: RunView, gh, default_branch: str) -> Result:
     target = v.issue.repo if gh.can_push(v.issue.repo) else gh.ensure_fork(v.issue.repo, login)
     owner, branch = target.split("/")[0], branch_name(v)
     title, body = v.approval.pr_title, pr_body(v)
-    gh.push_branch(target, v.base_sha, v.issue.repo, branch, diff, f"{title}\n\nPrepared with PatchPilot (AI-assisted, human-approved).")
+    # #103: once this run has pushed its branch, a revision is a new commit on top of it, never a rewrite
+    sha = gh.push_branch(target, v.base_sha, v.issue.repo, branch, diff, f"{title}\n\nPrepared with PatchPilot (AI-assisted, human-approved).",
+                         on_top=v.pr is not None, expect_head=v.pr.head_sha if v.pr else None)
     head = f"{owner}:{branch}"
     fork = None if target == v.issue.repo else owner
     link = compare_url(v.issue.repo, default_branch, owner, branch, title, body)
+    ref = lambda pr: PullRequestRef(url=pr["html_url"], number=pr["number"], head_branch=branch, fork_owner=fork, state="open", head_sha=sha)
     try:
+        if v.pr and v.pr.number:                            # #103: the run's own PR; never a second one
+            return Result("updated", ref(gh.update_pr(v.issue.repo, v.pr.number, title, body)))
         existing = gh.find_pr(v.issue.repo, head)           # idempotent: one open PR per run
         if existing:
-            pr = gh.update_pr(v.issue.repo, existing["number"], title, body)
-            return Result("updated", PullRequestRef(url=pr["html_url"], number=pr["number"], head_branch=branch, fork_owner=fork, state="open"))
+            return Result("updated", ref(gh.update_pr(v.issue.repo, existing["number"], title, body)))
         pr = gh.create_pr(v.issue.repo, head, default_branch, title, body)
     except Exception:
         pr = None   # C review #4: the branch IS pushed; never claim "nothing was published"
     if pr is None:
-        return Result("branch_only", PullRequestRef(head_branch=branch, fork_owner=fork, compare_url=link))
-    return Result("created", PullRequestRef(url=pr["html_url"], number=pr["number"], head_branch=branch, fork_owner=fork, state="open"))
+        if v.pr and v.pr.number:                            # pushed, but the body update failed: still the same PR
+            return Result("branch_only", v.pr.model_copy(update={"head_sha": sha}))
+        return Result("branch_only", PullRequestRef(head_branch=branch, fork_owner=fork, compare_url=link, head_sha=sha))
+    return Result("created", ref(pr))

@@ -361,7 +361,50 @@ class ReviseBody(BaseModel):
 
 @router.post("/api/runs/{run_id}/revise", response_model=RunView)
 def revise(run_id: str, body: ReviseBody, request: Request):
+    return _revise(_run(request, run_id), body.target, body.feedback)
+
+
+TEST_ASKS = {"missing_test", "test_quality"}
+
+
+def plan_request(plan: dict) -> tuple[str, str]:
+    """#103: the maintainer's own words are the request; the assistant's reading is only a hint."""
+    target = "test" if any(g["category"] in TEST_ASKS for g in plan["groups"]) else "fix"
+    lines = ["The maintainer reviewed the pull request and asked for these changes. Their words are the request; "
+             "the notes after them are an assistant's reading and may be wrong."]
+    for n, i in enumerate((i for g in plan["groups"] for i in g["items"]), 1):
+        where = f" ({i['path']}{':' + str(i['line']) if i.get('line') else ''})" if i.get("path") else ""
+        lines.append(f"{n}. {i['author'] or 'CI'}{where}: {(i['quote'] or '')[:1500]}")
+        hint = "; ".join(x for x in (i.get("meaning"), i.get("change")) if x)
+        if hint:
+            lines.append(f"   Hint: {hint[:800]}")
+    return target, "\n".join(lines)[:12000]
+
+
+@router.post("/api/runs/{run_id}/revise-from-feedback", response_model=RunView)
+def revise_from_feedback(run_id: str, request: Request):
+    """#103: revise using the saved revision plan from the PR page. The plan is used once."""
+    import json
     v = _run(request, run_id)
+    c = db.connect()
+    eid = db.get_kv(c, f"revision_plan:{run_id}")
+    try:
+        plan = json.loads(artifacts.get(eid)) if eid else None
+        target, text = plan_request(plan) if plan and plan.get("groups") else (None, None)
+    except (ValueError, KeyError, TypeError):
+        target = None
+    if target is None:
+        raise _err(409, "NO_PLAN", "Save a revision plan on the pull request page first.")
+    from backend.github.progress import tracked
+    if tracked(c, run_id).get("state") in ("merged", "closed"):
+        raise _err(409, "PR_DONE", "This pull request is merged or closed, so there's nothing to push to. Start a new run instead.")
+    v = _revise(v, target, text, plan_evidence_id=eid, plan_saved_at=plan.get("saved_at"))
+    c.execute("DELETE FROM kv WHERE key=?", (f"revision_plan:{run_id}",))   # consumed; the revision keeps its id
+    return v
+
+
+def _revise(v: RunView, target: str, feedback: str, **plan) -> RunView:
+    run_id = v.run_id
     if v.status not in (RunStatus.AWAITING_APPROVAL, RunStatus.PUBLISHED):
         raise _err(409, "NOT_REVISABLE", "Only a finished fix can be revised.")
     if set(v.publish_blockers) & PERMANENT_BLOCKERS:
@@ -371,7 +414,7 @@ def revise(run_id: str, body: ReviseBody, request: Request):
     _void(v, "revise")
     v.revisions.append(RevisionSummary(revision=v.revision, outcome=v.outcome, end_reason=v.end_reason,
                                        diff_hash=diff_hash(exact_diff(v)), finished_at=v.updated_at,
-                                       revise_target=body.target, feedback=body.feedback))
+                                       revise_target=target, feedback=feedback, **plan))
     v.revision += 1
     v.status, v.outcome, v.end_reason, v.readiness = RunStatus.REVISING, None, None, None
     c = db.connect()
