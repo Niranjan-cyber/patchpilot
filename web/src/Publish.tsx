@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { api, ApiError, useRun } from "./api";
 import { Loading, StatusIcon } from "./components";
 import { Modal } from "./ui";
-import { RUNS_CHANGED } from "./Progress";
+import FeedbackAssistant from "./FeedbackAssistant";
 
 type Me = { signed_in: boolean; login: string | null; oauth_ready: boolean };
 const ERR: Record<string, string> = {
@@ -187,36 +187,6 @@ function AskFirst({ run }: { run: string }) {
   );
 }
 
-type Feedback = { state: string | null; ci: string | null; last_activity_at: string | null; tracked: boolean;
-  items: { id: string; kind: "review" | "comment" | "ci"; what: string; author: string | null; at: string | null; url: string | null; new: boolean }[] };
-
-/** #101: what maintainers and CI said on GitHub, as last read by the 10-min poll. Opening this clears the My runs badge. */
-function MaintainerFeedback({ id }: { id: string }) {
-  const [f, setF] = useState<Feedback | null>(null);
-  const [err, setErr] = useState(false);
-  useEffect(() => {
-    api<Feedback>(`/api/runs/${id}/feedback`).then((x) => { setF(x); return api(`/api/runs/${id}/feedback/seen`, { method: "POST" }); })
-      .then(() => window.dispatchEvent(new Event(RUNS_CHANGED))).catch(() => setErr(true));
-  }, [id]);
-  if (err) return <p className="notice warn">Couldn't load feedback from GitHub. Status unavailable.</p>;
-  if (!f) return <p className="hint">Loading feedback…</p>;
-  if (!f.tracked) return <p className="hint">We haven't checked this pull request on GitHub yet. My runs checks it when you open it, and we check again every 10 minutes.</p>;
-  return (<>
-    {f.state === null && <p className="notice warn">GitHub didn't answer on the last check, so the pull request status is unavailable. The feedback below is from the check before.</p>}
-    {!f.items.length ? <p className="hint">No maintainer feedback yet.</p> : (
-      <ul className="feedback-list">
-        {f.items.map((i) => (
-          <li key={i.id} className={i.new ? "is-new" : undefined}>
-            <span className={`badge ${i.kind === "ci" ? "badge-bad" : "badge-warn"}`}>{i.what}</span>
-            <span>{i.author ?? "GitHub Actions"}{i.at && <span className="hint">, {new Date(i.at).toLocaleString()}</span>}</span>
-            {i.new && <strong className="new-tag">New</strong>}
-            {i.url && <a href={i.url}>Open on GitHub</a>}
-          </li>
-        ))}
-      </ul>)}
-  </>);
-}
-
 export function PrOpened() {
   const { id = "" } = useParams();
   const { run, events, error } = useRun(id);
@@ -251,7 +221,7 @@ export function PrOpened() {
         {run.pr?.fork_owner && <p className="hint">From your fork, {run.pr.fork_owner}/{run.issue.repo.split("/")[1]}.</p>}
       </div>
       <h2>Maintainer feedback</h2>
-      <MaintainerFeedback id={id} />
+      <FeedbackAssistant id={id} />
       <h2>What happens next</h2>
       <ol className="next">
         <li>Open your draft pull request on GitHub and read it once more.</li>
