@@ -92,6 +92,7 @@ GROQ_MODEL = "groq/openai/gpt-oss-120b"
 
 # shortcut: per-process memory of providers out until a known reset; lost on worker restart (harmless: one extra 429).
 _out: dict = {}
+_missing: set = set()   # models the provider says don't exist
 
 
 def chain(kind: str) -> list[str]:
@@ -152,9 +153,10 @@ def complete(messages: list[dict], *, run_id: str, role: str, kind: str = "agent
         _completion = litellm.completion
     msgs = [{**m, "content": redact(m["content"])} for m in messages]
     now, pauses = _db.now(), []
-    models = [m for m in chain(kind) if not (m in _out and _out[m] > now)]   # out until a known reset: don't ask again
-    if not models:
-        raise QuotaPause(min(_out[m] for m in chain(kind)), chain(kind)[0].split("/")[0])
+    models = [m for m in chain(kind) if m not in _missing and not (m in _out and _out[m] > now)]   # out until a known reset: don't ask again
+    if not models:   # a known reset only from a real quota; a missing model has none, so unknown stays None
+        resets = [_out[m] for m in chain(kind) if m in _out and _out[m] > now]
+        raise QuotaPause(min(resets) if resets else None, chain(kind)[0].split("/")[0])
     for i, model in enumerate(models):
         for again in (True, False):
             try:     # back off on overload only when no fallback is left
@@ -212,4 +214,8 @@ def _raise_classified(e, model, log):
                 retry = str(int(secs) + 1)
             raise QuotaPause(resume_at(_db.now(), retry, daily_quota=daily and model.startswith("gemini")),
                              model.split("/")[0]) from e
+        if "NotFound" in type(e).__name__ or "does not exist" in str(e):   # provider dropped the model: try the next one
+            log("model_missing")
+            _missing.add(model)   # not asked again until restart; kept out of _out so no resume time is ever guessed
+            raise QuotaPause(None, model.split("/")[0]) from e
         log("error"); raise e
