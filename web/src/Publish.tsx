@@ -189,9 +189,9 @@ function AskFirst({ run }: { run: string }) {
 
 /** The PR's state as last read from GitHub (stored; no GitHub call), for the heading. The assistant below marks "seen". */
 function usePrState(id: string) {
-  const [f, setF] = useState<{ state: string | null } | null>(null);
+  const [f, setF] = useState<{ state: string | null; tracked: boolean } | null>(null);
   const [err, setErr] = useState(false);
-  useEffect(() => { api<{ state: string | null }>(`/api/runs/${id}/feedback`).then(setF).catch(() => setErr(true)); }, [id]);
+  useEffect(() => { api<{ state: string | null; tracked: boolean }>(`/api/runs/${id}/feedback`).then(setF).catch(() => setErr(true)); }, [id]);
   return { f, err };
 }
 

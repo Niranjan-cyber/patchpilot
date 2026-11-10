@@ -280,7 +280,7 @@ def feedback_assist(run_id: str, request: Request):
     v = db.get_run(c, run_id)
     if not (v.pr and v.pr.number):
         return {"state": "no_pr", "items": [], "model_ok": None, "plan": None}
-    snap = progress.refresh(c, [v]).get(run_id) or {}
+    snap = progress.refresh(c, [v], budget=8).get(run_id) or {}
     if snap.get("state") is None and not snap.get("feedback"):
         snap = {}                                   # never read: unavailable, not "no feedback"
     new = {f["id"] for f in progress.new_feedback(c, run_id, snap)} if snap else set()
