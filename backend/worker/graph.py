@@ -64,8 +64,8 @@ def _step_node(step: StepId):
             run.gates[res.gate] = res.status; out["gates"] = {res.gate: res.status.value}
             db.emit(c, rid, "gate.result", step.value, run.revision, gate=res.gate, status=res.status.value,
                     reason=res.reason, evidence_ids=res.evidence_ids)
-            if res.status in STOP_EARLY.get(res.gate, ()):
-                out["end_reason"] = EndReason.RETRIES_EXHAUSTED.value
+            if res.status in STOP_EARLY.get(res.gate, ()):   # a reason the step recorded (token_limit) wins: it's why it stopped
+                out.setdefault("end_reason", EndReason.RETRIES_EXHAUSTED.value)
         db.save_run(c, run)
         db.emit(c, rid, "step.finished", step.value, run.revision, status=status.value, headline=line,
                 evidence_ids=res.evidence_ids if res else [])

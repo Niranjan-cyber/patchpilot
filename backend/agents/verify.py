@@ -139,6 +139,7 @@ def verify(ctx: StepContext) -> GateResult:
         ctx.scratch["headline"] = "In a brand-new sandbox, the new test passes twice and every test that passed before still passes."
         _hidden_variant(ctx)
         return res
-    ctx.scratch["headline"] = "The fix didn't pass in a fresh sandbox after every attempt, so this is a triage report."
+    if not ctx.scratch.get("end_reason"):   # a fixer stopped by its budget keeps its own headline: attempts weren't used up
+        ctx.scratch["headline"] = "The fix didn't pass in a fresh sandbox after every attempt, so this is a triage report."
     return GateResult(gate="G5", status=CheckStatus.FAILED,   # flaky (inconclusive) after all attempts also ends as triage
                       reason=res.reason, evidence_ids=res.evidence_ids)
