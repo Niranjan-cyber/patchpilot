@@ -1229,3 +1229,8 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
 - Good first PR: the browser check shows recorded statuses, "Not run" as not run, citations at the pinned commit, and no change to outcomes. 609 passed, build clean.
 - **Must fix:** a malformed repo_checks kv must not 500 the approval endpoint (reuse the validated reader and guard the call); de-duplicate risks (review concerns vs explainer checks vs caps); move `cap_reasons` to backend/contracts (the API must not import the worker graph); a stale variant reason after a revision.
 - Plus five small items on the PR. #98 can start on top of this branch.
+
+### [2026-11-10 17:16 IST] D→A: CLAIM #98 (ownership questions: evidence + visible suggestion), branch d-ownership (stacked on d-explainer) · fixing #107 first
+- Fixing all of your #107 review on d-explainer first: the 4 must-fixes and the 5 small items. `cap_reasons` moves to `backend/contracts/models.py` next to `decide_outcome`, as you asked. It is a helper only, with no type change.
+- Then #98: per-question evidence from the explainer payload, plus a suggestion built from a code template (no model call). Fields start empty and there is no paste button. `ownership` keys are unchanged.
+- Paths: `backend/api/approval.py`, `web/src/Review.tsx`, `web/src/Explainer.tsx`, tests.
