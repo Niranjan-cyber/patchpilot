@@ -3,7 +3,7 @@ from fastapi.testclient import TestClient
 
 from backend import artifacts, db
 from backend.api import approval, main
-from backend.contracts.models import (CheckStatus, IssueSpec, Outcome, Patch, PublishBlocker, RepoPolicy, RunStatus,
+from backend.contracts.models import (CheckStatus, IssueSpec, Location, Outcome, Patch, PublishBlocker, RepoPolicy, RunStatus,
                                       SGReport)
 from backend.github.reader import IssueCheck
 
@@ -262,6 +262,51 @@ def test_citation_paths_are_quoted(ready):
     assert explainer(b, rid)["root_cause"]["citations"][0]["url"] == "https://github.com/o/r/blob/abc/src/a%20b%231%3F.py#L3"
 
 
+# #98: a visible suggestion per ownership question, from a code template over recorded fields only (no model call)
+def suggestions(b, rid):
+    return b.get(f"/api/runs/{rid}/approval").json()["help"]["suggestions"]
+
+
+def test_without_a_diagnosis_the_suggestion_says_the_cause_is_unknown(ready):
+    s = suggestions(*ready[:2])
+    assert set(s) == set(OWN)   # the same three keys the approval takes
+    assert "unknown" in s["why_this_fix"] and "src/a.py" in s["why_this_fix"]
+    assert "Nothing was recorded" in s["what_was_broken"]   # the fixture recorded no expected/actual/test
+    assert "No regression test was recorded" in s["what_the_test_proves"]
+
+
+def test_suggestions_use_only_recorded_fields(ready):
+    from backend.contracts.models import Diagnosis, IssueSpec, ReproTest, Verification
+    b, rid, _ = ready
+    c = db.connect(); v = db.get_run(c, rid)
+    v.issue = IssueSpec(html_url=URL, repo="o/r", number=1, title="t", expected="x is 2", actual="x is 1")
+    v.diagnosis = Diagnosis(hypothesis="x is assigned 1.", locations=[Location(path="src/a.py", line=1)])
+    v.repro = ReproTest(test_diff_id=v.patch.test_diff_id, test_ids=["tests/test_a.py::test"], expected_failure="assert 1 == 2",
+                        runs_on_base=[CheckStatus.FAILED, CheckStatus.FAILED], uncovered=["negative x"])
+    v.verify = Verification(new_test_runs=[])
+    v.gates = {"G3": CheckStatus.PASSED, "G5": CheckStatus.NOT_RUN}
+    db.save_run(c, v)
+    s = suggestions(b, rid)
+    assert s["what_was_broken"] == ('The issue expects: x is 2. Instead: x is 1. The new test shows it: on the original code it fails '
+                                    'with "assert 1 == 2".')
+    assert s["why_this_fix"] == "PatchPilot's diagnosis (a claim, check it in the diff): x is assigned 1. The change edits src/a.py."
+    assert s["what_the_test_proves"] == ("The new test tests/test_a.py::test fails on the original code (2 of 2 runs) and was not "
+                                         "shown to pass with the fix (verification: not run). The hidden variant wasn't run. "
+                                         "It doesn't check: negative x.")
+
+
+def test_ownership_answers_stay_the_users_own(ready):
+    # contracts §2.3: the suggestion is shown, never submitted for the user; the approval keeps the typed answers
+    b, rid, _ = ready
+    ctx = b.get(f"/api/runs/{rid}/approval").json()
+    hints = ctx["help"]["suggestions"]
+    assert all(hints[k] for k in OWN)   # suggestions exist, yet empty answers are still refused
+    empty = {k: "" for k in OWN}
+    assert b.post(f"/api/runs/{rid}/approve", json=body(ctx, ownership=empty)).status_code == 422
+    v = b.post(f"/api/runs/{rid}/approve", json=body(ctx)).json()
+    assert v["approval"]["ownership"] == OWN and all(v["approval"]["ownership"][k] != hints[k] for k in OWN)
+
+
 def test_a_lint_concern_stays_when_no_failed_row_shows_it(ready, monkeypatch):
     # no repo_checks record: the only place the user can see the lint failure is the Reviewer's concern
     from backend.agents import lint
@@ -295,3 +340,64 @@ def test_a_flaky_baseline_is_not_hidden_behind_the_partial_cap(ready):
     db.save_run(c, v)
     ids = [r.get("id") or r.get("reason") for r in explainer(b, rid)["risks"]]
     assert "baseline" in ids and "baseline_partial" in ids
+
+
+
+def _run_with(b, rid, **kw):
+    from backend.contracts.models import Diagnosis, IssueSpec, ReproTest, Verification
+    c = db.connect(); v = db.get_run(c, rid)
+    v.issue = IssueSpec(html_url=URL, repo="o/r", number=1, title="t", expected=kw.get("expected"), actual=kw.get("actual"))
+    v.repro = ReproTest(test_diff_id=v.patch.test_diff_id, test_ids=kw.get("tests", ["tests/test_a.py::test"]),
+                        expected_failure="assert 1 == 2", runs_on_base=[CheckStatus.FAILED] * 2, uncovered=kw.get("uncovered", []))
+    v.verify = Verification(new_test_runs=[CheckStatus.PASSED] * 2, hidden_variant=kw.get("variant", CheckStatus.PASSED),
+                            regressions=kw.get("regressions", []))
+    v.diagnosis = Diagnosis(hypothesis=kw["claim"]) if "claim" in kw else None
+    v.gates = {"G3": kw.get("g3", CheckStatus.PASSED), "G5": CheckStatus.PASSED}
+    db.save_run(c, v)
+    return suggestions(b, rid)
+
+
+def test_q1_claims_the_failure_only_when_reproduction_passed(ready):
+    b, rid, _ = ready
+    s = _run_with(b, rid, expected="x is 2", actual="x is 1", g3=CheckStatus.INCONCLUSIVE)
+    assert s["what_was_broken"] == ('The issue expects: x is 2. Instead: x is 1. The test was written to fail with "assert 1 == 2", '
+                                    "but that wasn't confirmed (reproduction: inconclusive).")
+    s = _run_with(b, rid, expected="x is 2.", actual="x is 1.")   # a recorded period isn't doubled
+    assert s["what_was_broken"] == ('The issue expects: x is 2. Instead: x is 1. The new test shows it: on the original code it '
+                                    'fails with "assert 1 == 2".')
+
+
+def test_q1_uses_whichever_side_was_recorded(ready):
+    b, rid, _ = ready
+    assert _run_with(b, rid, expected="x is 2")["what_was_broken"].startswith(
+        "The issue expects: x is 2. The issue doesn't say what happens instead.")
+    assert _run_with(b, rid, actual="x is 1", g3=CheckStatus.NOT_RUN)["what_was_broken"].startswith(
+        "Instead of the right behaviour (the issue doesn't say what that is): x is 1.")
+
+
+def test_q3_says_the_bug_cant_come_back_only_when_every_check_backs_it(ready):
+    b, rid, _ = ready
+    strong = "so the bug can't come back without it failing"
+    assert strong in _run_with(b, rid)["what_the_test_proves"]
+    s = _run_with(b, rid, variant=CheckStatus.FAILED)["what_the_test_proves"]
+    assert strong not in s and s.endswith("but the fix fails a hidden variant of the test, so it may only cover the exact tested case.")
+    s = _run_with(b, rid, regressions=["tests/test_b.py::t"])["what_the_test_proves"]
+    assert strong not in s and "1 existing test broke" in s
+    s = _run_with(b, rid, uncovered=None)["what_the_test_proves"]
+    assert strong not in s and s.endswith("Coverage of the issue wasn't checked.")
+
+
+def test_q3_names_every_test_and_q2_needs_a_real_claim(ready):
+    b, rid, _ = ready
+    s = _run_with(b, rid, tests=["t::a", "t::b"], claim="  ")
+    assert s["what_the_test_proves"].startswith("The new tests t::a, t::b fail on the original code (2 of 2 runs)")
+    assert s["why_this_fix"].startswith("The cause is unknown")
+    assert _run_with(b, rid, claim="x is assigned 1")["why_this_fix"].startswith(
+        "PatchPilot's diagnosis (a claim, check it in the diff): x is assigned 1. The change edits src/a.py.")
+
+
+def test_failing_suggestions_leave_the_explainer(ready, monkeypatch):
+    b, rid, _ = ready
+    monkeypatch.setattr(approval, "suggestions", lambda *a: 1 / 0)
+    h = b.get(f"/api/runs/{rid}/approval").json()["help"]
+    assert h["suggestions"] is None and h["explainer"]["verification"]
