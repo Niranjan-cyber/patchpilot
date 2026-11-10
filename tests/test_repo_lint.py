@@ -202,3 +202,11 @@ def test_ruff_format_passes_a_clean_file():
 @needs_pp_base
 def test_no_ruff_config_means_no_format_row():
     assert "ruff format" not in _in_pp_base({"a.py": "x=[1,2 ,3]\n"}, "a.py")   # not detected: never shown as a pass
+
+
+def test_new_ruff_format_output_is_read_as_a_failure():
+    # newer ruff prints a diagnostic instead of "Would reformat: path" (captured from ruff 0.17.3)
+    out = ("@@PP_TOOL ruff format|ruff format --check --no-cache -- a.py b.py\nunformatted: File would be reformatted\n --> a.py:1:2\n"
+           "  |\n  - x=[1,2 ,3]\n1 + x = [1, 2, 3]\n  |\n\n1 file would be reformatted\n@@PP_EXIT 1\n")
+    row = L.rows("", out)[0]
+    assert row["status"] == "FAIL" and row["new"] == ["a.py: would reformat"]

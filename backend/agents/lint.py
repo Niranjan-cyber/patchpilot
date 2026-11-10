@@ -65,19 +65,24 @@ RUN_HOOKS = {"ruff", "ruff-format", "ruff-check", "black", "flake8", "mypy", "py
 # "path:12:5: msg", "path:12: error: msg", "  /src/path:12:5 - error: msg", "Would reformat: path"
 _LOC = re.compile(r"^\s*(?:/src/|\./)?(?P<file>[^\s:]+\.pyi?):\d+(?::\d+)?:?\s*(?:-\s*)?(?P<msg>.+)$")
 _FMT = re.compile(r"^(?:Would reformat|would reformat):?\s*(?:/src/|\./)?(?P<file>\S+\.pyi?)$")
+# newer ruff (seen in 0.17.3) instead prints "unformatted: File would be reformatted" and then " --> path:1:2" (#99)
+_UNFORMATTED, _ARROW = "unformatted:", re.compile(r"^\s*-->\s*(?:/src/|\./)?(?P<file>\S+\.pyi?):\d+")
 
 
 def parse(out: str) -> dict[str, dict]:
     """tool -> {command, exit_code, problems: Counter of (file, message) without line numbers, last: the last output line}.
     Line numbers are dropped so a moved line isn't a new problem."""
-    res, tool = {}, None
+    res, tool, unformatted = {}, None, False
     for line in out.splitlines():
         if line.startswith(SEP):
             name, _, cmd = line[len(SEP):].partition("|")
             tool = name.strip(); res[tool] = {"command": cmd.strip(), "exit_code": None, "problems": Counter(), "last": ""}
         elif line.startswith(EXIT) and tool:
             res[tool]["exit_code"] = int(line[len(EXIT):].strip() or -1); tool = None
+        elif tool and unformatted and (m := _ARROW.match(line)):
+            res[tool]["problems"][(m.group("file"), "would reformat")] += 1; unformatted = False
         elif tool:
+            unformatted = line.startswith(_UNFORMATTED)
             if (m := _LOC.match(line) or _FMT.match(line)):
                 res[tool]["problems"][(m.group("file"), m.groupdict().get("msg") or "would reformat")] += 1
             elif line.strip():
