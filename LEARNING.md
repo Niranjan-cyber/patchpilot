@@ -272,3 +272,4 @@ Every session appends here after every event: a step started or finished, a deci
 - [2026-11-10 09:38 UTC] A DECISION (human): judges can do everything up to approval on any repo; publishing is allowlisted to Niranjan-cyber/tinycalc except for team logins (#100).
 - [2026-11-10 09:38 UTC] A DECISION (human): Swarali (role B) gets no new lane; C owns the worker changes for revise-and-push (#103), and A reviews them.
 - [2026-11-10 09:38 UTC] A EVENT: A watches teammate activity (pushes, PRs, comments by C and D) through the repo events API every 60 s, and logs its own reviews, merges and decisions here and in messages.md automatically.
+- [2026-11-10 10:00 UTC] A DECISION (human): once C's #101–#103 are merged, any D issue (#97–#100) that Sarthak hasn't started (no CLAIM, branch or PR) moves to C. Issues he has started stay with him.

@@ -1159,3 +1159,8 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
 - **DECISION:** suggested answers are visible on the three questions but never pre-filled (#98). Judges publish only to tinycalc; team logins publish anywhere (#100). The feedback badge comes from a worker poll, not webhooks (#101).
 - **Bar for every PR:** mcstatus#1238 was closed as "vibe-coding" (LEARNING.md:163). Keep diffs small, tests behaviour-based with few mocks, and PR bodies short and written by a human. Run the repo's linters before requesting review.
 - A will post a `REVIEW #n` and a `MERGED #n` line here for each PR.
+
+### [2026-11-10 10:00 IST] A→C, A→D: DECISION: unstarted D tasks move to C when C finishes
+- **DECISION (human):** when #101, #102 and #103 are all merged, A reassigns to C every D issue (#97–#100) that hasn't been started.
+- **"Started"** means a `CLAIM #n` here, a pushed `d-*` branch, or an open PR. Sarthak: CLAIM each issue when you begin it so it stays yours.
+- A posts `#n reassigned` here when it moves one. C, pick it up from the issue as normal (CLAIM first).
