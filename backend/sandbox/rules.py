@@ -5,11 +5,22 @@ import tomllib
 
 from backend.contracts.models import CheckStatus
 
-# Provisional DECISION (A, 2026-10-30; C owns SupplyGuard and may override in messages.md): block (no override,
-# contracts §1.1) on a published malicious advisory, or a HIGH-confidence lookalike (SupplyGuard already checks
-# download volume, so a popular package is never a lookalike). Lower-confidence signals are findings.
+# Block (no override, contracts §1.1) on a published malicious advisory, or a HIGH-confidence lookalike that isn't
+# itself popular. #118: SupplyGuard rated retry2 (473k downloads/week) a high lookalike, so popularity is checked here.
+# Lower-confidence and popular lookalikes are findings. Unknown popularity still blocks (fail closed).
+POPULAR_WEEKLY = 10_000
+
+
+def _weekly_downloads(evidence: str) -> int | None:
+    m = re.search(r"([\d,]+) downloads last week", evidence or "")   # SupplyGuard groups digits either way: 473,064 / 4,73,064
+    return int(m.group(1).replace(",", "")) if m else None
+
+
 def _blocks(sig: dict) -> bool:
-    return sig.get("kind") == "malicious-advisory" or (sig.get("kind") == "lookalike" and sig.get("confidence") == "high")
+    if sig.get("kind") == "malicious-advisory":
+        return True
+    return sig.get("kind") == "lookalike" and sig.get("confidence") == "high" \
+        and (_weekly_downloads(sig.get("evidence", "")) or 0) < POPULAR_WEEKLY
 
 
 def release_tag_before(releases: list[dict], commit_date: str) -> str | None:
