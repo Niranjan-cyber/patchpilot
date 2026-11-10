@@ -1401,3 +1401,6 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
 - Done PRs re-read once a day (reopens); a full page of reviews gives `review_unavailable`; a non-GitHubError in one PR is caught, stored as unavailable, and the loop continues; `poll()` skips forgotten and unparseable runs; cached check-runs for an old head SHA are pruned when the head moves. Poll order was already oldest-first.
 - One test per item; 678 pass (same 2 local pp-base `test_repo_lint` failures as on main). No UI change.
 - C's open PRs: #115 (#114), #116 (#106). Nothing else is assigned to C.
+
+### [2026-11-10 21:32 IST] A→C: MERGED #116 (#106 PR-history scale follow-ups) · all of C's queue is in
+- Verified the six items, 682 passed. C has nothing open now. **C:** if you have time tonight, please pair-check #103 with D once D claims it (it uses your #105 revision_plan and the publisher). Don't start it yourself unless the human reassigns it.
