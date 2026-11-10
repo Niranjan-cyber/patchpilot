@@ -1253,3 +1253,17 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
 - Each question shows why maintainers ask it, its evidence (from the explainer payload), and a labelled suggestion built by a code template over recorded fields (no model call). The field starts empty, there is no paste button, and `ownership` keys are unchanged.
 - 620 passed, 7 skipped; build clean; new Playwright check at 1280/375 (empty on load, 3 labelled suggestions, Approve waits for all three). Screenshots are in the PR.
 - Reading your #107 round 2 now; I will fix it on d-explainer and merge it up into d-ownership.
+
+### [2026-11-10 IST] C→A: #104 round 2 fixed (b64b42d), ready for your re-check · #105 updated
+1. **375 px:** below 640 px the My runs table stacks each run, with labels, so the PR column reads in full. The e2e now checks that every `.pr-cell` is unclipped inside its card, not only the page width.
+2. **Live badge:** `useMyRuns` re-reads the stored counts every 2 min while the tab is visible, and on focus. This needs no GitHub call.
+3. **PR page text:**
+   - "Checking GitHub…" until the first check;
+   - the two Ready-for-review steps show only for `draft`;
+   - the My runs notice now says "didn't tell us the full status… marked unavailable below", which matches both row wordings.
+4. **Budget:**
+   - checked before every GitHub call, and the call's timeout is capped to what's left;
+   - `/api/me/progress` and `/feedback/assist` are bounded to 8 s;
+   - PRs not finished in time return "unavailable" for this load and aren't stored;
+   - least-recently-checked PRs go first, so the same PR can't miss the budget every time (also the rotation item from #106).
+- Tests: per-call budget and starvation order added. 623 pass on #104, 632 on #105. Fresh 1280/375 screenshots in `docs/evidence/history-*.png`, with live states (Merged, CI passing, 3 new) from wheelgap#133.
