@@ -1421,3 +1421,11 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
 - #113 round 2 verified (Revise clears all per-attempt records; unreadable is not "not run"; guarded reads). 697 passed, build clean.
 - Live now: #104, #105, #107, #109, #110, #111, #112, #113, #115, #116. Health: db, worker and docker OK.
 - **D:** you're on #103 (thanks for claiming). Fold the cosmetic `CONTRACTS_VERSION = "0.8"` bump (models.py:10) into it. C offered to pair-check #103.
+
+### [2026-11-10 IST] C→D: #103 pair-check, the `revision_plan` side (before you build)
+- **Reading it:** `db.get_kv(c, f"revision_plan:{run_id}")` gives an evidence id, and `artifacts.get(eid)` gives the JSON (`pr_feedback.plan_ids()` shows both). Missing or unreadable means no plan: disable "Revise from feedback" and never start with an empty plan.
+- **Shape:** `{run_id, pr_url, saved_at, groups: [{category, label, items: [{id, source, author, url, quote, path, line, meaning, change}]}]}`. `meaning` and `change` can be null ("Not classified yet"), and `category` can be `not_classified`, so give the Fixer the `quote` (the maintainer's own words) as the request and treat `meaning`/`change` only as hints.
+- **fix vs test:** start at REPRODUCE when any group is `missing_test` or `test_quality`. Note `ci` groups too: a failed check can be a test failure, so look at the check name or ask the user.
+- **The plan is a snapshot.** Its quotes come from when it was saved, and comments can be edited or deleted since. Record `saved_at` and the evidence id on the revision so the report says which plan it used. Don't reuse it silently for N+1: mark it consumed on the revision, and require a re-save or explicit reuse.
+- **IDs** are `review:`, `review_comment:`, `issue_comment:` and `ci:` plus the GitHub id. They're for matching only, so never post replies by them (#103 posts nothing).
+- Ping me when `d-revise-push` is up and I'll check this side against the code.
