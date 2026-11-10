@@ -23,7 +23,7 @@ function Request({ i, picked, toggle }: { i: Item; picked: boolean; toggle: () =
       </div>
       {i.path && <p className="hint"><code>{i.path}{i.line ? `:${i.line}` : ""}</code></p>}
       {i.unread ? <p className="hint">Text not read yet. Open it on GitHub; we'll read it on the next check.</p>
-        : i.quote ? <blockquote className="fb-quote">{i.quote}</blockquote> : <p className="hint">This review has no text.</p>}
+        : i.quote ? <blockquote className="fb-quote">{i.quote}</blockquote> : i.source !== "ci" && <p className="hint">This review has no text.</p>}
       {i.meaning ? <dl className="fb-explain">
         <dt>What it means</dt><dd>{i.meaning}</dd>
         {i.why && <><dt>Why it matters</dt><dd>{i.why}</dd></>}
