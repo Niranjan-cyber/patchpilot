@@ -8,6 +8,7 @@ import time
 from datetime import timedelta
 
 from backend import db
+from backend.github import progress
 from backend.contracts.models import CheckStatus, RunStatus, StepId
 import backend.sandbox.steps  # noqa: F401  registers PREFLIGHT/SETUP/BASELINE
 from backend.worker.graph import build
@@ -136,6 +137,10 @@ def main():
     while True:
         if time.time() - last_reap > 600:
             reap(c); last_reap = time.time()
+            try:     # #101: maintainer feedback badge comes from this poll, not webhooks
+                progress.poll(c)
+            except Exception as e:
+                print(f"PR poll failed: {e!r}", flush=True)
         db.put_kv(c, "worker_heartbeat", db.now().isoformat())
         job = lease_job(c)
         if job:

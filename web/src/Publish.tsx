@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { api, ApiError, PUBLISH_LIMITED, useRun } from "./api";
 import { Loading, StatusIcon } from "./components";
 import { Modal } from "./ui";
+import { RUNS_CHANGED } from "./Progress";
 
 type Me = { signed_in: boolean; login: string | null; oauth_ready: boolean };
 const ERR: Record<string, string> = {
@@ -191,9 +192,51 @@ function AskFirst({ run, limited }: { run: string; limited: boolean }) {
   );
 }
 
+type Feedback = { state: string | null; ci: string | null; last_activity_at: string | null; tracked: boolean;
+  items: { id: string; kind: "review" | "comment" | "ci"; what: string; author: string | null; at: string | null; url: string | null; new: boolean }[] };
+
+/** #101: what maintainers and CI said, as last read from GitHub. Marks seen only the items it showed, so anything that
+ * arrives meanwhile keeps its badge; a failed "seen" is silent and never hides feedback that loaded. */
+function useFeedback(id: string) {
+  const [f, setF] = useState<Feedback | null>(null);
+  const [err, setErr] = useState(false);
+  useEffect(() => {
+    api<Feedback>(`/api/runs/${id}/feedback`).then((x) => {
+      setF(x);
+      api(`/api/runs/${id}/feedback/seen`, { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: x.items.map((i) => i.id) }) })
+        .then(() => window.dispatchEvent(new Event(RUNS_CHANGED))).catch(() => null);
+    }).catch(() => setErr(true));
+  }, [id]);
+  return { f, err };
+}
+
+function MaintainerFeedback({ f, err }: { f: Feedback | null; err: boolean }) {
+  if (err) return <p className="notice warn">Couldn't load feedback from GitHub. Status unavailable.</p>;
+  if (!f) return <p className="hint">Loading feedback…</p>;
+  if (!f.tracked) return <p className="hint">We haven't checked this pull request on GitHub yet. My runs checks it when you open it, and we check again every 10 minutes.</p>;
+  return (<>
+    {f.state === null && <p className="notice warn">GitHub didn't answer on the last check, so the pull request status is unavailable. The feedback below is from the check before.</p>}
+    {f.state === "review_unavailable" && <p className="notice warn">We couldn't read the reviews on the last check, so the review status is unavailable. Earlier feedback is kept below.</p>}
+    {!f.items.length ? <p className="hint">No maintainer feedback yet.</p> : (
+      <ul className="feedback-list">
+        {f.items.map((i) => (
+          <li key={i.id} className={i.new ? "is-new" : undefined}>
+            <span className={`badge ${i.kind === "ci" ? "badge-bad" : "badge-warn"}`}>{i.what}</span>
+            <span>{i.author ?? "GitHub Actions"}{i.at && <span className="hint">, {new Date(i.at).toLocaleString()}</span>}</span>
+            {i.new && <strong className="new-tag">New</strong>}
+            {i.url && <a href={i.url}>Open on GitHub</a>}
+          </li>
+        ))}
+      </ul>)}
+  </>);
+}
+
 export function PrOpened() {
   const { id = "" } = useParams();
   const { run, events, error } = useRun(id);
+  const fb = useFeedback(id);
+  const st = fb.f?.state;          // what GitHub says now; the publish event only knows what we opened
   const fin = [...events].reverse().find((e) => e.type === "publish.finished")?.payload as Record<string, string> | undefined;
   if (error) return <section className="panel failed"><h1>Couldn't load this run</h1><p>{error.message}</p><Link className="button secondary" to="/my-runs">My runs</Link></section>;
   if (!run) return <Loading label="Loading the pull request…" />;
@@ -217,20 +260,29 @@ export function PrOpened() {
   return (
     <section className="check">
       <div className="chapter success">
-        <span className="success-mark" aria-hidden />
-        <h1>{fin.status === "updated" ? "Your draft pull request was updated" : "Draft pull request opened"}</h1>
-        <p className="lede">On {run.issue.repo}, for issue #{run.issue.number}. It's a draft, so nothing merges until a maintainer decides.</p>
+        {st !== "closed" && <span className="success-mark" aria-hidden />}
+        <h1>{st === "merged" ? "Your pull request was merged" : st === "closed" ? "Your pull request was closed"
+          : fin.status === "updated" ? "Your pull request was updated" : st === "draft" ? "Draft pull request opened" : "Pull request opened"}</h1>
+        <p className="lede">On {run.issue.repo}, for issue #{run.issue.number}. {st === "merged" ? "A maintainer merged it."
+          : st === "closed" ? "A maintainer closed it without merging. That isn't automatically a failure."
+          : st === "draft" ? "It's a draft, so nothing merges until a maintainer decides."
+          : st ? "A maintainer decides whether to merge it." : fb.err || fb.f?.tracked ? "We couldn't read its current status on GitHub."
+          : "Checking GitHub…"}</p>
         <a className="button" href={fin.pr_url}>Open on GitHub</a>
         <p className="pr-url"><code>{fin.pr_url}</code></p>
         {run.pr?.fork_owner && <p className="hint">From your fork, {run.pr.fork_owner}/{run.issue.repo.split("/")[1]}.</p>}
       </div>
+      <h2>Maintainer feedback</h2>
+      <MaintainerFeedback {...fb} />
+      {st !== "merged" && st !== "closed" && <>
       <h2>What happens next</h2>
       <ol className="next">
+        {st === "draft" && <>
         <li>Open your draft pull request on GitHub and read it once more.</li>
-        <li>When you're happy, click <strong>Ready for review</strong> on GitHub.</li>
+        <li>When you're happy, click <strong>Ready for review</strong> on GitHub.</li></>}
         <li>A maintainer may ask for changes. That's normal.</li>
         <li>If they do, come back and use <Link to={`/runs/${id}/review`}>Revise</Link>; we'll update the same pull request.</li>
-      </ol>
+      </ol></>}
       <p className="hint">Maintainers decide whether to merge. A closed pull request isn't automatically a failure.</p>
       <div className="row"><Link className="button secondary" to={`/runs/${id}`}>Back to the run</Link><Link className="button secondary" to="/my-runs">My runs</Link></div>
     </section>
