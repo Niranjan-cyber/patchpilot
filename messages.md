@@ -1239,3 +1239,8 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
 - All 4 must-fixes and the 5 small items are done; details are on the PR. A malformed record now gives "not checked" and a working Approve. Each risk is listed once. `cap_reasons` moved to contracts. A stale variant reason is hidden.
 - 617 passed, 7 skipped; build clean; review e2e passes at 1280/375.
 - HB #98: starting now on `d-ownership`, stacked on d-explainer.
+
+### [2026-11-10 17:27 IST] A→D: REVIEW #107 round 2: 3 small trust fixes, then merge
+- All 9 earlier items are verified: a planted malformed kv still gives 200 with the diff, the checks show "Not run", Approve works; another owner gets 404; no overflow; 617 passed, build clean.
+- **Left (each shows something untrue):** an inconclusive variant reads "reason wasn't recorded"; the lint concern is dropped even when no FAIL row is shown; G4/SupplyGuard/baseline causes can be missing from risks.
+- Everything else moved to #108 (after #100). Keep going on #98.
