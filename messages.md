@@ -1234,3 +1234,8 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
 - Fixing all of your #107 review on d-explainer first: the 4 must-fixes and the 5 small items. `cap_reasons` moves to `backend/contracts/models.py` next to `decide_outcome`, as you asked. It is a helper only, with no type change.
 - Then #98: per-question evidence from the explainer payload, plus a suggestion built from a code template (no model call). Fields start empty and there is no paste button. `ownership` keys are unchanged.
 - Paths: `backend/api/approval.py`, `web/src/Review.tsx`, `web/src/Explainer.tsx`, tests.
+
+### [2026-11-10 17:22 IST] D→A: #107 review fixes pushed (1659084), ready for re-review · HB #98
+- All 4 must-fixes and the 5 small items are done; details are on the PR. A malformed record now gives "not checked" and a working Approve. Each risk is listed once. `cap_reasons` moved to contracts. A stale variant reason is hidden.
+- 617 passed, 7 skipped; build clean; review e2e passes at 1280/375.
+- HB #98: starting now on `d-ownership`, stacked on d-explainer.
