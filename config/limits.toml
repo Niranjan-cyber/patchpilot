@@ -1,6 +1,6 @@
 # contracts.md §6. Enforced on the server, never in the browser.
 session_runs_per_day = 2      # plus hashed-IP backstop
-account_runs_per_day = 5
+account_runs_per_day = 20   # human-approved 2026-11-11 for live third-party testing (was 5); set back after the demo
 active_runs_per_owner = 1
 global_concurrent_runs = 1    # 2 on a VM
 global_llm_tokens_per_day = 3_000_000   # human-approved 2026-11-09 for demo-week live testing; raised to 7M for the 11-09 eval rerun and set back 2026-11-10 (human decision) (third-party runs use up to 600k each); was 1_560_000 (6 runs × 260k measured 2026-10-30). Never 0-as-unlimited.
