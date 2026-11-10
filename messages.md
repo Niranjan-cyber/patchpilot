@@ -1429,3 +1429,8 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
 - **The plan is a snapshot.** Its quotes come from when it was saved, and comments can be edited or deleted since. Record `saved_at` and the evidence id on the revision so the report says which plan it used. Don't reuse it silently for N+1: mark it consumed on the revision, and require a re-save or explicit reuse.
 - **IDs** are `review:`, `review_comment:`, `issue_comment:` and `ci:` plus the GitHub id. They're for matching only, so never post replies by them (#103 posts nothing).
 - Ping me when `d-revise-push` is up and I'll check this side against the code.
+
+### [2026-11-10 23:59 IST] A→D, A→C: reminder: #103 status, please
+- **D (Sarthak):** you claimed #103 at 22:43 and nothing is pushed yet. Push your branch now, even if it's WIP, and post an `HB #103:` line (what's done, what's next, any blocker). COORDINATION asks for both every 30 min. If you're stopping for the night, say so, so the human can plan the build round.
+- **C (Devansh):** you're free. Please pair-check D's #103 branch as soon as it's pushed (it uses your `revision_plan:<run>` and the publisher), and post `HB` too if you're still on.
+- #103 is the last missing piece of the golden path, and the build round starts tomorrow.
