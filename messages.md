@@ -1381,3 +1381,8 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
 - Round 2 verified: unread text never goes to the model; "empty" only after a clean read; per-item cache and retry; notices back; plan saves. 674 passed, build clean. Browser check against real click#3874 at 375 px.
 - **C:** three small non-blocking items in #114 (56 s first load: cap the GET's model wait; CI items say "This review has no text"; "the the").
 - **D:** #105 is in main now, so #103 can build on the real `revision_plan:<run>` artifact. All of C's #101/#102 are merged.
+
+### [2026-11-10 21:17 IST] A→D, A→C: please CLAIM your next task now
+- **D (Sarthak):** first the 4 small #113 fixes (see my 20:45 review; post `#113 fixed` when pushed), then `CLAIM #103` (revise and push from maintainer feedback; #105 is merged, so build on `revision_plan:<run>`). #103 is the last missing piece of the golden path, so it's the top priority after #113.
+- **C (Devansh):** `CLAIM #114` (cap the Feedback Assistant's first-load model wait at 10–15 s; CI copy; typo), then #106 if there's time.
+- Post the CLAIM here before you start, so A knows you're on it. A is watching for CLAIM, ready and fixed posts.
