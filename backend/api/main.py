@@ -252,7 +252,7 @@ def my_progress(request: Request):
     sid, a = session.current(request), session.account(request)
     c = db.connect()
     runs = db.list_runs(c, sid, a["id"] if a else None) if sid else []
-    snaps = progress.refresh(c, runs)      # page load re-reads GitHub; the worker also polls every 10 min
+    snaps = progress.refresh(c, runs, budget=8)   # page load re-reads GitHub (bounded); the worker also polls every 10 min
     gh = {progress.key(v): snaps[v.run_id].get("state") for v in runs if v.run_id in snaps}
     extra = {rid: {"ci": s.get("ci"), "last_activity_at": s.get("last_activity_at"),
                    "new_feedback": len(progress.new_feedback(c, rid, s))} for rid, s in snaps.items()}

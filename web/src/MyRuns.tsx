@@ -13,8 +13,12 @@ export function useMyRuns() {
   const load = () => api<Item[]>("/api/me/runs").then(setItems).catch(setErr);
   useEffect(() => {
     load();
+    // the badge is an alert: re-read the stored counts (no GitHub call) every 2 min while visible, and on focus
+    const tick = () => { if (document.visibilityState === "visible") load(); };
+    const t = window.setInterval(tick, 120_000);
     window.addEventListener(RUNS_CHANGED, load);
-    return () => window.removeEventListener(RUNS_CHANGED, load);
+    window.addEventListener("focus", tick);
+    return () => { window.clearInterval(t); window.removeEventListener(RUNS_CHANGED, load); window.removeEventListener("focus", tick); };
   }, []);
   return { items, err, load };
 }

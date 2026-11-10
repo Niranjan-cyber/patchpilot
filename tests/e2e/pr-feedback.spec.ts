@@ -26,6 +26,12 @@ for (const [w, h] of [[1280, 900], [375, 812]] as const) {
     await page.goto(`${BASE}/my-runs`);
     await expect(page.getByRole("heading", { name: "Your progress" })).toBeVisible({ timeout: 30_000 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(w);
+    // the page fitting isn't enough: the PR cell itself must be fully readable inside its card
+    const clipped = await page.$$eval(".pr-cell", (cells) => cells.filter((td) => {
+      const box = td.closest(".table-wrap")!.getBoundingClientRect(), r = td.getBoundingClientRect();
+      return td.scrollWidth > td.clientWidth + 1 || r.right > box.right + 1 || r.left < box.left - 1;
+    }).length);
+    expect(clipped).toBe(0);
     await page.screenshot({ path: `${shots}/history-${w}-myruns.png`, fullPage: true });
     await page.goto(`${BASE}/runs/${run}/pr`);
     await expect(page.getByRole("heading", { name: "Maintainer feedback" })).toBeVisible();
