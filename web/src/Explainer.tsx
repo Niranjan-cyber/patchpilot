@@ -66,6 +66,10 @@ function riskText(r: Risk): ReactNode {
   return "We didn't check whether the test covers everything the issue expects.";
 }
 
+// an empty string is as missing as null (the backend reads it the same way)
+const said = (t: string | null) => t?.trim() || "The issue doesn't say.";
+const TestIds = ({ ids }: { ids: string[] }) => <>{ids.map((t, i) => <Fragment key={`${i}-${t}`}>{i ? ", " : ""}<code>{t}</code></Fragment>)}</>;
+
 const Evidence = ({ ids }: { ids: string[] }) => ids.length ? (
   <p className="hint">Recorded evidence: {ids.map((id, j) => (
     <a key={`${j}-${id}`} href={`/api/artifacts/${encodeURIComponent(id)}`}>{j ? ", " : ""}evidence {j + 1}</a>))}</p>) : null;
@@ -87,8 +91,8 @@ export function QuestionEvidence({ q, e, fixFiles, diff }: { q: string; e: Expla
   const p = e.problem;
   if (q === "what_was_broken") return (
     <dl className="explainer-kv question-evidence">
-      <dt>Expected</dt><dd>{p.expected ?? "The issue doesn't say."}</dd>
-      <dt>Actual</dt><dd>{p.actual ?? "The issue doesn't say."}</dd>
+      <dt>Expected</dt><dd>{said(p.expected)}</dd>
+      <dt>Actual</dt><dd>{said(p.actual)}</dd>
       <dt>Test failure</dt><dd>{p.failure ? <code>{p.failure}</code> : "No failure was recorded."}</dd>
     </dl>
   );
@@ -106,7 +110,7 @@ export function QuestionEvidence({ q, e, fixFiles, diff }: { q: string; e: Expla
   const runs = e.verification.filter((c) => c.id === "reproduced" || c.id === "fixed");
   return (
     <dl className="explainer-kv question-evidence">
-      <dt>Test</dt><dd>{p.tests.length ? p.tests.map((t, i) => <code key={`${i}-${t}`}>{t}</code>) : "No test was recorded."}</dd>
+      <dt>Test</dt><dd>{p.tests.length ? <TestIds ids={p.tests} /> : "No test was recorded."}</dd>
       {runs.map((c) => <Fragment key={c.id}><dt>{c.id === "reproduced" ? "Original code" : "With the fix"}</dt>
         <dd><Status s={c.status} /> {detail(c)}</dd></Fragment>)}
     </dl>
@@ -125,9 +129,9 @@ export default function Explainer({ e, diff }: { e: ExplainerData; diff: string 
       <Part title="Problem" copy={["Test evidence", [...e.problem.tests, e.problem.failure && `Fails on the original code with: ${e.problem.failure}`,
         ...tests.map(line)].filter(Boolean).join("\n")]}>
         <dl className="explainer-kv">
-          <dt>Expected</dt><dd>{e.problem.expected ?? "The issue doesn't say."}</dd>
-          <dt>Actual</dt><dd>{e.problem.actual ?? "The issue doesn't say."}</dd>
-          <dt>Reproduced by</dt><dd>{e.problem.tests.length ? e.problem.tests.map((t) => <code key={t}>{t}</code>) : "No test recorded."}
+          <dt>Expected</dt><dd>{said(e.problem.expected)}</dd>
+          <dt>Actual</dt><dd>{said(e.problem.actual)}</dd>
+          <dt>Reproduced by</dt><dd>{e.problem.tests.length ? <TestIds ids={e.problem.tests} /> : "No test recorded."}
             {e.problem.failure && <> fails on the original code with <code>{e.problem.failure}</code></>}</dd>
         </dl>
         <Evidence ids={e.problem.evidence} />

@@ -13,6 +13,7 @@ from datetime import datetime
 from backend.contracts.models import (Approval, ApproveRequest, CheckStatus, Owner, PERMANENT_BLOCKERS, PublishBlocker, RevisionSummary,
                                       cap_reasons,
                                       RunStatus, RunView)
+from backend.gates.diff_policy import is_test_path
 from backend.github import reader
 
 router = APIRouter()
@@ -214,39 +215,63 @@ def explainer(v: RunView, repo_checks: dict | None, variant: dict | None) -> dic
     }
 
 
-def suggestions(e: dict, fix_files: list[str]) -> dict[str, str]:
-    """#98: a suggested answer per ownership question, from a code template over the explainer's recorded fields only, so it
-    can't claim anything the run didn't record. Shown beside the empty answer fields, never put into them (contracts §2.3)."""
-    p, rc = e["problem"], e["root_cause"]
-    row = {c["id"]: c for c in e["verification"]}
-    runs = lambda c, s: f"{sum(r == s for r in c['runs'])} of {len(c['runs'])} runs"
-    test = p["tests"][0] if p["tests"] else None
-    failure = f" The new test shows it: on the original code it fails with \"{p['failure']}\"." if p["failure"] else ""
+def _sentence(text: str) -> str:
+    t = text.strip()
+    return t if t.endswith((".", "!", "?")) else t + "."
 
-    if p["expected"] and p["actual"]:
-        broken = f"The issue expects: {p['expected']}. Instead: {p['actual']}.{failure}"
-    elif p["failure"]:
+
+def suggestions(e: dict, fix_files: list[str]) -> dict[str, str]:
+    """#98: a suggested answer per ownership question, from a code template over the explainer's recorded fields only. Each
+    sentence is only as strong as its evidence: users may copy it. Shown beside the empty fields, never put into them (§2.3)."""
+    p, row = e["problem"], {c["id"]: c for c in e["verification"]}
+    rep, fix, hv = row["reproduced"], row["fixed"], row["hidden_variant"]
+    said = lambda c: c["status"].replace("_", " ")
+    runs = lambda c, s: f"{sum(r == s for r in c['runs'])} of {len(c['runs'])} runs"
+
+    failure = ("" if not p["failure"] else
+               f" The new test shows it: on the original code it fails with \"{p['failure']}\"." if rep["status"] == "passed" else
+               f" The test was written to fail with \"{p['failure']}\", but that wasn't confirmed (reproduction: {said(rep)}).")
+    exp, act = (p["expected"] or "").strip(), (p["actual"] or "").strip()
+    if exp and act:
+        broken = f"The issue expects: {_sentence(exp)} Instead: {_sentence(act)}{failure}"
+    elif exp:
+        broken = f"The issue expects: {_sentence(exp)} The issue doesn't say what happens instead.{failure}"
+    elif act:
+        broken = f"Instead of the right behaviour (the issue doesn't say what that is): {_sentence(act)}{failure}"
+    elif failure:
         broken = f"The issue doesn't state the expected and actual behaviour.{failure}"
     else:
         broken = "Nothing was recorded about the expected and actual behaviour, so describe the bug from the issue and the diff."
 
     files = ", ".join(fix_files) or "no source files"
-    why = (f"PatchPilot's diagnosis (a claim, check it in the diff): {rc['claim']} The change edits {files}." if rc else
+    claim = ((e["root_cause"] or {}).get("claim") or "").strip()
+    why = (f"PatchPilot's diagnosis (a claim, check it in the diff): {_sentence(claim)} The change edits {files}." if claim else
            f"The cause is unknown: no diagnosis was recorded for this run. The change edits {files}; read it to see why it helps.")
 
-    if not test:
-        proves = "No regression test was recorded, so there is nothing for a test to prove yet."
-    else:
-        rep, fix = row["reproduced"], row["fixed"]
-        before = (f"fails on the original code ({runs(rep, 'failed')})" if rep["status"] == "passed"
-                  else f"was not shown to fail on the original code (reproduction: {rep['status'].replace('_', ' ')})")
-        after = (f"passes with the fix ({runs(fix, 'passed')})" if fix["status"] == "passed"
-                 else f"was not shown to pass with the fix (verification: {fix['status'].replace('_', ' ')})")
-        gaps = [r["text"] for r in e["risks"] if r["kind"] == "uncovered"]
-        proves = (f"{test} {before} and {after}"
-                  + (", so the bug can't come back without this test failing." if rep["status"] == fix["status"] == "passed" else ".")
-                  + (f" It doesn't check: {'; '.join(gaps)}." if gaps else ""))
-    return {"what_was_broken": broken, "why_this_fix": why, "what_the_test_proves": proves}
+    tests = p["tests"]
+    if not tests:
+        return {"what_was_broken": broken, "why_this_fix": why,
+                "what_the_test_proves": "No regression test was recorded, so there is nothing for a test to prove yet."}
+    one = len(tests) == 1
+    gaps = [r["text"] for r in e["risks"] if r["kind"] == "uncovered"]
+    unchecked = any(r["kind"] == "coverage_not_checked" for r in e["risks"])
+    before = (f"{'fails' if one else 'fail'} on the original code ({runs(rep, 'failed')})" if rep["status"] == "passed" else
+              f"{'was' if one else 'were'} not shown to fail on the original code (reproduction: {said(rep)})")
+    after = (f"{'passes' if one else 'pass'} with the fix ({runs(fix, 'passed')})" if fix["status"] == "passed" else
+             f"{'was' if one else 'were'} not shown to pass with the fix (verification: {said(fix)})")
+    # the strong ending only when every recorded check backs it (a Needs-attention run reaches this screen too)
+    strong = (rep["status"] == fix["status"] == hv["status"] == "passed" and not fix["regressions"] and not gaps and not unchecked)
+    main = (f"The new test{'' if one else 's'} {', '.join(tests)} {before} and {after}"
+            + (f", so the bug can't come back without {'it' if one else 'them'} failing." if strong else
+               ", but the fix fails a hidden variant of the test, so it may only cover the exact tested case." if hv["status"] == "failed"
+               else "."))
+    extra = [*({"inconclusive": ["The hidden variant's result was unclear."], "not_run": ["The hidden variant wasn't run."]}
+               .get(hv["status"], [])),
+             *([f"{len(fix['regressions'])} existing test{'' if len(fix['regressions']) == 1 else 's'} broke with the fix."]
+               if fix["regressions"] else []),
+             *([f"It doesn't check: {'; '.join(gaps)}."] if gaps else []),
+             *(["Coverage of the issue wasn't checked."] if unchecked else [])]
+    return {"what_was_broken": broken, "why_this_fix": why, "what_the_test_proves": " ".join([main, *extra])}
 
 
 @router.get("/api/runs/{run_id}/approval")
@@ -263,11 +288,15 @@ def approval_context(run_id: str, request: Request):
         except ValueError:
             variant = None
         help_ = explainer(v, db.repo_checks(c, run_id), variant if isinstance(variant, dict) else None)
-        fix_files = sorted(changed_files(artifacts.get(v.patch.fix_diff_id).decode("utf-8", "replace")))
-        hints = suggestions(help_, fix_files)
     except Exception:
         logging.getLogger(__name__).exception("explainer failed for run %s", run_id)
-        help_ = hints = fix_files = None
+        help_ = None
+    fix_files = sorted(f for f in changed_files(diff) if not is_test_path(f))   # G4: the fix never edits tests
+    try:   # its own guard: a template bug must not take down the explainer
+        hints = suggestions(help_, fix_files) if help_ else None
+    except Exception:
+        logging.getLogger(__name__).exception("suggestions failed for run %s", run_id)
+        hints = None
     return {"revision": v.revision, "diff": diff, "diff_hash": dh, "evidence_hash": eh, "files": sorted(changed_files(diff)),
             "publish_blockers": v.publish_blockers, "approved": v.approval is not None,
             "pr_title": f"Fix #{v.issue.number}: {v.issue.title}"[:120],
