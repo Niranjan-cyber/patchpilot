@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 
 from backend import db
 from backend.api import session
+from backend.config import PUBLISH_LIMITED, may_publish
 from backend.contracts.models import PublishBlocker, RunStatus
 from backend.publisher import oauth, tokens
 
@@ -99,6 +100,8 @@ def publish(run_id: str, request: Request):
     acct = session.account(request)
     if not acct:
         raise _err(401, "AUTH_REQUIRED", "Connect GitHub to publish. Until then you can download the diff and report.")
+    if not may_publish(acct["login"], v.issue.repo):   # #100: before anything is queued for the publisher
+        raise _err(409, "PUBLISH_BLOCKED", PUBLISH_LIMITED)
     if v.status not in (RunStatus.AWAITING_APPROVAL, RunStatus.PUBLISHED) or v.approval is None:
         raise _err(409, "APPROVAL_STALE", "Approve the current version of the change first.")
     if v.approval.ownership is None:   # v0.5 §2.3: approvals from before the three answers were required
@@ -148,6 +151,8 @@ def ask_maintainer(run_id: str, body: AskBody, request: Request):
     acct = session.account(request)
     if not acct:
         raise _err(401, "AUTH_REQUIRED", "Connect GitHub to comment on the issue.")
+    if not may_publish(acct["login"], v.issue.repo):   # #100: the ask comment is published too
+        raise _err(409, "PUBLISH_BLOCKED", PUBLISH_LIMITED)
     if v.status not in (RunStatus.AWAITING_APPROVAL, RunStatus.PUBLISHED) or v.approval is None or v.approval.revision != v.revision:
         raise _err(409, "APPROVAL_STALE", "Approve the current version of the change first.")
     blocked = [b for b in v.publish_blockers if b not in (PublishBlocker.NOT_SIGNED_IN, PublishBlocker.NO_MAINTAINER_CONSENT)]
