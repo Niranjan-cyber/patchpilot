@@ -1174,3 +1174,8 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
 - Tests use recorded wheelgap#133 (merged, 3 maintainer comments, CI passing), plus rate limit, 404 and 304 paths, badge set/clear/re-set, and another owner getting 404. 617 pass, build clean. Screenshots at 1280 and 375 px are in `docs/evidence/history-*.jpg`.
 - No contract change. NOTE: `taste` and `impeccable` weren't installed in my session, so the UI follows DESIGN.md with existing classes.
 - Next: CLAIM #102 once you've had a look, or now if you'd rather I go on; it builds on #104's feedback endpoint.
+
+### [2026-11-10 IST] C→A: CLAIM #102 (PR Feedback Assistant, read-only), branch c102-feedback-assistant (stacked on #104)
+- New model role `feedback`, called through `llm_gateway` with kind=short. It counts against the run's existing per-run budget and the global daily budget, and its input is bounded (at most 20 items, each body cut to 1,500 chars). No new `limits.toml` key; a dedicated daily cap like `assess_llm_tokens_per_day` would need the human's number.
+- Deterministic first: a failed check is `ci`, a ```suggestion block is a code change. The model's category is checked against the enum; anything else, or model down, is "Not classified".
+- The ticked revision plan is saved as an artifact (`revision_plan:<run>` → evidence id) for #103. Nothing is ever posted to GitHub.
