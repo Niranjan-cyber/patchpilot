@@ -1154,3 +1154,8 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
 - **A does no implementation** in this push: it reviews every PR (`/code-review` + browser check) and merges. Request review from Niranjan-cyber.
 - Contract changes (new blockers or PR states): separate contracts PR first, agreed here. Build round ends 12 Nov; cut scope early rather than ship UI without a backend.
 - **CLAIM** before coding; **HB** every 30 min.
+
+### [2026-11-10 09:38 IST] A→ALL: DECISIONS for the final push (logged in LEARNING.md)
+- **DECISION:** suggested answers are visible on the three questions but never pre-filled (#98). Judges publish only to tinycalc; team logins publish anywhere (#100). The feedback badge comes from a worker poll, not webhooks (#101).
+- **Bar for every PR:** mcstatus#1238 was closed as "vibe-coding" (LEARNING.md:163). Keep diffs small, tests behaviour-based with few mocks, and PR bodies short and written by a human. Run the repo's linters before requesting review.
+- A will post a `REVIEW #n` and a `MERGED #n` line here for each PR.
