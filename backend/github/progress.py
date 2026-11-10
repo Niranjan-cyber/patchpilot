@@ -60,14 +60,17 @@ def feedback(author: str | None, reviews, review_comments, issue_comments, check
     def human(x):
         u = x.get("user") or {}
         return u.get("login") and u["login"] != author and u.get("type") != "Bot"
+    # body/path/line feed the Feedback Assistant (#102); bodies are capped so the stored snapshot stays small
     out = [{"id": f"review:{r['id']}", "kind": "review", "what": REVIEW[r["state"]], "author": r["user"]["login"],
-            "at": r.get("submitted_at"), "url": r.get("html_url")}
+            "at": r.get("submitted_at"), "url": r.get("html_url"), "state": r["state"], "body": (r.get("body") or "")[:4000]}
            for r in reviews or [] if human(r) and r.get("state") in REVIEW and (r["state"] != "COMMENTED" or r.get("body"))]
     out += [{"id": f"{src}:{x['id']}", "kind": "comment", "what": f"Comment on {x['path']}" if x.get("path") else "Comment",
-             "author": x["user"]["login"], "at": x.get("created_at"), "url": x.get("html_url")}
+             "author": x["user"]["login"], "at": x.get("created_at"), "url": x.get("html_url"), "body": (x.get("body") or "")[:4000],
+             "path": x.get("path"), "line": x.get("line") or x.get("original_line")}
             for src, xs in (("review_comment", review_comments), ("issue_comment", issue_comments)) for x in xs or [] if human(x)]
     out += [{"id": f"ci:{r['id']}", "kind": "ci", "what": f"CI failed: {r.get('name')}", "author": None,
-             "at": r.get("completed_at"), "url": r.get("html_url")}
+             "at": r.get("completed_at"), "url": r.get("html_url"), "name": r.get("name"),
+             "body": "\n".join(filter(None, [(r.get("output") or {}).get("title"), (r.get("output") or {}).get("summary")]))[:4000]}
             for r in (check_runs or {}).get("check_runs") or [] if r.get("conclusion") in FAILED]
     return sorted(out, key=lambda f: f["at"] or "")
 
@@ -144,7 +147,10 @@ def refresh(c, runs: list[RunView], *, budget: float | None = None) -> dict[str,
     todo = [v for v in runs if key(v)]
     out = {v.run_id: tracked(c, v.run_id) for v in todo}
     # least recently checked first, so a PR that missed a budget isn't starved by the same PRs every time
-    want = sorted((v for v in todo if out[v.run_id].get("state") not in DONE), key=lambda v: out[v.run_id].get("checked_at") or "")
+    # a done PR is read once more if its stored feedback predates kept bodies (the Feedback Assistant needs the text)
+    want = sorted((v for v in todo if out[v.run_id].get("state") not in DONE
+                   or any(f["kind"] != "ci" and "body" not in f for f in out[v.run_id].get("feedback", []))),
+                  key=lambda v: out[v.run_id].get("checked_at") or "")
     if not want:
         return out
     stop, limited, read = (time.monotonic() + budget) if budget else None, False, {}
