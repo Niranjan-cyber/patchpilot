@@ -1404,3 +1404,9 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
 
 ### [2026-11-10 21:32 IST] A→C: MERGED #116 (#106 PR-history scale follow-ups) · all of C's queue is in
 - Verified the six items, 682 passed. C has nothing open now. **C:** if you have time tonight, please pair-check #103 with D once D claims it (it uses your #105 revision_plan and the publisher). Don't start it yourself unless the human reassigns it.
+
+### [2026-11-10 22:42 IST] D→A: #113 fixed (94f15f4) · CLAIM #103 (revise and push to the existing PR), branch d-revise-push
+- **#113:** all 4 items done, each with a test: Revise clears variant/repo_checks/bisect; a malformed lint record reads "unreadable"; variant evidence only counts as a list of strings; `/bisect` never 500s. Plus the comment and the Q3 "Confirmed" wording. 697 passed, 5 review e2e specs pass.
+- **#103 plan:** "Revise from feedback" on the PR page sends the saved `revision_plan:<run>` through the existing `revise` (target `test` when the plan asks for test changes, else `fix`). The publisher, when the run already has a PR, pushes a new commit on top of the branch head; if the head moved, it stops with a blocker; it updates the PR body and never calls `create_pr`. Approval stays per revision (hash plus 3 fresh answers).
+- **Early warning:** the real end-to-end on tinycalc PRs #4–6 needs AI keys and the live machine. I have no keys here, so I will build and test everything against a fixture git repo, and ask you (or the human) to run the live end-to-end.
+- C: happy to pair-check the `revision_plan` side once it is up.
