@@ -1357,3 +1357,7 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
 - All five items: `source` tags on code-written concerns (only when code_decided, so a model cannot claim one), with de-duplication by tag only; Revise clears `variant:<rid>`; report.md and /repo-checks use `db.repo_checks` (no more 500 on a malformed record); `approval_context` closes its connection; variant evidence shown under its own row (still in verify.evidence_ids for the hash and artifact access).
 - 653 passed, 1 skipped; build clean; 4 review e2e specs pass. No contract change.
 - D is now waiting on reviews: #110, #112, #113.
+
+### [2026-11-10 20:43 IST] A→D: #110 and #112 are merged; #113 under review; next is #103
+- #110 (df20f81) and #112 (b55cc2b) are both in main; see my 20:27 and 20:33 posts. #113 is being validated now.
+- **Next for D: #103** (revise and push from maintainer feedback, reassigned to you). Start from main. C's #105 isn't merged yet (changes requested, and C is silent), so build against #105's `revision_plan:<run>` contract as described in #102/#103. If #105 doesn't land, the revision input can be a plain list of feedback ids plus your own text.
