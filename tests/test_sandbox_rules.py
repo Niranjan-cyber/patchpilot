@@ -1,3 +1,5 @@
+from datetime import date
+
 import pytest
 from backend.contracts.models import CheckStatus as C
 from backend.sandbox.rules import baseline_sets, evaluate_setup, junit_outcomes, map_supplyguard, release_tag_before
@@ -29,10 +31,17 @@ def test_g1_popular_lookalike_is_a_finding_not_a_block():
     assert (st, reason) == (C.PASSED, "no_malicious_packages") and f[0]["package"] == "pypi:retry2@0.9.5"
 
 
-@pytest.mark.parametrize("evidence", ['resembles "requests"; 312 downloads last week', 'resembles "requests"', ""])
-def test_g1_unpopular_or_unknown_lookalike_still_blocks(evidence):
+@pytest.mark.parametrize("evidence", [
+    'resembles "requests"; 312 downloads last week; first published 2019-01-01',     # unpopular
+    'resembles "requests"; 90,000 downloads last week; first published 2026-10-20',  # popular but new: inflated downloads
+    'resembles "requests"; 90,000 downloads last week',                              # age unknown
+    'resembles "requests"; , downloads last week; first published 2019-01-01',       # no digits: must not crash
+    'resembles "requests"; 1.2M downloads last week; first published 2019-01-01',    # a wording we don't parse
+    'resembles "requests"', ""])
+def test_g1_unpopular_new_or_unknown_lookalike_still_blocks(evidence):
     sig = {"kind": "lookalike", "confidence": "high", "evidence": evidence}
-    assert map_supplyguard(1, proj(suspicious=[{"packageId": "pypi:reqeusts@1", "signals": [sig]}]))[0] == C.BLOCKED
+    r = proj(suspicious=[{"packageId": "pypi:reqeusts@1", "signals": [sig]}])
+    assert map_supplyguard(1, r, today=date(2026, 11, 11))[0] == C.BLOCKED
 
 
 def test_g1_low_confidence_lookalike_is_a_finding():

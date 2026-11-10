@@ -76,6 +76,18 @@ def test_ask_cites_short_labels(run):
         X.ask(v, "why_fails", None, complete=lambda msgs, **k: json.dumps({"answer": "x", "evidence_ids": ["E99"]}))
 
 
+def test_labels_never_reach_the_user_or_turn_into_hashes_on_retry(run):
+    # /code-review of #121: prose said "see [E3]", and the retry replayed the mapped 64-char hash to the model
+    v, ev, fix = run
+    sent = []
+    replies = iter([{"answer": "x", "evidence_ids": ["E3", "E99"]}, {"answer": "The failing run [E3] shows 0.", "evidence_ids": ["E3", "E3"]}])
+    def model(msgs, **k):
+        sent.append([m["content"] for m in msgs]); return json.dumps(next(replies))
+    a = X.ask(v, "why_fails", None, complete=model)
+    assert a["answer"] == "The failing run (failing run 1) shows 0." and a["evidence_ids"] == [ev[2]]   # named, de-duplicated
+    assert not any(ev[2] in c for c in sent[1])   # the replayed attempt says E3, not the hash
+
+
 def test_ask_rejects_uncited_twice_then_unavailable(run):
     v, ev, fix = run
     calls = []

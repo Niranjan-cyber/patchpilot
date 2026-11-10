@@ -6,7 +6,7 @@ import uuid
 from backend import artifacts, db
 from backend.agents import loop
 from backend.contracts.models import Diagnosis, Location, TourItem
-from backend.gates.diff_policy import check_diagnosis, full_ids, keep_tour, label
+from backend.gates.diff_policy import check_diagnosis, full_ids, keep_tour, label, name_labels
 from backend.llm_gateway import BudgetExceeded, QuotaPause
 from backend.sandbox import docker
 from backend.sandbox.steps import image, snap
@@ -131,7 +131,7 @@ def diagnose(ctx: StepContext):
         if why is None:
             run = db.get_run(db.connect(), rid)
             run.diagnosis = Diagnosis(
-                hypothesis=str(res["hypothesis"]).strip()[:1200],
+                hypothesis=name_labels(str(res["hypothesis"]).strip(), list(menu.values()))[:1200],
                 locations=[Location(path=l["path"], line=l.get("line")) for l in res["locations"][:3]],
                 tour=[TourItem(path=str(t["path"]), why=str(t.get("why", ""))[:200]) for t in tour_kept],
                 evidence_ids=[*res["evidence_ids"], tid])
