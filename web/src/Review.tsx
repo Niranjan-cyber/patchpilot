@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { motion } from "motion/react";
-import { api, ApiError, useRun } from "./api";
+import { api, ApiError, PUBLISH_LIMITED, useRun } from "./api";
 import { Loading } from "./components";
 import { DiffView } from "./DiffView";
 import Explainer, { type ExplainerData } from "./Explainer";
@@ -29,6 +29,8 @@ const BLOCKER: Record<string, string> = {
   deps_inconclusive: "We couldn't fully check this project's dependencies, so publishing is turned off. You can re-check them.",
   repo_forbids_ai: "This repository doesn't accept AI-assisted pull requests. You can keep the report and diff.",
   issue_changed: "Since your run started, the issue was closed or someone linked a pull request to it.",
+  // #100: per viewer, never stored; Approve still works, only publishing is limited
+  publish_not_allowed: PUBLISH_LIMITED,
   upstream_changed: "Files in this change were edited upstream after we tested, so we won't publish a change that was never tested against that code.",
 };
 
@@ -60,7 +62,7 @@ export default function Review() {
   if (!ctx) return err ? <section className="panel failed"><h1>Couldn't open the change</h1><p>{err.message}</p><Link className="button secondary" to={`/runs/${id}`}>Back to the run</Link></section>
     : <Loading label="Loading the exact change…" />;
 
-  const hard = ctx.publish_blockers.filter((b) => !["not_approved", "not_signed_in", "issue_changed", "no_maintainer_consent"].includes(b));
+  const hard = ctx.publish_blockers.filter((b) => !["not_approved", "not_signed_in", "issue_changed", "no_maintainer_consent", "publish_not_allowed"].includes(b));
   const allTicked = BOXES.every(([k]) => boxes[k]);
   const answered = QUESTIONS.every(([k]) => (answers[k] ?? "").trim().length >= MIN);
   const ready = BOXES.filter(([k]) => boxes[k]).length + QUESTIONS.filter(([k]) => (answers[k] ?? "").trim().length >= MIN).length;

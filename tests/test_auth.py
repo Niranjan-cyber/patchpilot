@@ -101,6 +101,7 @@ def test_github_user_error_is_friendly_not_500(env, monkeypatch):
 def test_ask_first_queues_one_comment_and_reports_the_link(env, monkeypatch):
     from backend.contracts.models import Approval, Owner, RunStatus
     from backend.publisher import job
+    allow(monkeypatch, repos=["o/r"])   # this test is about the ask flow; #100's allowlist has its own tests below
     b = env
     rid = b.post("/api/runs", json={"issue_url": URL}).json()["run_id"]
     msg = {"body": "Hi! I have a small fix ready. Would you like a pull request?"}
@@ -124,3 +125,60 @@ def test_ask_first_queues_one_comment_and_reports_the_link(env, monkeypatch):
     assert seen["body"] == msg["body"] and st["url"].endswith("#c") and st["pending"] is False
     assert db.get_run(db.connect(), rid).status == RunStatus.AWAITING_APPROVAL   # asking never changes the run's status
     assert b.post(f"/api/runs/{rid}/ask-maintainer", json=msg).json()["code"] == "ALREADY_ASKED"   # never ping twice
+
+
+# #100 (human decision 2026-11-10): judges do everything up to approval on any repo; publishing is allowlisted on the server
+def allow(monkeypatch, logins=(), repos=()):
+    from backend import config
+    real = config.limits
+    monkeypatch.setattr(config, "limits", lambda: {**real(), "publish_open_logins": list(logins), "publish_allowed_repos": list(repos)})
+
+
+MSG = {"body": "Hi! I have a small fix ready. Would you like a pull request?"}
+
+
+def test_a_judge_cannot_publish_or_ask_outside_the_demo_repo(env, monkeypatch):
+    allow(monkeypatch, logins=["Niranjan-cyber"], repos=["Niranjan-cyber/tinycalc"])
+    b = env
+    rid = b.post("/api/runs", json={"issue_url": URL}).json()["run_id"]
+    sign_in(b, rid)
+    for r in (b.post(f"/api/runs/{rid}/publish"), b.post(f"/api/runs/{rid}/ask-maintainer", json=MSG)):
+        assert r.status_code == 409 and r.json()["code"] == "PUBLISH_BLOCKED"
+        assert r.json()["message"].startswith("Publishing from this demo is limited to the demo repository.")
+    assert db.connect().execute("SELECT COUNT(*) FROM jobs WHERE kind IN ('publish','ask')").fetchone()[0] == 0   # no publisher call
+    assert "publish_not_allowed" in b.get(f"/api/runs/{rid}").json()["publish_blockers"]   # shown before the click
+    assert "publish_not_allowed" not in db.get_run(db.connect(), rid).publish_blockers      # never stored on the run
+
+
+@pytest.mark.parametrize("logins,repos", [(["ALICE"], []), ([], ["O/R"])])   # a team login, or the demo repo; case doesn't matter
+def test_a_team_login_or_the_demo_repo_may_publish(env, monkeypatch, logins, repos):
+    allow(monkeypatch, logins, repos)
+    b = env
+    rid = b.post("/api/runs", json={"issue_url": URL}).json()["run_id"]
+    sign_in(b, rid)
+    assert b.post(f"/api/runs/{rid}/publish").json()["code"] == "APPROVAL_STALE"   # past the allowlist, stopped by the next rule
+    assert "publish_not_allowed" not in b.get(f"/api/runs/{rid}").json()["publish_blockers"]
+
+
+def test_a_missing_list_lets_nobody_publish(env, monkeypatch):
+    from backend import config
+    real = config.limits
+    monkeypatch.setattr(config, "limits", lambda: {k: x for k, x in real().items() if not k.startswith("publish_")})
+    b = env
+    rid = b.post("/api/runs", json={"issue_url": URL}).json()["run_id"]
+    sign_in(b, rid)
+    assert b.post(f"/api/runs/{rid}/publish").json()["code"] == "PUBLISH_BLOCKED"   # fails closed
+
+
+def test_the_worker_checks_again_before_any_github_call(env, monkeypatch):
+    # the endpoint let it through (say the list changed after queueing): the worker must still refuse, with no GitHub call
+    allow(monkeypatch, logins=["someone-else"])
+    from backend.publisher import job
+    b = env
+    rid = b.post("/api/runs", json={"issue_url": URL}).json()["run_id"]
+    sign_in(b, rid)
+    acct = db.connect().execute("SELECT id FROM accounts").fetchone()[0]
+    db.put_kv(db.connect(), f"publish_account:{rid}", str(acct))
+    monkeypatch.setattr(job, "GitHubWriter", lambda token: pytest.fail("GitHub was called"))
+    job.run_ask({"id": 1, "run_id": rid})
+    assert "limited to the demo repository" in b.get(f"/api/runs/{rid}/ask-maintainer").json()["error"]

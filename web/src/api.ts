@@ -72,3 +72,6 @@ export function useRun(runId: string) {
 
   return { run, events, error };
 }
+
+// #100: the server's publish_not_allowed blocker, in the words the Review and Connect screens both show
+export const PUBLISH_LIMITED = "Publishing from this demo is limited to the demo repository. Everything up to approval works on any repo, and you can download the diff and report.";

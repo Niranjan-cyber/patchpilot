@@ -33,6 +33,15 @@ def _run(request: Request, run_id: str) -> RunView:
     return db.get_run(db.connect(), run_id)
 
 
+def for_viewer(v: RunView, request: Request) -> list[PublishBlocker]:
+    """contracts v0.8 (#100): PUBLISH_NOT_ALLOWED depends on who is looking, so it's added to what we return and never
+    stored on the run (Approve and the outcome rule never see it)."""
+    from backend.api import session
+    from backend.config import may_publish
+    acct = session.account(request)
+    return v.publish_blockers + ([] if may_publish(acct and acct["login"], v.issue.repo) else [PublishBlocker.PUBLISH_NOT_ALLOWED])
+
+
 NO_BUDGET = "This run has used its AI budget, so a revision would stop at once. Start a new run to try a different fix."
 
 
@@ -232,7 +241,7 @@ def approval_context(run_id: str, request: Request):
         logging.getLogger(__name__).exception("explainer failed for run %s", run_id)
         help_ = None
     return {"revision": v.revision, "diff": diff, "diff_hash": dh, "evidence_hash": eh, "files": sorted(changed_files(diff)),
-            "publish_blockers": v.publish_blockers, "approved": v.approval is not None,
+            "publish_blockers": for_viewer(v, request), "approved": v.approval is not None,
             "pr_title": f"Fix #{v.issue.number}: {v.issue.title}"[:120],
             "pr_summary": summary_prefill(v),
             # v0.5 §2.3: what PatchPilot found, shown as help next to the three own-words questions (never prefilled into them)

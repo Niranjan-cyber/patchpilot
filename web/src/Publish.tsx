@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { api, ApiError, useRun } from "./api";
+import { api, ApiError, PUBLISH_LIMITED, useRun } from "./api";
 import { Loading, StatusIcon } from "./components";
 import { Modal } from "./ui";
 
@@ -21,6 +21,10 @@ export function Connect() {
   const [err, setErr] = useState<ApiError | null>(null);
   const [busy, setBusy] = useState(false);
   useEffect(() => { api<Me>("/api/me").then(setMe).catch(setErr); }, []);
+  // #100: the server decides per signed-in login; shown before the click (the server refuses it anyway)
+  const [limited, setLimited] = useState(false);
+  useEffect(() => { if (run) api<{ publish_blockers: string[] }>(`/api/runs/${run}`)
+    .then((r) => setLimited(r.publish_blockers.includes("publish_not_allowed"))).catch(() => setLimited(false)); }, [run, me?.login]);
   const [consented, setConsented] = useState(false);
   const publish = async () => {
     setBusy(true); setErr(null);
@@ -33,6 +37,7 @@ export function Connect() {
       {run && <p className="issue-ref"><Link to={`/runs/${run}`}>Back to the run</Link></p>}
       <h1>{me?.signed_in ? `Connected as ${me.login}` : "Connect GitHub to publish"}</h1>
       {e && <p className="notice warn">{ERR[e] ?? "Something went wrong. Please try again."}</p>}
+      {limited && <p className="notice warn">{PUBLISH_LIMITED}</p>}
       {!me?.signed_in && (
         <div className="card">
           <p>We'll ask GitHub for permission to:</p>
@@ -50,14 +55,14 @@ export function Connect() {
           </div>
         </div>
       )}
-      {me?.signed_in && run && <AskFirst run={run} />}
+      {me?.signed_in && run && <AskFirst run={run} limited={limited} />}
       {me?.signed_in && run && <ConsentCard run={run} onChange={setConsented} />}
       {me?.signed_in && run && (
         <div className="card">
           <h2>Then, if they say yes: open the pull request</h2>
           {!consented && <p className="hint">Available once a maintainer's yes (or your reason) is recorded above.</p>}
           <p>We'll check that nothing changed upstream, re-apply your approved change on a clean copy, and open a draft pull request. If you can't push to the repository, we use your fork.</p>
-          <div className="row"><button className="secondary-btn" onClick={publish} disabled={busy || !consented}>{busy ? "Starting…" : "Publish draft pull request"}</button></div>
+          <div className="row"><button className="secondary-btn" onClick={publish} disabled={busy || !consented || limited}>{busy ? "Starting…" : "Publish draft pull request"}</button></div>
         </div>
       )}
       {err && <p className="notice warn">{err.message}</p>}
@@ -150,7 +155,7 @@ function ConsentCard({ run, onChange }: { run: string; onChange: (ok: boolean) =
 type Ask = { draft: string | null; pending: boolean; url?: string; error?: string };
 
 /** Ask the maintainer on the issue before opening a PR (human decision 2026-11-09, after mcstatus #1238 was closed unasked). */
-function AskFirst({ run }: { run: string }) {
+function AskFirst({ run, limited }: { run: string; limited: boolean }) {
   const [st, setSt] = useState<Ask | null>(null);
   const [text, setText] = useState("");
   const [err, setErr] = useState<ApiError | null>(null);
@@ -171,7 +176,7 @@ function AskFirst({ run }: { run: string }) {
       {st.url ? <p className="notice">Comment posted. <a href={st.url}>Open it on GitHub</a> and wait for a reply before opening the pull request.</p> : <>
         <label>Your comment (edit it so it sounds like you)
           <textarea rows={6} value={text} onChange={(e) => setText(e.target.value)} maxLength={2000} /></label>
-        <div className="row"><button onClick={() => setConfirm(true)} disabled={st.pending || text.trim().length < 20}>{st.pending ? "Posting…" : "Post this comment on the issue"}</button></div>
+        <div className="row"><button onClick={() => setConfirm(true)} disabled={st.pending || text.trim().length < 20 || limited}>{st.pending ? "Posting…" : "Post this comment on the issue"}</button></div>
       </>}
       {st.error && <p className="notice warn">{st.error}</p>}
       {err && <p className="notice warn">{err.message}</p>}

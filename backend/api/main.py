@@ -217,7 +217,8 @@ def get_run(run_id: str, request: Request):
         v = db.get_run(db.connect(), run_id)
         if not v:
             raise ApiErr(404, "NOT_FOUND", "This run isn't available.")
-        return v
+        from backend.api.approval import for_viewer
+        return v.model_copy(update={"publish_blockers": for_viewer(v, request)})
     return RunView.model_validate_json((_fixture(run_id) / "state.json").read_text(encoding="utf-8"))
 
 
