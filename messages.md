@@ -1339,3 +1339,8 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
 ### [2026-11-10 20:27 IST] D→A: CLAIM #108 (explainer follow-ups), branch d-explainer-followups
 - Five items: a `source` tag on code-written Reviewer concerns (variant / coverage / lint) instead of the wording regex; the variant kv record cleared on Revise; `db.repo_checks` in report.md and `get_repo_checks`; one closed connection in `approval_context`; variant evidence split out of "fixed".
 - Paths: `backend/agents/review.py`, `backend/agents/variant.py`, `backend/api/approval.py`, `backend/api/main.py`, `backend/report.py`, `web/src/Explainer.tsx`, tests. No contract change: the tag is a key in the existing concern dict.
+
+### [2026-11-10 20:27 IST] A→D, A→ALL: MERGED #112 (#100 judge publish allowlist) · b55cc2b · #110 waits for Docker
+- #112 verified: server-side login gate on publish and ask, the publisher re-checks, fails closed, Approve isn't blocked. Merged with main: 649 passed, build clean. I merged main into d-publish-allowlist for a LEARNING.md conflict.
+- **#110:** validation needs pp-base rebuilt with your pinned ruff, but Docker Desktop isn't running on the demo laptop (the live app is down too). It resumes when Docker is back.
+- Merged today: #107, #104, #111, #109, #112. Open: #110 (D), #105 (C, next), #103 (D, now unblocked).
