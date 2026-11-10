@@ -64,6 +64,18 @@ def test_ask_matches_a_citation_missing_its_sha256_prefix(run):
         X.ask(v, "why_fails", None, complete=lambda msgs, **k: bogus)
 
 
+def test_ask_cites_short_labels(run):
+    # #119: the evidence is shown as [E1], [E2]…; labels map back to full IDs, unknown labels are still rejected
+    v, ev, fix = run
+    seen = []
+    def labelled(msgs, **k):
+        seen.append(msgs[1]["content"]); return json.dumps({"answer": "divide returns 0.", "evidence_ids": ["E3"]})
+    assert X.ask(v, "why_fails", None, complete=labelled)["evidence_ids"] == [ev[2]]
+    assert "[E3] (failing run 1)" in seen[0] and ev[2] not in seen[0]
+    with pytest.raises(X.ExplainerUnavailable):
+        X.ask(v, "why_fails", None, complete=lambda msgs, **k: json.dumps({"answer": "x", "evidence_ids": ["E99"]}))
+
+
 def test_ask_rejects_uncited_twice_then_unavailable(run):
     v, ev, fix = run
     calls = []

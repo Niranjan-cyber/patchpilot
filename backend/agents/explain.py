@@ -5,7 +5,7 @@ import re
 
 from backend import artifacts, db, llm_gateway
 from backend.contracts.models import RunView
-from backend.gates.diff_policy import full_ids
+from backend.gates.diff_policy import full_ids, label
 from backend.llm_gateway import BudgetExceeded, QuotaPause
 
 QUESTIONS = {"why_file": "Why does PatchPilot point at {path}?", "why_fails": "Why does the new test fail on the original code?",
@@ -84,7 +84,7 @@ def ask(v: RunView, question: str, path: str | None, *, complete=None) -> dict:
              "If the evidence doesn't answer the question, say so in the answer and still cite what you looked at."},
             {"role": "user", "content": f"Issue #{v.issue.number}: {v.issue.title}\n"
              f"Diagnosis: {d.hypothesis if d else '(none yet)'}\nQuestion: {q}\n\nEvidence:\n" +
-             "\n\n".join(f"[{eid}] ({label})\n{text}" for eid, (label, text) in ev.items())}]
+             "\n\n".join(f"[{label(n)}] ({what})\n{text}" for n, (what, text) in enumerate(ev.values()))}]
     complete = complete or llm_gateway.complete
     why = None
     for _ in range(2):   # one retry

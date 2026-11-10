@@ -6,7 +6,7 @@ import uuid
 from backend import artifacts, db
 from backend.agents import loop
 from backend.contracts.models import Diagnosis, Location, TourItem
-from backend.gates.diff_policy import check_diagnosis, full_ids, keep_tour
+from backend.gates.diff_policy import check_diagnosis, full_ids, keep_tour, label
 from backend.llm_gateway import BudgetExceeded, QuotaPause
 from backend.sandbox import docker
 from backend.sandbox.steps import image, snap
@@ -29,7 +29,7 @@ def evidence_menu(run) -> dict[str, str]:
 def task_prompt(run, menu: dict[str, str], failing: str, previous: str | None) -> str:
     i = run.issue
     tests = ", ".join(run.repro.test_ids) if run.repro else "(none)"
-    ev = "\n".join(f"- {k}: {v}" for k, v in menu.items())
+    ev = "\n".join(f"- {label(n)}: {v}" for n, v in enumerate(menu.values()))
     return f"""Find the cause of this bug. Do NOT edit any file; only read (cat, grep, sed -n, git log).
 
 Issue #{i.number}: {i.title}
