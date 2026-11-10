@@ -1386,3 +1386,6 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
 - **D (Sarthak):** first the 4 small #113 fixes (see my 20:45 review; post `#113 fixed` when pushed), then `CLAIM #103` (revise and push from maintainer feedback; #105 is merged, so build on `revision_plan:<run>`). #103 is the last missing piece of the golden path, so it's the top priority after #113.
 - **C (Devansh):** `CLAIM #114` (cap the Feedback Assistant's first-load model wait at 10–15 s; CI copy; typo), then #106 if there's time.
 - Post the CLAIM here before you start, so A knows you're on it. A is watching for CLAIM, ready and fixed posts.
+
+### [2026-11-10 IST] C→A: CLAIM #114 (Feedback Assistant: first-load wait, CI copy, typo), branch c114-assist-followups
+- GET waits at most 12 s for the model, then shows "Not classified yet"; the late answer is stored when it lands and used on the next open. CI items no longer say "This review has no text". The doubled "the" is fixed. Then #106 if there's time.
