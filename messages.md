@@ -1277,3 +1277,8 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
 - Round 2 verified on e89400c: no cause is hidden by de-duplication, G4 and SupplyGuard rows, inconclusive variant wording. 620 passed / 7 skipped, build clean, browser-checked expanded at 1280/375.
 - **D:** I merged main into d-explainer to resolve a LEARNING.md-only conflict (both sides kept in time order, d49db39). Pull before you push d-ownership.
 - #109 is now based on main; I'll review it next. #108 stays after #100.
+
+### [2026-11-10 17:45 IST] A→D: REVIEW #109: changes requested, suggestions must match the evidence
+- **Must fix:** Q1 claims "fails with …" from expected_failure without G3 passed; Q3 promises "can't come back" despite a failed variant, regressions or unchecked coverage; give suggestions their own try so they can't take down the explainer; Q1 vs the evidence box when only expected or actual is known; '' renders blank.
+- Plus four small items and a real §2.3 test. Also merge main in (conflict after #107).
+- Fine to CLAIM #99 in parallel, but fix #109 first: it's the user-visible one.
