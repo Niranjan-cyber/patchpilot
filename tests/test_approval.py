@@ -166,7 +166,8 @@ def test_explainer_lists_a_failed_hidden_variant_under_risks(ready):
     db.put_kv(c, f"repo_checks:{rid}", '{"checks": [{"tool": "ruff", "status": "PASS", "note": "no new problems"}], "files": [], "reason": null}')
     e = explainer(b, rid)
     status = {r.get("tool") or r["id"]: r["status"] for r in e["verification"]}
-    assert status == {"reproduced": "passed", "fixed": "passed", "baseline": "not_run", "hidden_variant": "failed", "ruff": "passed"}
+    assert status == {"reproduced": "passed", "fixed": "passed", "baseline": "not_run", "hidden_variant": "failed", "ruff": "passed",
+                      "only_these_files": "passed", "supplyguard": "passed"}
     assert e["fix"]["only_these_files"] == "passed"
     risky = {r.get("id") or r["kind"] for r in e["risks"]}
     assert risky == {"hidden_variant", "baseline", "uncovered"}   # a passed check is never listed as a risk
@@ -228,7 +229,7 @@ def test_each_risk_is_listed_once(ready, monkeypatch):
     v.verify = Verification(new_test_runs=[CheckStatus.PASSED] * 2, hidden_variant=CheckStatus.FAILED)
     v.repro = ReproTest(test_diff_id=v.patch.test_diff_id, test_ids=["t"], expected_failure="e", uncovered=["floats"])
     v.baseline = TestRun(pass_set=["t1"], partial=True)
-    v.gates = {**v.gates, "G2": CheckStatus.INCONCLUSIVE, "G3": CheckStatus.PASSED}
+    v.gates = {**v.gates, "G2": CheckStatus.INCONCLUSIVE, "G3": CheckStatus.PASSED, "G4": CheckStatus.PASSED}
     v.review = ReviewResult(concerns=[review_concern(v.verify), {"text": f"{COVERAGE_NOTE} its test checks 1 of the things: floats"},
                                       *lint.review_concerns(rid, "", ""), {"severity": "medium", "text": "Renames a public function."}])
     db.save_run(c, v)
@@ -259,3 +260,38 @@ def test_citation_paths_are_quoted(ready):
     v.diagnosis = Diagnosis(hypothesis="h", locations=[Location(path="src/a b#1?.py", line=3)])
     db.save_run(c, v)
     assert explainer(b, rid)["root_cause"]["citations"][0]["url"] == "https://github.com/o/r/blob/abc/src/a%20b%231%3F.py#L3"
+
+
+def test_a_lint_concern_stays_when_no_failed_row_shows_it(ready, monkeypatch):
+    # no repo_checks record: the only place the user can see the lint failure is the Reviewer's concern
+    from backend.agents import lint
+    from backend.contracts.models import ReviewResult
+    monkeypatch.setattr(lint, "run_checks", lambda *a: {"checks": [{"tool": "ruff", "status": "FAIL", "new_count": 1, "new": ["E1"]}]})
+    b, rid, _ = ready
+    c = db.connect(); v = db.get_run(c, rid)
+    v.review = ReviewResult(concerns=lint.review_concerns(rid, "", ""))
+    db.save_run(c, v)
+    assert [r["kind"] for r in explainer(b, rid)["risks"] if "ruff" in str(r.get("text"))] == ["review"]
+
+
+def test_every_check_that_did_not_pass_is_a_risk(ready):
+    b, rid, _ = ready
+    c = db.connect(); v = db.get_run(c, rid)
+    v.gates = {"G2": CheckStatus.PASSED, "G3": CheckStatus.PASSED, "G4": CheckStatus.INCONCLUSIVE, "G5": CheckStatus.PASSED}
+    v.supplyguard = None   # no dependency check result
+    db.save_run(c, v)
+    e = explainer(b, rid)
+    status = {r["id"]: r["status"] for r in e["verification"]}
+    assert status["only_these_files"] == "inconclusive" and status["supplyguard"] == "not_run"
+    assert {"only_these_files", "supplyguard"} <= {r.get("id") for r in e["risks"]}
+
+
+def test_a_flaky_baseline_is_not_hidden_behind_the_partial_cap(ready):
+    from backend.contracts.models import TestRun
+    b, rid, _ = ready
+    c = db.connect(); v = db.get_run(c, rid)
+    v.baseline = TestRun(pass_set=["t1"], flaky_set=["t2"], partial=True)
+    v.gates = {**v.gates, "G2": CheckStatus.INCONCLUSIVE}
+    db.save_run(c, v)
+    ids = [r.get("id") or r.get("reason") for r in explainer(b, rid)["risks"]]
+    assert "baseline" in ids and "baseline_partial" in ids

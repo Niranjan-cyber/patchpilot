@@ -145,10 +145,31 @@ def stale_checks(v: RunView, diff: str) -> list[PublishBlocker]:
 
 REPO_CHECK = {"PASS": CheckStatus.PASSED, "FAIL": CheckStatus.FAILED, "BLOCKED": CheckStatus.INCONCLUSIVE,
               "NOT_RUN": CheckStatus.NOT_RUN, "UNSUPPORTED": CheckStatus.NOT_RUN}
-# Reviewer concerns that code wrote from facts the explainer lists itself (variant.review_concern, publisher.COVERAGE_NOTE,
+# Reviewer concerns that code wrote from facts the explainer can list itself (variant.review_concern, publisher.COVERAGE_NOTE,
 # lint.review_concerns). test_approval builds them with those producers, so a wording change there fails a test.
-RESTATED = re.compile(r"^(The fix passes the visible test but fails a hidden variant|The test designer didn't claim"
-                      r"|The repo's .+ reports \d+ new problems? in the changed files)")
+VARIANT_CONCERN = re.compile(r"^The fix passes the visible test but fails a hidden variant")
+COVERAGE_CONCERN = re.compile(r"^The test designer didn't claim")
+LINT_CONCERN = re.compile(r"^The repo's (.+?) reports \d+ new problems? in the changed files")
+
+
+def _shown_elsewhere(text: str, checks: list[dict], uncovered: list[str] | None) -> bool:
+    """True only if the explainer lists this concern's cause itself, so dropping it never hides a fact."""
+    row = lambda i, **kw: any(c["id"] == i and c["status"] == CheckStatus.FAILED and all(c.get(k) == x for k, x in kw.items())
+                              for c in checks)
+    if VARIANT_CONCERN.match(text):
+        return row("hidden_variant")
+    if COVERAGE_CONCERN.match(text):
+        return bool(uncovered)
+    m = LINT_CONCERN.match(text)
+    return bool(m and row("repo_check", tool=m.group(1)))
+
+
+def _cap_says_it(c: dict, caps: list[str]) -> bool:
+    """An inconclusive check whose only cause is a readiness cap is listed once, as the cap."""
+    if c["id"] == "supplyguard":
+        return c["status"] == CheckStatus.INCONCLUSIVE and "supplyguard_inconclusive" in caps
+    return (c["id"] == "baseline" and c["status"] == CheckStatus.INCONCLUSIVE and "baseline_partial" in caps
+            and not (c["counts"] and (c["counts"]["flaky"] or c["counts"]["failed"])))
 
 
 def explainer(v: RunView, repo_checks: dict | None, variant: dict | None) -> dict:
@@ -168,15 +189,16 @@ def explainer(v: RunView, repo_checks: dict | None, variant: dict | None) -> dic
         {"id": "baseline", "status": g("G2"), "partial": b.partial if b else None, "evidence": b.evidence_ids if b else [],
          "counts": {"passed": len(b.pass_set), "failed": len(b.fail_set), "flaky": len(b.flaky_set)} if b else None},
         {"id": "hidden_variant", "status": hv, "reason": hv_reason},
+        {"id": "only_these_files", "status": g("G4")},
+        {"id": "supplyguard", "status": v.supplyguard.status if v.supplyguard else CheckStatus.NOT_RUN},
         *([{"id": "repo_check", "tool": c["tool"], "status": REPO_CHECK.get(c["status"], CheckStatus.INCONCLUSIVE),
             "unsupported": c["status"] == "UNSUPPORTED", "note": c.get("note")} for c in rc["checks"]] if rc["checks"] else
           [{"id": "repo_check", "tool": None, "status": CheckStatus.NOT_RUN, "reason": rc.get("reason")}]),
     ]
     risks = ([{"kind": "review", "severity": c.get("severity"), "text": c.get("text"), "location": c.get("location")}
               for c in (v.review.concerns if v.review else [])
-              if c.get("level") != "ACCEPTED_TRADEOFF" and not RESTATED.match(str(c.get("text") or ""))]
-             + [{"kind": "check", **c} for c in checks if c["status"] != CheckStatus.PASSED
-                and not (c["id"] == "baseline" and "baseline_partial" in caps)]   # the cap already says it
+              if c.get("level") != "ACCEPTED_TRADEOFF" and not _shown_elsewhere(str(c.get("text") or ""), checks, r and r.uncovered)]
+             + [{"kind": "check", **c} for c in checks if c["status"] != CheckStatus.PASSED and not _cap_says_it(c, caps)]
              + [{"kind": "cap", "reason": x} for x in caps]
              + ([{"kind": "uncovered", "text": t} for t in r.uncovered] if r and r.uncovered
                 else [{"kind": "coverage_not_checked"}] if r and r.uncovered is None else []))

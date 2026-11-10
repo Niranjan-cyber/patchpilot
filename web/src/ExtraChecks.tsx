@@ -32,7 +32,7 @@ export const VREASON: Record<string, string> = {
   variant_not_failing_on_base: "the variant didn't fail on the original code, so it would prove nothing",
   no_verified_fix: "there was no verified fix to check",
 };
-const HV: Record<string, [string, string]> = {
+export const HV: Record<string, [string, string]> = {
   passed: ["pass", "The fix also passes a hidden variant of the test that the fixer never saw."],
   failed: ["fail", "The fix passes the visible test but FAILS a hidden variant. It may only handle the exact case in the test."],
   not_run: ["muted", "Not run."],

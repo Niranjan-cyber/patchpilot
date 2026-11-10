@@ -2,11 +2,11 @@ import type { ReactNode } from "react";
 import type { CheckStatus } from "./contracts";
 import { Status, StatusIcon } from "./components";
 import { anchor, parseDiff } from "./DiffView";
-import { NOCHECK, VREASON } from "./ExtraChecks";
+import { HV, NOCHECK, VREASON } from "./ExtraChecks";
 import { CopyButton } from "./ui";
 
 // #97: built by backend/api/approval.py explainer() from what the run recorded; statuses are never upgraded here
-type Check = { id: "reproduced" | "fixed" | "baseline" | "hidden_variant" | "repo_check"; status: CheckStatus; tool?: string | null;
+type Check = { id: "reproduced" | "fixed" | "baseline" | "hidden_variant" | "only_these_files" | "supplyguard" | "repo_check"; status: CheckStatus; tool?: string | null;
   note?: string | null; reason?: string | null; unsupported?: boolean; runs?: CheckStatus[]; regressions?: string[]; partial?: boolean | null;
   counts?: { passed: number; failed: number; flaky: number } | null; evidence?: string[] };
 type Risk = { kind: "review"; severity?: string; text?: string; location?: string } | ({ kind: "check" } & Check)
@@ -26,7 +26,8 @@ const CAP: Record<string, string> = {
 
 const label = (c: Check) => c.id === "repo_check" ? (c.tool ? `Repository check: ${c.tool}` : "The repository's own checks") : {
   reproduced: "The new test fails on the original code", fixed: "The new test passes with the fix",
-  baseline: "Existing tests on the original code", hidden_variant: "Hidden test variant" }[c.id];
+  baseline: "Existing tests on the original code", hidden_variant: "Hidden test variant",
+  only_these_files: "Only allowed files changed (no tests, dependencies or CI edited)", supplyguard: "Dependency check (SupplyGuard)" }[c.id];
 
 // a reason we have no words for (e.g. "error: ValueError") is never shown raw
 const why = (map: Record<string, string>, reason?: string | null) =>
@@ -43,9 +44,10 @@ function detail(c: Check): string {
   if (c.id === "fixed") return `${ofRuns(c.runs, "passed")} ${c.regressions?.length
     ? `${c.regressions.length} existing test${c.regressions.length === 1 ? "" : "s"} broke.` : "No existing test broke."}`;
   if (c.id === "baseline") return c.counts ? `${c.counts.passed} passed, ${c.counts.failed} failed, ${c.counts.flaky} flaky${c.partial ? " (only part of the suite ran)" : ""}.` : "No run recorded.";
-  if (c.id === "hidden_variant") return c.status === "passed" ? "The fix also passes a variant of the test it never saw."
-    : c.status === "failed" ? "The fix fails a variant of the test it never saw, so it may only handle the exact tested case."
+  // passed / failed / inconclusive in the run page's own words; only "not run" takes a reason
+  if (c.id === "hidden_variant") return c.status !== "not_run" && HV[c.status] ? HV[c.status][1]
     : `Not run${c.reason ? `: ${why(VREASON, c.reason)}` : ""}.`;
+  if (c.id === "only_these_files" || c.id === "supplyguard") return "";
   if (c.tool) return c.note ?? "";
   return c.reason ? NOCHECK[c.reason] ?? `Not run: ${why(NOCHECK, c.reason)}.` : "Status unavailable.";
 }

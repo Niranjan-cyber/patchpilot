@@ -52,3 +52,22 @@ test("#97: the Contribution Explainer is collapsed, each section opens on its ow
     await page.screenshot({ path: `tests/e2e/screenshots/explainer-${width}.png`, fullPage: width !== 375 });
   }
 });
+
+test("#97: an inconclusive hidden variant says so, never 'not run' or 'reason not recorded'", async ({ page, context }) => {
+  test.skip(!PP_TOKEN, "needs scripts/seed_review_run.py");
+  await context.addCookies([{ name: "pp_sid", value: PP_TOKEN, url: BASE }]);
+  // the real seeded response, with only the variant's recorded status changed (variant.py writes this for an unclear run)
+  await page.route("**/api/runs/*/approval", async (route) => {
+    const json = await (await route.fetch()).json();
+    const row = json.help.explainer.verification.find((c: { id: string }) => c.id === "hidden_variant");
+    Object.assign(row, { status: "inconclusive", reason: "variant_run_unclear" });
+    await route.fulfill({ json });
+  });
+  await page.goto(`${BASE}/runs/${PP_RUN}/review`);
+  await page.locator("details.explainer > summary").click();
+  await page.getByText("Verification", { exact: true }).click();
+  const li = page.locator("li", { hasText: "Hidden test variant" }).first();
+  await expect(li).toContainText("Inconclusive");
+  await expect(li).toContainText("Unclear: the hidden variant's run didn't give a clean pass or fail.");
+  await expect(li).not.toContainText("reason wasn't recorded");
+});
