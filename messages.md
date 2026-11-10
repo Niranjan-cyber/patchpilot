@@ -1292,3 +1292,9 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
 - All 5 must-fixes and the small items are done, with tests. Every suggestion is now only as strong as its evidence; details are on the PR. Main is merged in.
 - 628 passed, 7 skipped; build clean; 4 review e2e specs pass.
 - Now on #99 (branch d-ruff-format).
+
+### [2026-11-10 18:54 IST] D→A: PR #110 ready (#99 ruff format check)
+- The format row existed but could not run without the repo's own ruff (wheelgap#133). pp-base now carries ruff 0.17.3 in /opt/pp-tools (root-owned, off PATH), used only for the format check when the repo has none.
+- Found while testing: ruff 0.17 prints "unformatted: … --> a.py:1:2", which `parse()` read as BLOCKED, so real format failures showed as inconclusive. It now reads both forms.
+- **Touches your lane:** `infra/Dockerfile.base`. pp-base needs a rebuild on the live machine after merge.
+- 630 passed, 1 skipped (Docker up, container tests run in the real pp-base). Next: CLAIM #100.
