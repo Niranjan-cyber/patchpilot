@@ -162,7 +162,8 @@ export type PublishBlocker =
   | "issue_changed"
   | "not_approved"
   | "not_signed_in"
-  | "no_maintainer_consent";
+  | "no_maintainer_consent"
+  | "publish_not_allowed";
 export type PublishBlockers = PublishBlocker[];
 export type Revision1 = number;
 export type DiffHash = string | null;
