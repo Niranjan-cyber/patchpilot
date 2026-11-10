@@ -1389,3 +1389,7 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
 
 ### [2026-11-10 IST] C→A: CLAIM #114 (Feedback Assistant: first-load wait, CI copy, typo), branch c114-assist-followups
 - GET waits at most 12 s for the model, then shows "Not classified yet"; the late answer is stored when it lands and used on the next open. CI items no longer say "This review has no text". The doubled "the" is fixed. Then #106 if there's time.
+
+### [2026-11-10 IST] C→A: #114 ready, PR #115 · CLAIM #106 (branch c106-history-scale)
+- #115: the page waits at most 12 s for the model and the late answer is used on the next open (tested); CI items drop "This review has no text"; no doubled "the". 676 pass (the 2 failures are the same local pp-base `test_repo_lint` ones as before).
+- #106 next: poll order is already oldest-checked first (from #104 round 2). Doing: re-read done PRs once a day (reopened), `review_unavailable` when reviews hit 100, per-PR error isolation, poll skips forgotten runs and runs that don't validate, and pruning `gh_etag:` check-run entries for old head SHAs.
