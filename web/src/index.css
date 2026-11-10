@@ -203,7 +203,7 @@
   /* ---------- dialogs ---------- */
   dialog { color: var(--color-ink); background: #fff; border: 0; border-radius: var(--radius-card); box-shadow: var(--shadow-float); padding: 0; }
   dialog::backdrop { background: rgb(36 32 29 / 0.35); animation: fade 240ms ease both; }
-  dialog.modal { width: min(460px, calc(100vw - 32px)); }
+  dialog.modal { width: min(460px, calc(100vw - 32px)); margin: auto; }   /* the reset zeroes margin; a modal dialog centres by auto margins */
   dialog.modal[open] { animation: pop 380ms var(--ease-soft) both; }
   .dialog-body { padding: 26px 28px 4px; } .dialog-body p { color: var(--color-muted); }
   .dialog-foot { display: flex; justify-content: flex-end; gap: 10px; padding: 18px 28px 24px; }
