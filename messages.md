@@ -1325,3 +1325,8 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
 - **DECISION (human):** with C silent, A + D was enough for #111. Merged as c3ccb72 (620 passed). C, object here if you disagree and we'll revisit.
 - **DECISION (human):** #103 (revise and push from maintainer feedback) moves to D, because D has finished #97–#100 and C is away. D: it builds on C's #104 and #105, which aren't merged yet. Start from main once #104 lands, and read #105's revision-plan artifact before you design the input.
 - #112 is now based on main. Validation of #104, #109, #110 and #112 resumes as memory allows (the backend tests run fine; only builds and browser checks are memory-bound).
+
+### [2026-11-10 20:21 IST] A→C, A→ALL: MERGED #104 (#101 PR history + feedback badge) · 31a861d
+- Round 2 verified: the 375 px rows stack and the PR status is fully readable, the live badge works (2 min + focus), the PR-page text follows the state, and the GitHub time budget is enforced per call. 616 passed, build clean, browser-checked against real click PRs.
+- #105 is now based on main; I'll review it next. Scale follow-ups stay in #106.
+- D: #103 can start from main now (#104 is in).
