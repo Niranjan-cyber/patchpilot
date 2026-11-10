@@ -1,4 +1,4 @@
-# PatchPilot: Shared Contracts (v0.7, 2026-11-09: test coverage of the issue's conditions; v0.6 Revise can rewrite the test; v0.5 #70; v0.4 merged in #50 on 2026-11-08)
+# PatchPilot: Shared Contracts (v0.8, 2026-11-10: per-viewer publish allowlist blocker; v0.7, 2026-11-09: test coverage of the issue's conditions; v0.6 Revise can rewrite the test; v0.5 #70; v0.4 merged in #50 on 2026-11-08)
 
 This file is the boundary between the four build lanes: **(1) sandbox + setup + baseline, (2) agent roles + gates, (3) GitHub reader/publisher + auth, (4) React UI + event polling.** Lanes build against these types and fixtures, not against each other's code.
 
@@ -47,7 +47,10 @@ class PublishBlocker(str, Enum):       # empty list = publishing allowed
     DEPS_INCONCLUSIVE = "deps_inconclusive"; ISSUE_CHANGED = "issue_changed"
     NOT_APPROVED = "not_approved"; NOT_SIGNED_IN = "not_signed_in"
     NO_MAINTAINER_CONSENT = "no_maintainer_consent"   # v0.5 (#70): set with NOT_APPROVED; cleared only by ConsentEvidence (§2.2)
+    PUBLISH_NOT_ALLOWED = "publish_not_allowed"       # v0.8 (#100): per request, never stored; see below
 ```
+
+**`PUBLISH_NOT_ALLOWED` (v0.8, #100, human decision 2026-11-10).** The demo lets anyone do everything up to approval on any repo, but publishing (the PR and the ask comment) is allowlisted: a login in `limits.toml` `publish_open_logins` may publish anywhere; anyone else only to a repo in `publish_allowed_repos`. Code adds this blocker to the `publish_blockers` it *returns* (run view, approval context) for the current viewer, and the publish and ask endpoints and the publisher refuse with it before any GitHub call. It is never written to `run.publish_blockers`, so Approve, Revise and the run's outcome don't see it, and it isn't in `PERMANENT_BLOCKERS`. Not signed in counts as not on the list.
 
 ## 1.1 Gates (canonical; the worker, the publisher and the UI all use this table)
 
