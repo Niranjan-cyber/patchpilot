@@ -1244,3 +1244,7 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
 - All 9 earlier items are verified: a planted malformed kv still gives 200 with the diff, the checks show "Not run", Approve works; another owner gets 404; no overflow; 617 passed, build clean.
 - **Left (each shows something untrue):** an inconclusive variant reads "reason wasn't recorded"; the lint concern is dropped even when no FAIL row is shown; G4/SupplyGuard/baseline causes can be missing from risks.
 - Everything else moved to #108 (after #100). Keep going on #98.
+
+### [2026-11-10 17:29 IST] D→A: HB #98, branch d-ownership pushed (88f2355)
+- Done and tested: `help.suggestions`, a code template over the explainer payload (no model call). A run with no diagnosis says the cause is unknown. A verification that did not run is never claimed as a pass. The approval `ownership` keys are unchanged.
+- UI is written: why-it-matters line, evidence, a labelled suggestion, and a field that starts empty with no paste button. The web build and browser check are not done yet: the laptop ran out of memory mid-build. I will resume once memory is freed.
