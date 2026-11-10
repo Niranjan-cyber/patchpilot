@@ -1,5 +1,7 @@
 """B10: the human gate on the exact diff (contracts §5, screen S-05)."""
+import re
 from typing import Literal
+from urllib.parse import quote
 
 from fastapi import APIRouter, Request
 from pydantic import BaseModel, Field
@@ -9,6 +11,7 @@ from backend.contracts.hashing import canonical_diff, diff_hash, evidence_hash, 
 from datetime import datetime
 
 from backend.contracts.models import (Approval, ApproveRequest, CheckStatus, Owner, PERMANENT_BLOCKERS, PublishBlocker, RevisionSummary,
+                                      cap_reasons,
                                       RunStatus, RunView)
 from backend.github import reader
 
@@ -140,18 +143,100 @@ def stale_checks(v: RunView, diff: str) -> list[PublishBlocker]:
     return out
 
 
+REPO_CHECK = {"PASS": CheckStatus.PASSED, "FAIL": CheckStatus.FAILED, "BLOCKED": CheckStatus.INCONCLUSIVE,
+              "NOT_RUN": CheckStatus.NOT_RUN, "UNSUPPORTED": CheckStatus.NOT_RUN}
+# Reviewer concerns that code wrote from facts the explainer can list itself (variant.review_concern, publisher.COVERAGE_NOTE,
+# lint.review_concerns). test_approval builds them with those producers, so a wording change there fails a test.
+VARIANT_CONCERN = re.compile(r"^The fix passes the visible test but fails a hidden variant")
+COVERAGE_CONCERN = re.compile(r"^The test designer didn't claim")
+LINT_CONCERN = re.compile(r"^The repo's (.+?) reports \d+ new problems? in the changed files")
+
+
+def _shown_elsewhere(text: str, checks: list[dict], uncovered: list[str] | None) -> bool:
+    """True only if the explainer lists this concern's cause itself, so dropping it never hides a fact."""
+    row = lambda i, **kw: any(c["id"] == i and c["status"] == CheckStatus.FAILED and all(c.get(k) == x for k, x in kw.items())
+                              for c in checks)
+    if VARIANT_CONCERN.match(text):
+        return row("hidden_variant")
+    if COVERAGE_CONCERN.match(text):
+        return bool(uncovered)
+    m = LINT_CONCERN.match(text)
+    return bool(m and row("repo_check", tool=m.group(1)))
+
+
+def _cap_says_it(c: dict, caps: list[str]) -> bool:
+    """An inconclusive check whose only cause is a readiness cap is listed once, as the cap."""
+    if c["id"] == "supplyguard":
+        return c["status"] == CheckStatus.INCONCLUSIVE and "supplyguard_inconclusive" in caps
+    return (c["id"] == "baseline" and c["status"] == CheckStatus.INCONCLUSIVE and "baseline_partial" in caps
+            and not (c["counts"] and (c["counts"]["flaky"] or c["counts"]["failed"])))
+
+
+def explainer(v: RunView, repo_checks: dict | None, variant: dict | None) -> dict:
+    """#97: the Contribution Explainer, only from what this run recorded (no model calls). Statuses are the recorded
+    ones; anything that didn't run is "not_run" and listed under risks, never shown as passed. Each cause is listed once."""
+    g = lambda k: v.gates.get(k, CheckStatus.NOT_RUN)
+    r, d, vf, b = v.repro, v.diagnosis, v.verify, v.baseline
+    rc = repo_checks or {"checks": None, "reason": "not_run_yet"}
+    hv = (vf and vf.hidden_variant) or CheckStatus.NOT_RUN
+    # kv variant:<rid> isn't reset on a revision: its reason only explains the status it was written with
+    hv_reason = (variant or {}).get("reason") if (variant or {}).get("status") == hv.value else None
+    caps = cap_reasons(v)
+    checks = [
+        {"id": "reproduced", "status": g("G3"), "runs": r.runs_on_base if r else [], "evidence": r.evidence_ids if r else []},
+        {"id": "fixed", "status": g("G5"), "runs": vf.new_test_runs if vf else [], "regressions": vf.regressions if vf else [],
+         "evidence": vf.evidence_ids if vf else []},
+        {"id": "baseline", "status": g("G2"), "partial": b.partial if b else None, "evidence": b.evidence_ids if b else [],
+         "counts": {"passed": len(b.pass_set), "failed": len(b.fail_set), "flaky": len(b.flaky_set)} if b else None},
+        {"id": "hidden_variant", "status": hv, "reason": hv_reason},
+        {"id": "only_these_files", "status": g("G4")},
+        {"id": "supplyguard", "status": v.supplyguard.status if v.supplyguard else CheckStatus.NOT_RUN},
+        *([{"id": "repo_check", "tool": c["tool"], "status": REPO_CHECK.get(c["status"], CheckStatus.INCONCLUSIVE),
+            "unsupported": c["status"] == "UNSUPPORTED", "note": c.get("note")} for c in rc["checks"]] if rc["checks"] else
+          [{"id": "repo_check", "tool": None, "status": CheckStatus.NOT_RUN, "reason": rc.get("reason")}]),
+    ]
+    risks = ([{"kind": "review", "severity": c.get("severity"), "text": c.get("text"), "location": c.get("location")}
+              for c in (v.review.concerns if v.review else [])
+              if c.get("level") != "ACCEPTED_TRADEOFF" and not _shown_elsewhere(str(c.get("text") or ""), checks, r and r.uncovered)]
+             + [{"kind": "check", **c} for c in checks if c["status"] != CheckStatus.PASSED and not _cap_says_it(c, caps)]
+             + [{"kind": "cap", "reason": x} for x in caps]
+             + ([{"kind": "uncovered", "text": t} for t in r.uncovered] if r and r.uncovered
+                else [{"kind": "coverage_not_checked"}] if r and r.uncovered is None else []))
+    blob = f"https://github.com/{v.issue.repo}/blob/{v.base_sha}/"
+    return {
+        "problem": {"expected": v.issue.expected, "actual": v.issue.actual, "tests": r.test_ids if r else [],
+                    "failure": r.expected_failure if r else None, "evidence": [r.test_diff_id, *r.evidence_ids] if r else []},
+        "root_cause": d and {"claim": d.hypothesis, "evidence": d.evidence_ids,
+                             "citations": [{"path": l.path, "line": l.line,
+                                            "url": blob + quote(l.path) + (f"#L{l.line}" if l.line else "")} for l in d.locations]},
+        "fix": {"only_these_files": g("G4"), "evidence": [v.patch.fix_diff_id, v.patch.test_diff_id] if v.patch else []},
+        "verification": checks, "risks": risks, "readiness": v.readiness,
+    }
+
+
 @router.get("/api/runs/{run_id}/approval")
 def approval_context(run_id: str, request: Request):
+    import json
+    import logging
     v = _run(request, run_id)
     diff = exact_diff(v)
     dh, eh = hashes(v, diff)
+    try:   # optional help: a bad record must never block seeing or approving the diff
+        c = db.connect()
+        try:
+            variant = json.loads(db.get_kv(c, f"variant:{run_id}") or "null")
+        except ValueError:
+            variant = None
+        help_ = explainer(v, db.repo_checks(c, run_id), variant if isinstance(variant, dict) else None)
+    except Exception:
+        logging.getLogger(__name__).exception("explainer failed for run %s", run_id)
+        help_ = None
     return {"revision": v.revision, "diff": diff, "diff_hash": dh, "evidence_hash": eh, "files": sorted(changed_files(diff)),
             "publish_blockers": v.publish_blockers, "approved": v.approval is not None,
             "pr_title": f"Fix #{v.issue.number}: {v.issue.title}"[:120],
             "pr_summary": summary_prefill(v),
             # v0.5 §2.3: what PatchPilot found, shown as help next to the three own-words questions (never prefilled into them)
-            "help": {"cause": v.diagnosis.hypothesis if v.diagnosis else None, "tests": v.repro.test_ids if v.repro else [],
-                     "expected_failure": v.repro.expected_failure if v.repro else None},
+            "help": {"explainer": help_},
             "revise_blocked": None if budget_left(run_id) else NO_BUDGET}
 
 

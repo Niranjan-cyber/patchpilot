@@ -361,6 +361,18 @@ def decide_outcome(gates: dict[str, CheckStatus], end_reason: EndReason, *, revi
     return Outcome.STOPPED
 
 
+UNCLEAR = {"unclear_type", "needs_info", "model_unavailable"}   # contracts §2.1: the issue never says what the right behaviour is
+
+
+def cap_reasons(run: RunView) -> list[str]:
+    """Why readiness is capped at "Needs attention" (the Review screen's explainer lists these)."""
+    caps = {"supplyguard_inconclusive": bool(run.supplyguard and run.supplyguard.status == CheckStatus.INCONCLUSIVE),
+            "baseline_partial": bool(run.baseline and run.baseline.partial),
+            # #41: our test was the only definition of "right"
+            "issue_unclear": bool(run.assessment and UNCLEAR & set(run.assessment.decision_reasons))}
+    return [k for k, on in caps.items() if on]
+
+
 def readiness(outcome: Outcome, *, capped: bool = False) -> str:
     if outcome == Outcome.VERIFIED_FIX and capped:
         outcome = Outcome.FIX_NEEDS_ATTENTION

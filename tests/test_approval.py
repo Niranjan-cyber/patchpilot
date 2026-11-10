@@ -139,3 +139,159 @@ def test_ownership_answers_are_required_but_never_judged(ready):
     assert v["approval"]["ownership"]["why_this_fix"] == odd["why_this_fix"]
     from backend.report import render
     assert "I am honestly not sure" in render(db.get_run(db.connect(), rid))
+
+
+# #97 Contribution Explainer: every status is the recorded one; what didn't run says so
+def explainer(b, rid):
+    return b.get(f"/api/runs/{rid}/approval").json()["help"]["explainer"]
+
+
+def test_explainer_shows_lint_that_never_ran_as_not_run(ready):
+    b, rid, _ = ready
+    e = explainer(b, rid)
+    lint = [r for r in e["verification"] if r["id"] == "repo_check"]
+    assert lint == [{"id": "repo_check", "tool": None, "status": "not_run", "reason": "not_run_yet"}]
+    assert {"kind": "check", **lint[0]} in e["risks"]
+
+
+def test_explainer_lists_a_failed_hidden_variant_under_risks(ready):
+    from backend.contracts.models import ReproTest, Verification
+    b, rid, _ = ready
+    c = db.connect(); v = db.get_run(c, rid)
+    v.gates = {"G3": CheckStatus.PASSED, "G4": CheckStatus.PASSED, "G5": CheckStatus.PASSED}
+    v.repro = ReproTest(test_diff_id=v.patch.test_diff_id, test_ids=["tests/test_a.py::test"], expected_failure="assert 1 == 2",
+                        runs_on_base=[CheckStatus.FAILED, CheckStatus.FAILED], uncovered=["negative numbers"])
+    v.verify = Verification(new_test_runs=[CheckStatus.PASSED, CheckStatus.PASSED], hidden_variant=CheckStatus.FAILED)
+    db.save_run(c, v)
+    db.put_kv(c, f"repo_checks:{rid}", '{"checks": [{"tool": "ruff", "status": "PASS", "note": "no new problems"}], "files": [], "reason": null}')
+    e = explainer(b, rid)
+    status = {r.get("tool") or r["id"]: r["status"] for r in e["verification"]}
+    assert status == {"reproduced": "passed", "fixed": "passed", "baseline": "not_run", "hidden_variant": "failed", "ruff": "passed",
+                      "only_these_files": "passed", "supplyguard": "passed"}
+    assert e["fix"]["only_these_files"] == "passed"
+    risky = {r.get("id") or r["kind"] for r in e["risks"]}
+    assert risky == {"hidden_variant", "baseline", "uncovered"}   # a passed check is never listed as a risk
+
+
+def test_explainer_cites_the_pinned_commit_and_explains_needs_attention(ready):
+    from backend.contracts.models import Diagnosis, Location, ReviewResult, TestRun
+    b, rid, _ = ready
+    c = db.connect(); v = db.get_run(c, rid)
+    v.diagnosis = Diagnosis(hypothesis="x is set to 1, not 2.", locations=[Location(path="src/a.py", line=1), Location(path="src/b.py")],
+                            evidence_ids=["sha256:" + "2" * 64])
+    v.review = ReviewResult(concerns=[{"level": "IMPORTANT", "severity": "medium", "text": "No docstring update."},
+                                      {"level": "ACCEPTED_TRADEOFF", "severity": "low", "text": "Keeps the old name."}])
+    v.baseline = TestRun(pass_set=["t1", "t2"], fail_set=["t3"], partial=True)
+    db.save_run(c, v)
+    e = explainer(b, rid)
+    assert e["root_cause"]["citations"] == [
+        {"path": "src/a.py", "line": 1, "url": "https://github.com/o/r/blob/abc/src/a.py#L1"},
+        {"path": "src/b.py", "line": None, "url": "https://github.com/o/r/blob/abc/src/b.py"}]
+    assert e["root_cause"]["evidence"] == ["sha256:" + "2" * 64]
+    assert [r["text"] for r in e["risks"] if r["kind"] == "review"] == ["No docstring update."]
+    assert {"kind": "cap", "reason": "baseline_partial"} in e["risks"]
+    base = next(r for r in e["verification"] if r["id"] == "baseline")
+    assert base["counts"] == {"passed": 2, "failed": 1, "flaky": 0} and base["partial"] is True
+
+
+def test_explainer_is_owner_only(ready):
+    b, rid, _ = ready
+    assert TestClient(main.app, base_url="https://testserver").get(f"/api/runs/{rid}/approval").status_code == 404
+
+
+@pytest.mark.parametrize("bad", ["not json", "[1, 2]", '{"checks": [{"status": "PASS"}]}', '{"checks": "x"}'])
+def test_a_malformed_record_never_blocks_the_diff(ready, bad):
+    b, rid, _ = ready
+    db.put_kv(db.connect(), f"repo_checks:{rid}", bad)
+    db.put_kv(db.connect(), f"variant:{rid}", bad)
+    r = b.get(f"/api/runs/{rid}/approval")
+    assert r.status_code == 200 and "+x = 2" in r.json()["diff"]
+    rows = [c for c in r.json()["help"]["explainer"]["verification"] if c["id"] == "repo_check"]
+    assert rows == [{"id": "repo_check", "tool": None, "status": "not_run", "reason": "not_run_yet"}]   # malformed = not checked
+
+
+def test_a_failing_explainer_leaves_approval_working(ready, monkeypatch):
+    b, rid, _ = ready
+    monkeypatch.setattr(approval, "explainer", lambda *a: 1 / 0)
+    r = b.get(f"/api/runs/{rid}/approval")
+    assert r.status_code == 200 and r.json()["help"]["explainer"] is None and r.json()["diff_hash"]
+
+
+def test_each_risk_is_listed_once(ready, monkeypatch):
+    # the Reviewer's code-written concerns, made by their real producers, restate facts the explainer already lists
+    from backend.agents import lint
+    from backend.agents.variant import review_concern
+    from backend.contracts.models import ReproTest, ReviewResult, TestRun, Verification
+    from backend.publisher.publisher import COVERAGE_NOTE
+    monkeypatch.setattr(lint, "run_checks", lambda *a: {"checks": [{"tool": "ruff", "status": "FAIL", "new_count": 2, "new": ["E1", "E2"]}]})
+    b, rid, _ = ready
+    c = db.connect(); v = db.get_run(c, rid)
+    v.verify = Verification(new_test_runs=[CheckStatus.PASSED] * 2, hidden_variant=CheckStatus.FAILED)
+    v.repro = ReproTest(test_diff_id=v.patch.test_diff_id, test_ids=["t"], expected_failure="e", uncovered=["floats"])
+    v.baseline = TestRun(pass_set=["t1"], partial=True)
+    v.gates = {**v.gates, "G2": CheckStatus.INCONCLUSIVE, "G3": CheckStatus.PASSED, "G4": CheckStatus.PASSED}
+    v.review = ReviewResult(concerns=[review_concern(v.verify), {"text": f"{COVERAGE_NOTE} its test checks 1 of the things: floats"},
+                                      *lint.review_concerns(rid, "", ""), {"severity": "medium", "text": "Renames a public function."}])
+    db.save_run(c, v)
+    db.put_kv(c, f"repo_checks:{rid}", '{"checks": [{"tool": "ruff", "status": "FAIL", "note": "2 new problems"}], "files": [], "reason": null}')
+    risks = explainer(b, rid)["risks"]
+    causes = [r.get("id") or r.get("reason") or r["kind"] for r in risks]
+    assert sorted(causes) == ["baseline_partial", "hidden_variant", "repo_check", "review", "uncovered"]
+    assert [r["text"] for r in risks if r["kind"] == "review"] == ["Renames a public function."]
+
+
+def test_a_stale_variant_reason_is_not_shown(ready):
+    from backend.contracts.models import Verification
+    b, rid, _ = ready
+    c = db.connect(); v = db.get_run(c, rid)
+    v.verify = Verification(hidden_variant=None)   # a revision cleared it; kv still holds the old attempt's result
+    db.save_run(c, v)
+    db.put_kv(c, f"variant:{rid}", '{"status": "passed", "reason": "ok"}')
+    row = next(r for r in explainer(b, rid)["verification"] if r["id"] == "hidden_variant")
+    assert row == {"id": "hidden_variant", "status": "not_run", "reason": None}
+    db.put_kv(c, f"variant:{rid}", '{"status": "not_run", "reason": "no_variant_written"}')
+    assert next(r for r in explainer(b, rid)["verification"] if r["id"] == "hidden_variant")["reason"] == "no_variant_written"
+
+
+def test_citation_paths_are_quoted(ready):
+    from backend.contracts.models import Diagnosis, Location
+    b, rid, _ = ready
+    c = db.connect(); v = db.get_run(c, rid)
+    v.diagnosis = Diagnosis(hypothesis="h", locations=[Location(path="src/a b#1?.py", line=3)])
+    db.save_run(c, v)
+    assert explainer(b, rid)["root_cause"]["citations"][0]["url"] == "https://github.com/o/r/blob/abc/src/a%20b%231%3F.py#L3"
+
+
+def test_a_lint_concern_stays_when_no_failed_row_shows_it(ready, monkeypatch):
+    # no repo_checks record: the only place the user can see the lint failure is the Reviewer's concern
+    from backend.agents import lint
+    from backend.contracts.models import ReviewResult
+    monkeypatch.setattr(lint, "run_checks", lambda *a: {"checks": [{"tool": "ruff", "status": "FAIL", "new_count": 1, "new": ["E1"]}]})
+    b, rid, _ = ready
+    c = db.connect(); v = db.get_run(c, rid)
+    v.review = ReviewResult(concerns=lint.review_concerns(rid, "", ""))
+    db.save_run(c, v)
+    assert [r["kind"] for r in explainer(b, rid)["risks"] if "ruff" in str(r.get("text"))] == ["review"]
+
+
+def test_every_check_that_did_not_pass_is_a_risk(ready):
+    b, rid, _ = ready
+    c = db.connect(); v = db.get_run(c, rid)
+    v.gates = {"G2": CheckStatus.PASSED, "G3": CheckStatus.PASSED, "G4": CheckStatus.INCONCLUSIVE, "G5": CheckStatus.PASSED}
+    v.supplyguard = None   # no dependency check result
+    db.save_run(c, v)
+    e = explainer(b, rid)
+    status = {r["id"]: r["status"] for r in e["verification"]}
+    assert status["only_these_files"] == "inconclusive" and status["supplyguard"] == "not_run"
+    assert {"only_these_files", "supplyguard"} <= {r.get("id") for r in e["risks"]}
+
+
+def test_a_flaky_baseline_is_not_hidden_behind_the_partial_cap(ready):
+    from backend.contracts.models import TestRun
+    b, rid, _ = ready
+    c = db.connect(); v = db.get_run(c, rid)
+    v.baseline = TestRun(pass_set=["t1"], flaky_set=["t2"], partial=True)
+    v.gates = {**v.gates, "G2": CheckStatus.INCONCLUSIVE}
+    db.save_run(c, v)
+    ids = [r.get("id") or r.get("reason") for r in explainer(b, rid)["risks"]]
+    assert "baseline" in ids and "baseline_partial" in ids
