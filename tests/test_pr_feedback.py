@@ -217,3 +217,36 @@ def test_api_plan_limits_and_a_stale_saved_id(c, monkeypatch):
     assert a.put(f"/api/runs/{v.run_id}/feedback/plan", json={"item_ids": [FIRST]}).status_code == 422    # no longer on the PR
     assert a.put(f"/api/runs/{v.run_id}/feedback/plan", json={"item_ids": [SECOND]}).status_code == 200   # saving without it works
     assert calls == []                                                                   # plan save reads stored + cached only
+
+
+def test_a_slow_model_never_holds_the_page_and_its_late_answer_is_used_next_time(c, monkeypatch):
+    import time
+    snap = {"state": "open", "feedback": [{"id": "a", "kind": "comment", "body": "please add a test", "author": "m"}]}
+    slow = model({"a": ans("missing_test")})
+
+    def late(*a, **k):
+        time.sleep(0.6)
+        return slow(*a, **k)
+    monkeypatch.setattr(F, "WAIT", 0.2)
+    monkeypatch.setattr(llm_gateway, "complete", late)
+    t = time.monotonic()
+    out = F.assist(c, "r", snap, set())
+    assert time.monotonic() - t < 0.5                                               # returned at the cap, not after the model
+    assert not out["model_ok"] and out["items"][0]["label"] == "Not classified yet"
+    time.sleep(0.8)                                                                 # the answer lands in the background
+    calls = []
+    monkeypatch.setattr(llm_gateway, "complete", model({}, calls))
+    out = F.assist(c, "r", snap, set())
+    assert out["model_ok"] and out["items"][0]["category"] == "missing_test" and calls == []   # cached, not asked again
+
+
+def test_a_model_answer_within_the_cap_shows_at_once(c, monkeypatch):
+    monkeypatch.setattr(llm_gateway, "complete", model({"a": ans("documentation")}))
+    out = F.assist(c, "r", {"state": "open", "feedback": [{"id": "a", "kind": "comment", "body": "fix the docs", "author": "m"}]}, set())
+    assert out["model_ok"] and out["items"][0]["label"] == "Documentation"
+
+
+def test_ci_wording_has_no_doubled_article():
+    named = F._rule({"kind": "ci", "name": "main"})
+    assert named["change"] == 'Reproduce the "main" check failure locally and fix what it reports.'
+    assert F._rule({"kind": "ci"})["change"] == "Reproduce a check failure locally and fix what it reports."
