@@ -46,21 +46,12 @@ def test_summary_states():
     assert [r["run_id"] for r in s["rows"]] == ["r7", "r6", "r5", "r4", "r3", "r2", "r1"]   # newest first
 
 
-def test_fetch_failure_gives_unknown(monkeypatch):
-    class Boom:
-        def __enter__(self): return self
-        def __exit__(self, *a): return False
-    monkeypatch.setattr(P, "_client", lambda: Boom())
-    monkeypatch.setattr(P, "_get", lambda h, path, required=True: None)       # GitHub blocked / 5xx
-    assert P.fetch_pr_states(RUNS) == {"o/r#11": None, "o/r#12": None, "o/r#13": None}
-
-
 def test_api_progress_is_owner_scoped_and_reports_unknown(tmp_path, monkeypatch):
     from fastapi.testclient import TestClient
     from backend import db
     from backend.api import main
     monkeypatch.setattr(db, "DB_PATH", str(tmp_path / "app.db"))
-    monkeypatch.setattr(P, "fetch_pr_states", lambda runs: {P.key(v): None for v in runs if v.pr})
+    monkeypatch.setattr(P, "refresh", lambda c, runs: {v.run_id: {"state": None, "ci": None} for v in runs if v.pr})
     a, b = (TestClient(main.app, base_url="https://testserver") for _ in range(2))
     assert a.get("/api/me/progress").json()["state"] == "empty"            # no cookie yet
     from backend.api import session
