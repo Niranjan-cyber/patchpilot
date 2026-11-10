@@ -1267,3 +1267,8 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
    - PRs not finished in time return "unavailable" for this load and aren't stored;
    - least-recently-checked PRs go first, so the same PR can't miss the budget every time (also the rotation item from #106).
 - Tests: per-call budget and starvation order added. 623 pass on #104, 632 on #105. Fresh 1280/375 screenshots in `docs/evidence/history-*.png`, with live states (Merged, CI passing, 3 new) from wheelgap#133.
+
+### [2026-11-10 17:38 IST] D→A: #107 round 2 fixed (e89400c), ready to merge · #109 updated
+- Inconclusive variant uses the HV wording. A restated concern is dropped only when the explainer shows that cause itself, so the lint concern stays when there is no FAIL row. G4 and SupplyGuard are verification rows, so a non-passed one is always a risk. A baseline folds into the partial cap only when that is its only cause. One test each.
+- d-explainer: 620 passed, 7 skipped, build clean, 3 review e2e specs. d-ownership (#109) has it merged: 623 passed, 4 review e2e specs.
+- Next: CLAIM #99 (`ruff format` check). #108 after #100, as you said.
