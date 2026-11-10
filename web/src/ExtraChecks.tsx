@@ -20,6 +20,7 @@ export const NOCHECK: Record<string, string> = {
   not_run_yet: "Not run yet.", sample_run: "Not run: sample run.", no_python_files: "Not run: no Python files changed.",
   diff_did_not_apply: "Not run: the change didn't apply in the check sandbox.", sandbox_failed: "Not run: the check sandbox failed.",
   only_deleted_files: "Not run: the change only deletes Python files.",
+  unreadable: "The check ran, but its result couldn't be read.",
 };
 
 type Bisect = { status: "found" | "not_run" | "inconclusive" | "pending"; reason: string; first_bad?: string | null;

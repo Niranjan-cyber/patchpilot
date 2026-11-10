@@ -174,14 +174,14 @@ def existing_work_section(run_id: str) -> list[str]:
 def repo_checks_section(run_id: str) -> list[str]:
     """#70 item 3: one line per tool with its command and exit code. Missing evidence says "not checked", never passed."""
     from backend import db
-    try:   # db.repo_checks: missing or malformed = None ("not checked"), never a 500 on the report (#108)
+    try:   # db.repo_checks: missing = None, malformed = "unreadable"; never a 500 on the report (#108, #113)
         res = db.repo_checks(db.connect(), run_id)
     except Exception:
         res = None
-    if not res or res.get("checks") is None:
+    if not res or (res.get("checks") is None and res.get("reason") != "unreadable"):
         return ["## Repository checks", "- Not checked: the repo's own linters and type checkers didn't run for this change.", ""]
     if not res["checks"]:
-        why = {"no_python_files": "no Python files changed", "diff_did_not_apply": "the change didn't apply in the check sandbox",
+        why = {"no_python_files": "no Python files changed", "unreadable": "it ran, but its result couldn't be read", "diff_did_not_apply": "the change didn't apply in the check sandbox",
                "sandbox_failed": "the check sandbox failed", "only_deleted_files": "the change only deletes Python files"
                }.get(res.get("reason"), "the repo configures none we can run")
         return ["## Repository checks", f"- Not checked: {why}.", ""]

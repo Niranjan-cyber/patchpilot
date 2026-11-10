@@ -207,7 +207,7 @@ def test_a_malformed_record_never_blocks_the_diff(ready, bad):
     r = b.get(f"/api/runs/{rid}/approval")
     assert r.status_code == 200 and "+x = 2" in r.json()["diff"]
     rows = [c for c in r.json()["help"]["explainer"]["verification"] if c["id"] == "repo_check"]
-    assert rows == [{"id": "repo_check", "tool": None, "status": "not_run", "reason": "not_run_yet"}]   # malformed = not checked
+    assert rows == [{"id": "repo_check", "tool": None, "status": "not_run", "reason": "unreadable"}]   # #113: it ran, unreadable
 
 
 def test_a_failing_explainer_leaves_approval_working(ready, monkeypatch):
@@ -444,3 +444,42 @@ def test_a_malformed_repo_checks_record_never_500s_the_report_or_the_api(ready, 
     r = b.get(f"/api/runs/{rid}/report.md")
     assert r.status_code == 200 and "Not checked" in r.text
     assert b.get(f"/api/runs/{rid}/repo-checks").json()["checks"] is None   # unknown, never a list of passes
+
+
+# #113 review round 1
+def test_revise_clears_every_per_attempt_record(ready):
+    b, rid, _ = ready
+    for k in ("variant", "repo_checks", "bisect"):
+        db.put_kv(db.connect(), f"{k}:{rid}", '{"status": "passed", "checks": [{"tool": "ruff", "status": "PASS"}]}')
+    assert b.post(f"/api/runs/{rid}/revise", json={"feedback": "keep the public name"}).status_code == 200
+    assert all(db.get_kv(db.connect(), f"{k}:{rid}") is None for k in ("variant", "repo_checks", "bisect"))
+    assert b.get(f"/api/runs/{rid}/repo-checks").json()["reason"] == "not_run_yet"   # never the old diff's PASS
+
+
+@pytest.mark.parametrize("ev", ["7", '"sha256:abc"', '{"a": 1}', '[1, "x"]'])
+def test_a_malformed_variant_evidence_list_counts_as_none(ready, ev):
+    from backend.contracts.models import Verification
+    b, rid, _ = ready
+    c = db.connect(); v = db.get_run(c, rid)
+    v.verify = Verification(new_test_runs=[CheckStatus.PASSED] * 2, hidden_variant=CheckStatus.FAILED, evidence_ids=["e1"])
+    db.save_run(c, v)
+    db.put_kv(c, f"variant:{rid}", f'{{"status": "failed", "reason": "fix_fails_hidden_variant", "evidence": {ev}}}')
+    rows = {r["id"]: r for r in explainer(b, rid)["verification"]}
+    assert rows["hidden_variant"]["evidence"] == [] and rows["fixed"]["evidence"] == ["e1"]
+
+
+def test_a_corrupt_variant_record_never_500s_bisect(ready):
+    b, rid, _ = ready
+    db.put_kv(db.connect(), f"variant:{rid}", "not json")
+    db.put_kv(db.connect(), f"bisect:{rid}", "also not json")
+    r = b.get(f"/api/runs/{rid}/bisect")
+    assert r.status_code == 200 and r.json()["variant"] is None and r.json()["status"] == "pending"
+
+
+def test_an_unreadable_lint_record_says_so_not_not_run_yet(ready):
+    b, rid, _ = ready
+    db.put_kv(db.connect(), f"repo_checks:{rid}", '{"checks": "x"}')
+    assert b.get(f"/api/runs/{rid}/repo-checks").json() == {"checks": None, "files": [], "reason": "unreadable"}
+    row = next(r for r in explainer(b, rid)["verification"] if r["id"] == "repo_check")
+    assert row["reason"] == "unreadable"
+    assert "it ran, but its result couldn't be read" in b.get(f"/api/runs/{rid}/report.md").text

@@ -427,9 +427,16 @@ def get_bisect(run_id: str, request: Request):
         _fixture(run_id)
         return {"status": "pending", "reason": "sample_run"}
     _own(request, run_id)
-    raw, var = db.get_kv(db.connect(), f"bisect:{run_id}"), db.get_kv(db.connect(), f"variant:{run_id}")
-    return {**(json.loads(raw) if raw else {"status": "pending", "reason": "not_run_yet"}),
-            "variant": json.loads(var) if var else None}   # hidden-variant reason (RunView only carries its status)
+    c = db.connect()
+
+    def read(key):   # #113: a corrupt record is unknown, never a 500
+        try:
+            rec = json.loads(db.get_kv(c, key) or "null")
+        except ValueError:
+            return None
+        return rec if isinstance(rec, dict) else None
+    return {**(read(f"bisect:{run_id}") or {"status": "pending", "reason": "not_run_yet"}),
+            "variant": read(f"variant:{run_id}")}   # hidden-variant reason (RunView only carries its status)
 
 
 @app.get("/api/runs/{run_id}/repo-checks")

@@ -179,10 +179,11 @@ def explainer(v: RunView, repo_checks: dict | None, variant: dict | None) -> dic
     r, d, vf, b = v.repro, v.diagnosis, v.verify, v.baseline
     rc = repo_checks or {"checks": None, "reason": "not_run_yet"}
     hv = (vf and vf.hidden_variant) or CheckStatus.NOT_RUN
-    # kv variant:<rid> isn't reset on a revision: its reason only explains the status it was written with
+    # kv variant:<rid> is per attempt (Revise clears it); use it only when it matches the recorded status
     # kv variant:<rid> describes one attempt: use its reason and evidence only when they match the recorded status
     mine = variant if (variant or {}).get("status") == hv.value else {}
-    hv_reason, hv_ev = mine.get("reason"), [e for e in mine.get("evidence") or [] if isinstance(e, str)]
+    ev = mine.get("evidence")   # only a list of strings counts: an int would raise, a string would be read letter by letter
+    hv_reason, hv_ev = mine.get("reason"), ev if isinstance(ev, list) and all(isinstance(e, str) for e in ev) else []
     caps = cap_reasons(v)
     checks = [
         {"id": "reproduced", "status": g("G3"), "runs": r.runs_on_base if r else [], "evidence": r.evidence_ids if r else []},
@@ -377,7 +378,8 @@ def revise(run_id: str, body: ReviseBody, request: Request):
     db.save_run(c, v)
     with db.tx(c):
         c.execute("INSERT INTO jobs(run_id,kind,state,available_at) VALUES(?,?,?,?)", (run_id, "revise", "queued", db.now().isoformat()))
-        c.execute("DELETE FROM kv WHERE key=?", (f"variant:{run_id}",))   # #108: the next attempt writes its own; never show this one's
+        # #108/#113: per-attempt results; the next attempt writes its own, so a revision that stops early shows "not run"
+        c.execute("DELETE FROM kv WHERE key IN (?,?,?)", (f"variant:{run_id}", f"repo_checks:{run_id}", f"bisect:{run_id}"))
     return v
 
 
