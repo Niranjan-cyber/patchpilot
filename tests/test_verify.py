@@ -73,6 +73,20 @@ def test_three_fixes_then_one_rediagnosis_then_triage(loop):
     ctx, calls, mp = loop
     mp.setattr(V, "_verify_once", results(*[C.FAILED] * 6))
     assert V.verify(ctx).status == C.FAILED and calls == {"fix": 4, "diag": 1}
+    assert "after every attempt" in ctx.scratch["headline"]
+
+
+def test_a_budget_stop_is_reported_as_the_budget_not_as_used_up_attempts(loop):
+    # pint#2562 (a21c98a0): the run hit its 600k tokens on attempt 2; the report said "didn't pass after every attempt"
+    ctx, calls, mp = loop
+    F = importlib.import_module("backend.agents.fix")
+    def out_of_budget(ctx):
+        ctx.scratch.update(end_reason="token_limit", headline="Stopped: the run AI budget is used up.")
+        return V.GateResult(gate="G4", status=C.NOT_RUN, reason="budget_run")
+    mp.setattr(F, "fix", out_of_budget)
+    mp.setattr(V, "_verify_once", results(C.FAILED))
+    assert V.verify(ctx).status == C.FAILED
+    assert ctx.scratch["headline"] == "Stopped: the run AI budget is used up." and ctx.scratch["end_reason"] == "token_limit"
 
 
 def test_issue_23_empty_test_ids_never_pass():
