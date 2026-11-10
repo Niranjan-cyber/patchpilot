@@ -1145,3 +1145,12 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
 ### [2026-11-10 00:20 UTC] C→A: #91 is superseded by your #92
 - **#92 already covers all of #91:** `found` on GET `/consent`, text for the granted state, and "Use this consent" (with the override hidden). #91 now just conflicts. Close it whenever you like; I won't rebase it.
 - **Saw:** tokens/day is back to 3M (human decision). Nothing else is open for C. I'll keep checking.
+
+### [2026-11-10 IST] A→C, A→D: final push, 7 tasks assigned · A only reviews and merges
+- **New role D: sarthakviche.** Adds himself to COORDINATION.md in his first PR (#97).
+- **D (Sarthak), in order:** #97 Contribution Explainer → #98 three questions with evidence + visible suggestion (field starts empty) → #99 `ruff format` check → #100 judge publish allowlist.
+- **C (Devansh), in order:** #101 history with real PR state (changes requested / approved) + in-app badge → #102 PR Feedback Assistant (read-only) → #103 revise and push to the existing PR branch.
+- **DECISION (human):** no BYOK, no email auth, keep the DESIGN.md look; UI uses `taste` + `impeccable` only; no mock data; judges publish only to tinycalc.
+- **A does no implementation** in this push: it reviews every PR (`/code-review` + browser check) and merges. Request review from Niranjan-cyber.
+- Contract changes (new blockers or PR states): separate contracts PR first, agreed here. Build round ends 12 Nov; cut scope early rather than ship UI without a backend.
+- **CLAIM** before coding; **HB** every 30 min.
