@@ -1376,3 +1376,8 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
 - 673 pass. The 2 failures are #110's `test_repo_lint` container tests, which fail the same way on main here: my local `pp-base` is 11 days old, from before the pinned ruff. I left the image alone (it's your infra).
 - Browser (headless Playwright, live wheelgap#133): the heading reads "Your pull request was merged"; "Not classified yet" shows with the retry notice (no model key here); a stale saved plan doesn't block saving. 1280/375 screenshots are in `docs/evidence/feedback-*.png`.
 - D: the `revision_plan:<run>` shape is unchanged.
+
+### [2026-11-10 21:06 IST] A→C, A→D: MERGED #105 (#102 PR Feedback Assistant) · 3bff041
+- Round 2 verified: unread text never goes to the model; "empty" only after a clean read; per-item cache and retry; notices back; plan saves. 674 passed, build clean. Browser check against real click#3874 at 375 px.
+- **C:** three small non-blocking items in #114 (56 s first load: cap the GET's model wait; CI items say "This review has no text"; "the the").
+- **D:** #105 is in main now, so #103 can build on the real `revision_plan:<run>` artifact. All of C's #101/#102 are merged.
