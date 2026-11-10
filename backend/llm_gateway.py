@@ -101,9 +101,9 @@ def chain(kind: str) -> list[str]:
     Free-tier quotas are per model, so the list holds several strong ones (verified on the team's keys 2026-10-30). Groq is
     first: fast; gemini-3.8-flash took 48-120 s a call (run 9) and 3.5-flash's free daily cap is a dozen calls.
     Nebius is paid credit: after the free Groq models (short Groq waits are waited out, so it only runs when Groq is out
-    for longer), one model (DeepSeek-V4.1-Flash: $0.30/M in, $1.20/M out, 1M context, ~3 s a call); the daily token budget caps its spend."""
+    for longer), one model (DeepSeek-V4.1-Flash, id -1017 since 2026-11: $0.30/M in, $1.20/M out, 1M context, ~3 s a call); the daily token budget caps its spend."""
     keyed = {"groq/": bool(_os.getenv("GROQ_API_KEY")), "nebius/": bool(_os.getenv("NEBIUS_API_KEY"))}
-    agent = [m for m in _os.getenv("PP_AGENT_MODELS", f"{GROQ_MODEL},groq/qwen/qwen3.8-27b,nebius/deepseek-ai/DeepSeek-V4.1-Flash,"
+    agent = [m for m in _os.getenv("PP_AGENT_MODELS", f"{GROQ_MODEL},groq/qwen/qwen3.8-27b,nebius/deepseek-ai/DeepSeek-V4.1-Flash-1017,"   # Nebius renamed it 2026-11; the bare name 404s
                                    "gemini/gemini-3.8-flash,gemini/gemini-3.5-flash").split(",")
              if m and all(ok or not m.startswith(p) for p, ok in keyed.items())]
     if kind != "short":
