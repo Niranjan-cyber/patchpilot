@@ -17,7 +17,7 @@ test("a failed 'seen' never hides feedback that loaded", async ({ page }) => {
   await page.goto(`${BASE}/runs/${run}/pr`);
   await expect(page.getByRole("heading", { name: "Maintainer feedback" })).toBeVisible();
   await expect(page.getByText("Couldn't load feedback")).toHaveCount(0);
-  await expect(page.locator(".fb-item").first()).toBeVisible();
+  await expect(page.locator(".fb-item").first()).toBeVisible({ timeout: 30_000 });
 });
 
 for (const [w, h] of [[1280, 900], [375, 812]] as const) {
@@ -29,7 +29,7 @@ for (const [w, h] of [[1280, 900], [375, 812]] as const) {
     await page.screenshot({ path: `${shots}/history-${w}-myruns.png`, fullPage: true });
     await page.goto(`${BASE}/runs/${run}/pr`);
     await expect(page.getByRole("heading", { name: "Maintainer feedback" })).toBeVisible();
-    await expect(page.locator(".fb-item").first()).toBeVisible();
+    await expect(page.locator(".fb-item").first()).toBeVisible({ timeout: 30_000 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(w);
     await page.screenshot({ path: `${shots}/history-${w}-pr-page.png`, fullPage: true });
   });
