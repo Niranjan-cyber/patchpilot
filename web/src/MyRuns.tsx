@@ -2,16 +2,20 @@ import { useEffect, useState } from "react";
 import { Loading } from "./components";
 import { Link } from "react-router-dom";
 import { api, ApiError } from "./api";
-import ProgressView from "./Progress";
+import ProgressView, { FeedbackBadge, RUNS_CHANGED } from "./Progress";
 
 type Item = { run_id: string; title: string; repo: string; number: number; status: string; outcome: string | null;
-  readiness: string | null; created_at: string; pr_url: string | null };
+  readiness: string | null; created_at: string; pr_url: string | null; new_feedback: number };
 
 export function useMyRuns() {
   const [items, setItems] = useState<Item[] | null>(null);
   const [err, setErr] = useState<ApiError | null>(null);
   const load = () => api<Item[]>("/api/me/runs").then(setItems).catch(setErr);
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    window.addEventListener(RUNS_CHANGED, load);
+    return () => window.removeEventListener(RUNS_CHANGED, load);
+  }, []);
   return { items, err, load };
 }
 
@@ -27,6 +31,7 @@ export function RunList({ items, onForget }: { items: Item[]; onForget?: (id: st
           <span className="hint">{i.repo} #{i.number}, {new Date(i.created_at).toLocaleString()}</span>
           <span className={`pill pill-${i.status}`}>{stateText(i)}</span>
           {i.pr_url && <a href={i.pr_url}>Pull request</a>}
+          <FeedbackBadge runId={i.run_id} n={i.new_feedback} />
           {onForget && <button className="linklike" onClick={() => onForget(i.run_id)}>Forget this run</button>}
         </li>
       ))}
