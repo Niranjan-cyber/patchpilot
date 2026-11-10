@@ -51,14 +51,17 @@ def feedback(author: str | None, reviews, review_comments, issue_comments, check
     def human(x):
         u = x.get("user") or {}
         return u.get("login") and u["login"] != author and u.get("type") != "Bot"
+    # body/path/line feed the Feedback Assistant (#102); bodies are capped so the stored snapshot stays small
     out = [{"id": f"review:{r['id']}", "kind": "review", "what": REVIEW[r["state"]], "author": r["user"]["login"],
-            "at": r.get("submitted_at"), "url": r.get("html_url")}
+            "at": r.get("submitted_at"), "url": r.get("html_url"), "state": r["state"], "body": (r.get("body") or "")[:4000]}
            for r in reviews or [] if human(r) and r.get("state") in REVIEW and (r["state"] != "COMMENTED" or r.get("body"))]
     out += [{"id": f"comment:{x['id']}", "kind": "comment", "what": f"Comment on {x['path']}" if x.get("path") else "Comment",
-             "author": x["user"]["login"], "at": x.get("created_at"), "url": x.get("html_url")}
+             "author": x["user"]["login"], "at": x.get("created_at"), "url": x.get("html_url"), "body": (x.get("body") or "")[:4000],
+             "path": x.get("path"), "line": x.get("line") or x.get("original_line")}
             for x in [*(review_comments or []), *(issue_comments or [])] if human(x)]
     out += [{"id": f"ci:{r['id']}", "kind": "ci", "what": f"CI failed: {r.get('name')}", "author": None,
-             "at": r.get("completed_at"), "url": r.get("html_url")}
+             "at": r.get("completed_at"), "url": r.get("html_url"), "name": r.get("name"),
+             "body": "\n".join(filter(None, [(r.get("output") or {}).get("title"), (r.get("output") or {}).get("summary")]))[:4000]}
             for r in (check_runs or {}).get("check_runs") or [] if r.get("conclusion") in FAILED]
     return sorted(out, key=lambda f: f["at"] or "")
 

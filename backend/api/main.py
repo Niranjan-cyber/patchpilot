@@ -271,6 +271,42 @@ def run_feedback(run_id: str, request: Request):
             "items": [{**f, "new": f["id"] in new} for f in s.get("feedback", [])], "tracked": bool(s)}
 
 
+@app.get("/api/runs/{run_id}/feedback/assist")
+def feedback_assist(run_id: str, request: Request):
+    """#102: each maintainer request explained, with a draft reply (never posted) and the saved revision plan."""
+    from backend.github import pr_feedback, progress
+    _own(request, run_id)
+    c = db.connect()
+    v = db.get_run(c, run_id)
+    if not (v.pr and v.pr.number):
+        return {"state": "no_pr", "items": [], "model_ok": None, "plan": None}
+    snap = progress.refresh(c, [v]).get(run_id) or {}
+    if snap.get("state") is None and not snap.get("feedback"):
+        snap = {}                                   # never read: unavailable, not "no feedback"
+    new = {f["id"] for f in progress.new_feedback(c, run_id, snap)} if snap else set()
+    return pr_feedback.assist(c, run_id, snap, new)
+
+
+class PlanBody(BaseModel):
+    item_ids: list[str]
+
+
+@app.put("/api/runs/{run_id}/feedback/plan")
+def feedback_plan(run_id: str, body: PlanBody, request: Request):
+    """Saves the ticked requests for the Revise flow (#103). Only items currently on the PR can be picked."""
+    from backend.github import pr_feedback, progress
+    _own(request, run_id)
+    c = db.connect()
+    v = db.get_run(c, run_id)
+    snap = progress.tracked(c, run_id)
+    rows = pr_feedback.assist(c, run_id, snap, set())["items"] if snap else []
+    known = {r["id"] for r in rows if r["category"] != "non_actionable"}
+    if not body.item_ids or not set(body.item_ids) <= known:
+        raise ApiErr(422, "BAD_PLAN", "Pick at least one request from this pull request's feedback.")
+    return {"evidence_id": pr_feedback.save_plan(c, run_id, v.pr.url if v.pr else None, rows, body.item_ids),
+            "item_ids": body.item_ids}
+
+
 @app.post("/api/runs/{run_id}/feedback/seen", status_code=204)
 def feedback_seen(run_id: str, request: Request):
     from backend.github import progress
