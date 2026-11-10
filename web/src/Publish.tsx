@@ -4,6 +4,7 @@ import { api, ApiError, PUBLISH_LIMITED, useRun } from "./api";
 import { Loading, StatusIcon } from "./components";
 import { Modal } from "./ui";
 import FeedbackAssistant from "./FeedbackAssistant";
+import { RUNS_CHANGED } from "./Progress";
 
 type Me = { signed_in: boolean; login: string | null; oauth_ready: boolean };
 const ERR: Record<string, string> = {
@@ -196,7 +197,12 @@ function AskFirst({ run, limited }: { run: string; limited: boolean }) {
 function usePrState(id: string) {
   const [f, setF] = useState<{ state: string | null; tracked: boolean } | null>(null);
   const [err, setErr] = useState(false);
-  useEffect(() => { api<{ state: string | null; tracked: boolean }>(`/api/runs/${id}/feedback`).then(setF).catch(() => setErr(true)); }, [id]);
+  useEffect(() => {   // re-read after the assistant refreshes the PR from GitHub (it signals RUNS_CHANGED)
+    const load = () => { api<{ state: string | null; tracked: boolean }>(`/api/runs/${id}/feedback`).then((x) => { setF(x); setErr(false); }).catch(() => setErr(true)); };
+    load();
+    window.addEventListener(RUNS_CHANGED, load);
+    return () => window.removeEventListener(RUNS_CHANGED, load);
+  }, [id]);
   return { f, err };
 }
 

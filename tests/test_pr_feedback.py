@@ -87,7 +87,7 @@ def test_ci_failure_is_classified_by_rule_without_the_model(c, monkeypatch):
 def test_model_unavailable_shows_not_classified_never_a_guess(c, monkeypatch):
     _, out = ask(c, monkeypatch, load("issue_comments"), None)
     assert not out["model_ok"]
-    assert all(i["category"] is None and i["label"] == "Not classified" and i["meaning"] is None for i in out["items"])
+    assert all(i["category"] is None and i["label"] == "Not classified yet" and i["meaning"] is None for i in out["items"])
 
 
 def test_model_output_outside_the_enum_is_rejected():
@@ -147,3 +147,73 @@ def test_assistant_never_writes_to_github(c, monkeypatch):
     v = new_run(c)
     F.assist(c, v.run_id, P.refresh(c, [v])[v.run_id], set())
     assert methods and all(m == "GET" and p.startswith(f"/repos/{REPO}/") for m, p in methods)
+
+
+def test_feedback_without_text_never_reaches_the_model(c, monkeypatch):
+    calls = []
+    monkeypatch.setattr(llm_gateway, "complete", model({}, calls))
+    old = {"state": "merged", "feedback": [{"id": "issue_comment:1", "kind": "comment", "author": "m", "url": "u"},   # stored before bodies
+                                           {"id": "ci:2", "kind": "ci", "author": None}]}                            # no check name
+    out = F.assist(c, "r", old, set())
+    assert calls == []
+    unread, ci = out["items"]
+    assert unread["unread"] and unread["label"] == "Text not read yet" and unread["meaning"] is None and unread["reply"] is None
+    assert ci["meaning"] == "A check failed on the latest commit." and "None" not in ci["change"]
+
+
+def test_a_failed_or_partial_read_is_unavailable_never_empty(c):
+    assert F.assist(c, "r", {}, set())["state"] == "unavailable"
+    assert F.assist(c, "r", {"state": None, "feedback": []}, set())["state"] == "unavailable"
+    assert F.assist(c, "r", {"state": "open", "partial": True, "feedback": []}, set())["state"] == "unavailable"
+    assert F.assist(c, "r", {"state": "open", "partial": False, "feedback": []}, set())["state"] == "empty"
+
+
+def test_a_partial_model_answer_is_cached_per_item_and_the_rest_retried(c, monkeypatch):
+    snap = {"state": "open", "feedback": [{"id": "a", "kind": "comment", "body": "please add a test", "author": "m"},
+                                          {"id": "b", "kind": "comment", "body": "rename this", "author": "m"}]}
+    calls = []
+    monkeypatch.setattr(llm_gateway, "complete", model({"a": ans("missing_test")}, calls))   # answers 1 of 2
+    out = F.assist(c, "r", snap, set())
+    assert not out["model_ok"] and [i["label"] for i in out["items"]] == ["Missing test", "Not classified yet"]
+    monkeypatch.setattr(llm_gateway, "complete", model({"b": ans("architecture")}, calls))
+    out = F.assist(c, "r", snap, set())
+    assert out["model_ok"] and [i["category"] for i in out["items"]] == ["missing_test", "architecture"]
+    assert '"a"' in calls[0][3] and '"a"' not in calls[1][3] and '"b"' in calls[1][3]      # only the missing one asked again
+    calls.clear()
+    F.assist(c, "r", snap, set())
+    assert calls == []                                                                     # all cached now
+
+
+def test_only_the_latest_items_are_shown_and_the_rest_are_listed_hidden(c, monkeypatch):
+    monkeypatch.setattr(llm_gateway, "complete", model(None))
+    fb = [{"id": f"issue_comment:{i}", "kind": "comment", "body": f"note {i}", "author": "m", "at": f"2026-11-{i + 1:02d}"} for i in range(25)]
+    out = F.assist(c, "r", {"state": "open", "feedback": fb}, set())
+    assert len(out["items"]) == F.MAX_ITEMS and out["total"] == 25
+    assert out["hidden_ids"] == [f"issue_comment:{i}" for i in range(5)]
+
+
+def test_api_plan_limits_and_a_stale_saved_id(c, monkeypatch):
+    from backend.api import main, session
+    monkeypatch.setattr(P, "_client", github(recorded()))
+    monkeypatch.setattr(llm_gateway, "complete", model({FIRST: ans("code_correctness"), SECOND: ans("documentation"),
+                                                        MERGED: ans("non_actionable")}))
+    a = TestClient(main.app, base_url="https://testserver")
+    a.cookies.set("pp_sid", "tok-a")
+    c.execute("INSERT INTO sessions(id_hash,ip_hash,created_at,last_seen_at) VALUES(?,?,?,?)",
+              (session._h("tok-a"), None, db.now().isoformat(), db.now().isoformat()))
+    v = new_run(c, session._h("tok-a"))
+    a.get(f"/api/runs/{v.run_id}/feedback/assist")
+    assert a.put(f"/api/runs/{v.run_id}/feedback/plan", json={"item_ids": [FIRST] * 501}).status_code == 422
+    assert a.put(f"/api/runs/{v.run_id}/feedback/plan", json={"item_ids": ["x" * 101]}).status_code == 422
+    assert a.put(f"/api/runs/{v.run_id}/feedback/plan", json={"item_ids": [FIRST]}).status_code == 200
+    track = P.tracked(c, v.run_id)                                                       # FIRST disappears from the PR
+    track["feedback"] = [f for f in track["feedback"] if f["id"] != FIRST]
+    db.put_kv(c, f"pr_track:{v.run_id}", json.dumps(track))
+    calls = []
+    monkeypatch.setattr(llm_gateway, "complete", model({}, calls))
+    assert a.get(f"/api/runs/{v.run_id}/feedback/assist").json()["plan"] == [FIRST]       # stale id still in the saved plan
+    c.execute("DELETE FROM kv WHERE key=?", (f"feedback_assist:{v.run_id}",))           # cache gone: a save must not re-ask
+    calls.clear()
+    assert a.put(f"/api/runs/{v.run_id}/feedback/plan", json={"item_ids": [FIRST]}).status_code == 422    # no longer on the PR
+    assert a.put(f"/api/runs/{v.run_id}/feedback/plan", json={"item_ids": [SECOND]}).status_code == 200   # saving without it works
+    assert calls == []                                                                   # plan save reads stored + cached only

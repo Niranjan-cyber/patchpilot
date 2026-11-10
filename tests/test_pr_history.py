@@ -241,3 +241,16 @@ def test_badge_sets_on_new_feedback_clears_after_viewing_and_is_owner_scoped(c, 
     assert a.post(f"/api/runs/{v.run_id}/feedback/seen", json={"ids": ["issue_comment:1"]}).status_code == 204
     assert a.get("/api/me/runs").json()[0]["new_feedback"] == 0                     # union with what was seen before
     assert not a.get("/api/me/progress").json()["rows"][0]["needs_attention"]
+
+
+def test_a_done_pr_stored_without_text_is_read_once_more(c, monkeypatch):
+    v = new_run(c)
+    db.put_kv(c, f"pr_track:{v.run_id}", json.dumps({"state": "merged", "feedback": [
+        {"id": "issue_comment:6748392117", "kind": "comment", "author": "patrickballard", "at": "x", "url": "u"}]}))   # pre-#102 shape
+    calls = []
+    monkeypatch.setattr(P, "_client", github(recorded(), calls))
+    s = P.refresh(c, [v])[v.run_id]
+    assert calls and all("body" in f for f in s["feedback"])
+    calls.clear()
+    P.refresh(c, [v])
+    assert calls == []                                                              # done and complete: not read again

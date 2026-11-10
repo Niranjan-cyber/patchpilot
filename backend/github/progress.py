@@ -147,7 +147,10 @@ def refresh(c, runs: list[RunView], *, budget: float | None = None) -> dict[str,
     todo = [v for v in runs if key(v)]
     out = {v.run_id: tracked(c, v.run_id) for v in todo}
     # least recently checked first, so a PR that missed a budget isn't starved by the same PRs every time
-    want = sorted((v for v in todo if out[v.run_id].get("state") not in DONE), key=lambda v: out[v.run_id].get("checked_at") or "")
+    # a done PR is read once more if its stored feedback predates kept bodies (the Feedback Assistant needs the text)
+    want = sorted((v for v in todo if out[v.run_id].get("state") not in DONE
+                   or any(f["kind"] != "ci" and "body" not in f for f in out[v.run_id].get("feedback", []))),
+                  key=lambda v: out[v.run_id].get("checked_at") or "")
     if not want:
         return out
     stop, limited, read = (time.monotonic() + budget) if budget else None, False, {}

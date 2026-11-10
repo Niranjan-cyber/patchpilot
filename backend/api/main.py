@@ -11,7 +11,9 @@ from fastapi.staticfiles import StaticFiles
 
 import uuid
 
-from pydantic import BaseModel, Field
+from typing import Annotated
+
+from pydantic import BaseModel, Field, StringConstraints
 
 from backend import db
 from backend.api import session
@@ -289,7 +291,7 @@ def feedback_assist(run_id: str, request: Request):
 
 
 class PlanBody(BaseModel):
-    item_ids: list[str]
+    item_ids: list[Annotated[str, StringConstraints(max_length=100)]] = Field(max_length=500)
 
 
 @app.put("/api/runs/{run_id}/feedback/plan")
@@ -300,8 +302,8 @@ def feedback_plan(run_id: str, body: PlanBody, request: Request):
     c = db.connect()
     v = db.get_run(c, run_id)
     snap = progress.tracked(c, run_id)
-    rows = pr_feedback.assist(c, run_id, snap, set())["items"] if snap else []
-    known = {r["id"] for r in rows if r["category"] != "non_actionable"}
+    rows = pr_feedback.assist(c, run_id, snap, set(), ask_model=False)["items"] if snap else []   # stored + cached only
+    known = {r["id"] for r in rows if r["category"] != "non_actionable" and not r["unread"]}
     if not body.item_ids or not set(body.item_ids) <= known:
         raise ApiErr(422, "BAD_PLAN", "Pick at least one request from this pull request's feedback.")
     return {"evidence_id": pr_feedback.save_plan(c, run_id, v.pr.url if v.pr else None, rows, body.item_ids),

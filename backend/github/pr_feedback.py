@@ -29,15 +29,24 @@ them all in "meaning" and "change". Answer with a JSON array only."""
 
 
 def _items(snap: dict) -> list[dict]:
+    # shortcut: only the latest MAX_ITEMS are shown and classified; older ones are counted and left to GitHub. Page them
+    # if real PRs ever carry more than this much open feedback.
     return [f for f in snap.get("feedback", []) if f.get("id")][-MAX_ITEMS:]
+
+
+def _unread(f: dict) -> bool:
+    """Stored before bodies were kept (or never read): nothing to classify, and the model must never see it."""
+    return f["kind"] != "ci" and "body" not in f
 
 
 def _rule(f: dict) -> dict | None:
     """Deterministic classification, or None to ask the model."""
     if f["kind"] == "ci":
-        return {"category": "ci", "meaning": f"The \"{f.get('name')}\" check failed on the latest commit.",
+        what = f"The \"{f['name']}\" check" if f.get("name") else "A check"
+        return {"category": "ci", "meaning": f"{what} failed on the latest commit.",
                 "why": "Maintainers usually wait for CI to pass before they review.", "reply": None,
-                "change": f"Reproduce the \"{f.get('name')}\" failure locally and fix what it reports.", "needs_judgement": False}
+                "change": f"Reproduce the {what[0].lower() + what[1:]} failure locally and fix what it reports.",
+                "needs_judgement": False}
     if f["kind"] == "review" and f.get("state") == "APPROVED" and not f.get("body", "").strip():
         return {"category": "non_actionable", "meaning": "The maintainer approved the pull request.", "why": None,
                 "reply": None, "change": None, "needs_judgement": False}
@@ -64,52 +73,90 @@ def parse(text: str, ids: set[str]) -> dict[str, dict]:
     return {x["id"]: _clean(x) for x in arr if isinstance(x, dict) and x.get("id") in ids}
 
 
-def classify(run_id: str, items: list[dict], *, _completion=None) -> tuple[dict[str, dict], bool]:
-    """Returns ({id: result}, model_ok). Rules first; one bounded model call for the rest, cached per item set."""
+def _key(f: dict) -> str:
+    """Cache key per item: its id, its text and the prompt, so an edited comment or a prompt fix is asked again."""
+    return f["id"] + ":" + hashlib.sha256((PROMPT + f.get("body", "")).encode()).hexdigest()[:16]
+
+
+def _store(run_id: str, ask: list[dict], got: dict[str, dict]) -> None:
+    """Keep only what the model actually answered; anything missing is asked again next time."""
+    c = db.connect()
+    cache = json.loads(db.get_kv(c, f"feedback_assist:{run_id}") or "{}")
+    cache.update({_key(f): got[f["id"]] for f in ask if f["id"] in got})
+    db.put_kv(c, f"feedback_assist:{run_id}", json.dumps(cache))
+    db.put_kv(c, f"feedback_inflight:{run_id}", "")
+
+
+def classify(run_id: str, items: list[dict], *, ask_model: bool = True, _completion=None) -> tuple[dict[str, dict], list[str]]:
+    """Returns ({id: result}, ids still not classified). Rules first, then the per-item cache, then one bounded model
+    call for the rest. A call that outlives SECONDS still stores its answer when it lands, and a reload meanwhile
+    doesn't start a second one (in-flight marker), so tokens are spent once."""
     from backend import llm_gateway
     out = {f["id"]: r for f in items if (r := _rule(f))}
-    ask = [f for f in items if f["id"] not in out]
-    if not ask:
-        return out, True
-    payload = json.dumps([{"id": f["id"], "type": f["kind"], "file": f.get("path"), "line": f.get("line"),
-                           "text": f.get("body", "")[:MAX_CHARS]} for f in ask])
-    key = hashlib.sha256((PROMPT + payload).encode()).hexdigest()
     c = db.connect()
-    cached = json.loads(db.get_kv(c, f"feedback_assist:{run_id}") or "{}")
-    if cached.get("key") == key:
-        return {**out, **cached["result"]}, True
+    cache = json.loads(db.get_kv(c, f"feedback_assist:{run_id}") or "{}")
+    ask = []
+    for f in items:
+        if f["id"] in out or _unread(f) or not f.get("body", "").strip():
+            continue           # rules decided, or there is no text: never ask the model about text it can't see
+        if (hit := cache.get(_key(f))) is not None:
+            out[f["id"]] = hit
+        else:
+            ask.append(f)
+    if not ask or not ask_model:
+        return out, [f["id"] for f in ask]
+    since = db.get_kv(c, f"feedback_inflight:{run_id}")
+    if since and (db.now() - __import__("datetime").datetime.fromisoformat(since)).total_seconds() < SECONDS + 30:
+        return out, [f["id"] for f in ask]
+    db.put_kv(c, f"feedback_inflight:{run_id}", db.now().isoformat())
+    payload = json.dumps([{"id": f["id"], "type": f["kind"], "file": f.get("path"), "line": f.get("line"),
+                           "text": f["body"][:MAX_CHARS]} for f in ask])
+    ids = {f["id"] for f in ask}
+
+    def landed(fut):
+        try:
+            _store(run_id, ask, parse(fut.result(), ids))
+        except Exception:      # quota, budget, network: nothing stored, the next load asks again
+            db.put_kv(db.connect(), f"feedback_inflight:{run_id}", "")
     pool = ThreadPoolExecutor(max_workers=1)
-    try:   # counted against this run's token budget and the global daily one (llm_gateway)
-        fut = pool.submit(llm_gateway.complete, [{"role": "system", "content": PROMPT}, {"role": "user", "content": payload}],
-                          run_id=run_id, role="feedback", kind="short", _completion=_completion)
-        got = parse(fut.result(timeout=SECONDS), {f["id"] for f in ask})
-    except Exception:          # quota, budget, timeout, network: "not classified"
-        return out, False
-    finally:
-        pool.shutdown(wait=False)
-    if got:
-        db.put_kv(c, f"feedback_assist:{run_id}", json.dumps({"key": key, "result": got}))
-    return {**out, **got}, bool(got)
+    fut = pool.submit(llm_gateway.complete, [{"role": "system", "content": PROMPT}, {"role": "user", "content": payload}],
+                      run_id=run_id, role="feedback", kind="short", _completion=_completion)   # counted per run + per day
+    fut.add_done_callback(landed)
+    pool.shutdown(wait=False)
+    try:
+        got = parse(fut.result(timeout=SECONDS), ids)
+    except Exception:
+        got = {}
+    return {**out, **got}, [i for i in ids if i not in got]
 
 
-def assist(c, run_id: str, snap: dict, new_ids: set[str], *, _completion=None) -> dict:
+EMPTY = {"category": None, "meaning": None, "why": None, "reply": None, "change": None, "needs_judgement": None}
+
+
+def assist(c, run_id: str, snap: dict, new_ids: set[str], *, ask_model: bool = True, _completion=None) -> dict:
+    """state: ok, or empty only after a complete successful read with nothing in it; otherwise unavailable."""
+    base = {"items": [], "model_ok": None, "plan": plan_ids(c, run_id), "pr_state": snap.get("state"),
+            "partial": bool(snap.get("partial")), "hidden_ids": []}
+    feedback = [f for f in snap.get("feedback", []) if f.get("id")]
     items = _items(snap)
-    if not snap:
-        return {"state": "unavailable", "items": [], "model_ok": None, "plan": plan_ids(c, run_id)}
     if not items:
-        return {"state": "empty", "items": [], "model_ok": None, "plan": plan_ids(c, run_id)}
-    res, ok = classify(run_id, items, _completion=_completion)
+        clean = bool(snap) and snap.get("state") is not None and not snap.get("partial")
+        return {**base, "state": "empty" if clean else "unavailable"}
+    res, pending = classify(run_id, items, ask_model=ask_model, _completion=_completion)
     rows = []
     for f in items:
-        r = res.get(f["id"]) or {"category": None, "meaning": None, "why": None, "reply": None, "change": None,
-                                 "needs_judgement": None}
+        r = res.get(f["id"]) or EMPTY
         if f["kind"] != "ci" and (sug := SUGGESTION.findall(f.get("body", ""))):   # a suggestion block is a code change
             r = {**r, "category": r["category"] if r["category"] not in (None, "non_actionable") else "code_correctness",
                  "change": "\n".join(sug).strip()}
+        label = (CATEGORIES[r["category"]] if r["category"] else "Text not read yet" if _unread(f)
+                 else "No text" if not f.get("body", "").strip() else "Not classified yet")
         rows.append({"id": f["id"], "source": f["kind"], "author": f.get("author"), "at": f.get("at"), "url": f.get("url"),
-                     "quote": f.get("body", ""), "path": f.get("path"), "line": f.get("line"), "new": f["id"] in new_ids,
-                     **r, "label": CATEGORIES.get(r["category"]) if r["category"] else "Not classified"})
-    return {"state": "ok", "items": rows, "model_ok": ok, "plan": plan_ids(c, run_id)}
+                     "quote": f.get("body", ""), "unread": _unread(f), "path": f.get("path"), "line": f.get("line"),
+                     "new": f["id"] in new_ids, **r, "label": label})
+    shown = {f["id"] for f in items}
+    return {**base, "state": "ok", "items": rows, "model_ok": not pending, "total": len(feedback),
+            "hidden_ids": [f["id"] for f in feedback if f["id"] not in shown]}
 
 
 def plan_ids(c, run_id: str) -> list[str] | None:
