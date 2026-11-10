@@ -182,3 +182,26 @@ def test_the_worker_checks_again_before_any_github_call(env, monkeypatch):
     monkeypatch.setattr(job, "GitHubWriter", lambda token: pytest.fail("GitHub was called"))
     job.run_ask({"id": 1, "run_id": rid})
     assert "limited to the demo repository" in b.get(f"/api/runs/{rid}/ask-maintainer").json()["error"]
+
+
+@pytest.mark.parametrize("bad", ["alice", {"alice": 1}, ["alice", 3], None])   # a string, a table, a mixed list, nothing
+def test_a_malformed_list_lets_nobody_outside_it_publish(env, monkeypatch, bad):
+    # A's condition (2): "alice" as a bare string must not become the letters a, l, i, c, e; malformed = empty = fail closed
+    from backend import config
+    real = config.limits
+    monkeypatch.setattr(config, "limits", lambda: {**real(), "publish_open_logins": bad, "publish_allowed_repos": bad})
+    b = env
+    rid = b.post("/api/runs", json={"issue_url": URL}).json()["run_id"]
+    sign_in(b, rid)
+    assert b.post(f"/api/runs/{rid}/publish").json()["code"] == "PUBLISH_BLOCKED"
+
+
+def test_a_fork_based_publish_is_checked_against_the_upstream_repo(env, monkeypatch):
+    # A's condition (3): a non-team user publishes through their fork alice/r; allowing the fork must not allow upstream o/r
+    allow(monkeypatch, repos=["alice/r"])
+    b = env
+    rid = b.post("/api/runs", json={"issue_url": URL}).json()["run_id"]
+    sign_in(b, rid)
+    assert b.post(f"/api/runs/{rid}/publish").json()["code"] == "PUBLISH_BLOCKED"
+    allow(monkeypatch, repos=["o/r"])   # the upstream target is what counts
+    assert b.post(f"/api/runs/{rid}/publish").json()["code"] == "APPROVAL_STALE"

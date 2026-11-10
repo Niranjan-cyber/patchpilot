@@ -17,10 +17,15 @@ PUBLISH_LIMITED = ("Publishing from this demo is limited to the demo repository.
 
 def may_publish(login: str | None, repo: str) -> bool:
     """#100 (human decision 2026-11-10): a team login publishes anywhere; anyone else only to the demo repos. GitHub logins
-    and repo names are case-insensitive. A missing list means nobody (fails closed)."""
+    and repo names are case-insensitive. A missing or malformed list means nobody (fails closed)."""
     lim = limits()
-    team = {x.casefold() for x in lim.get("publish_open_logins", [])}
-    return repo.casefold() in {x.casefold() for x in lim.get("publish_allowed_repos", [])} or bool(login and login.casefold() in team)
+    return repo.casefold() in _names(lim, "publish_allowed_repos") or bool(login and login.casefold() in _names(lim, "publish_open_logins"))
+
+
+def _names(lim: dict, key: str) -> set[str]:
+    """Only a list of strings counts; anything else is empty. A bare string would become its letters, a table its keys."""
+    v = lim.get(key)
+    return {x.casefold() for x in v} if isinstance(v, list) and all(isinstance(x, str) for x in v) else set()
 
 
 def llm_budget_set() -> bool:
