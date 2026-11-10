@@ -89,10 +89,48 @@ def test_failed_ci_is_failing_and_becomes_feedback(c, monkeypatch):
     assert P.ci_state(None) is None and P.ci_state({"check_runs": []}) is None    # no CI is unknown, never "passing"
 
 
+def opened(**over):
+    """The recorded PR as if still open (same comments and CI), so the poll and page load keep re-reading it."""
+    return recorded(**{f"pulls/{N}": {**load("pull"), "state": "open", "merged_at": None, "draft": False}, **over})
+
+
+def changes_requested():
+    return [{"id": 77, "user": {"login": "patrickballard", "type": "User"}, "state": "CHANGES_REQUESTED",
+             "submitted_at": "2026-11-09T18:50:00Z", "body": "Please keep the --online check.", "html_url": "r"}]
+
+
+def bad_gateway(req):
+    return httpx.Response(502, text="Bad Gateway")
+
+
+def test_failed_reviews_read_never_shows_plain_open_or_drops_feedback(c, monkeypatch):
+    v = new_run(c)
+    monkeypatch.setattr(P, "_client", github(opened(**{f"pulls/{N}/reviews?per_page=100": changes_requested()})))
+    s = P.refresh(c, [v])[v.run_id]
+    assert s["state"] == "changes_requested" and len(s["feedback"]) == 4 and not s["partial"]
+    monkeypatch.setattr(P, "_client", github(opened(**{f"pulls/{N}/reviews?per_page=100": bad_gateway})))
+    s = P.refresh(c, [v])[v.run_id]
+    assert s["state"] == P.NO_REVIEW and s["partial"]                               # "Review status unavailable"
+    assert "review:77" in {f["id"] for f in s["feedback"]} and len(s["feedback"]) == 4   # earlier review kept
+    assert P.summary([v], {P.key(v): s["state"]}, {v.run_id: {}})["rows"][0]["needs_attention"]
+
+
+def test_ci_without_a_real_success_is_not_passing():
+    def ck(*conclusions, total=None):
+        runs = [{"status": "completed", "conclusion": x} for x in conclusions]
+        return {"total_count": total or len(runs), "check_runs": runs}
+    assert P.ci_state(ck("cancelled", "cancelled")) is None
+    assert P.ci_state(ck("skipped", "neutral", "stale")) is None
+    assert P.ci_state(ck("success", "cancelled")) is None                          # a cancelled job may be the tests
+    assert P.ci_state(ck("success", "skipped")) == "passing"
+    assert P.ci_state(ck("success", total=150)) is None                            # runs past the first page unseen
+    assert P.ci_state(ck("failure", total=150)) == "failing"
+
+
 def test_github_error_gives_unavailable_and_keeps_the_badge(c, monkeypatch):
     v = new_run(c)
-    monkeypatch.setattr(P, "_client", github(recorded()))
-    assert P.refresh(c, [v])[v.run_id]["state"] == "merged"
+    monkeypatch.setattr(P, "_client", github(opened()))
+    assert P.refresh(c, [v])[v.run_id]["state"] == "open"
     def limited(req):
         return httpx.Response(403, text="API rate limit exceeded", headers={"x-ratelimit-reset": "60"})
     monkeypatch.setattr(P, "_client", github({f"/repos/{REPO}/pulls/{N}": limited}))
@@ -113,9 +151,30 @@ def test_conditional_requests_reuse_the_stored_body_on_304(c, monkeypatch):
     assert P.snapshot(c, P._client(), REPO, N) == first and all(tag for _, tag in calls)
 
 
+def test_merged_prs_are_not_re_read_and_shared_prs_are_read_once(c, monkeypatch):
+    calls = []
+    monkeypatch.setattr(P, "_client", github(recorded(), calls))
+    v, w = new_run(c), new_run(c)                                                   # two runs, same PR
+    out = P.refresh(c, [v, w])
+    assert out[v.run_id]["state"] == out[w.run_id]["state"] == "merged"
+    assert sum(p == f"/repos/{REPO}/pulls/{N}" for p, _ in calls) == 1
+    calls.clear()
+    assert P.refresh(c, [v, w])[v.run_id]["state"] == "merged" and calls == []      # done: stored state, no reads
+
+
+def test_poll_stops_at_its_time_budget(c, monkeypatch):
+    calls = []
+    monkeypatch.setattr(P, "_client", github(opened(), calls))
+    new_run(c)
+    P.poll(c, budget=-1)                                                            # already over budget: reads nothing
+    assert calls == []
+    P.poll(c, budget=20)
+    assert calls
+
+
 def test_badge_sets_on_new_feedback_clears_after_viewing_and_is_owner_scoped(c, monkeypatch):
     from backend.api import main, session
-    monkeypatch.setattr(P, "_client", github(recorded()))
+    monkeypatch.setattr(P, "_client", github(opened()))
     a, b = (TestClient(main.app, base_url="https://testserver") for _ in range(2))
     a.cookies.set("pp_sid", "tok-a")
     b.cookies.set("pp_sid", "tok-b")
@@ -124,21 +183,21 @@ def test_badge_sets_on_new_feedback_clears_after_viewing_and_is_owner_scoped(c, 
                   (session._h(tok), None, db.now().isoformat(), db.now().isoformat()))
     v = new_run(c, session._h("tok-a"))
     row = a.get("/api/me/progress").json()["rows"][0]                               # page load refreshes from GitHub
-    assert row["github_pr_status"] == "merged" and row["new_feedback"] == 3 and row["needs_attention"]
+    assert row["github_pr_status"] == "open" and row["new_feedback"] == 3 and row["needs_attention"]
     assert a.get("/api/me/runs").json()[0]["new_feedback"] == 3                     # drives the nav badge
     assert b.get(f"/api/runs/{v.run_id}/feedback").status_code == 404
-    assert b.post(f"/api/runs/{v.run_id}/feedback/seen").status_code == 404
+    assert b.post(f"/api/runs/{v.run_id}/feedback/seen", json={"ids": []}).status_code == 404
     assert b.get("/api/me/progress").json()["state"] == "empty"
     fb = a.get(f"/api/runs/{v.run_id}/feedback").json()
-    assert fb["state"] == "merged" and [i["new"] for i in fb["items"]] == [True] * 3
-    assert a.post(f"/api/runs/{v.run_id}/feedback/seen").status_code == 204
-    assert a.get("/api/me/runs").json()[0]["new_feedback"] == 0
-    assert not a.get("/api/me/progress").json()["rows"][0]["needs_attention"]
+    shown = [i["id"] for i in fb["items"]]
+    assert fb["state"] == "open" and [i["new"] for i in fb["items"]] == [True] * 3
     more = [*load("issue_comments"), {"id": 1, "user": {"login": "patrickballard", "type": "User"},
                                       "created_at": "2026-11-10T08:00:00Z", "html_url": "u"}]
-    monkeypatch.setattr(P, "_client", github(recorded(**{f"issues/{N}/comments?per_page=100": more})))
-    P.poll(c)                                                                       # merged PRs aren't polled again
-    assert a.get("/api/me/runs").json()[0]["new_feedback"] == 0
-    c.execute("DELETE FROM kv WHERE key=?", (f"pr_track:{v.run_id}",))              # a PR not known to be done is polled
-    P.poll(c)
+    monkeypatch.setattr(P, "_client", github(opened(**{f"issues/{N}/comments?per_page=100": more})))
+    P.poll(c)                                                                       # arrives between the page's GET and its "seen"
+    assert a.post(f"/api/runs/{v.run_id}/feedback/seen", json={"ids": [*shown, "issue_comment:999"]}).status_code == 204
+    assert [f["id"] for f in P.new_feedback(c, v.run_id)] == ["issue_comment:1"]   # unseen stays new; unknown ids ignored
     assert a.get("/api/me/runs").json()[0]["new_feedback"] == 1
+    assert a.post(f"/api/runs/{v.run_id}/feedback/seen", json={"ids": ["issue_comment:1"]}).status_code == 204
+    assert a.get("/api/me/runs").json()[0]["new_feedback"] == 0                     # union with what was seen before
+    assert not a.get("/api/me/progress").json()["rows"][0]["needs_attention"]

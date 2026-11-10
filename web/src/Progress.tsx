@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, ApiError } from "./api";
+import { Icon } from "./components";
 
 export const RUNS_CHANGED = "pp:runs-changed";
 
-type PrState = "open" | "draft" | "changes_requested" | "approved" | "closed" | "merged";
+type PrState = "open" | "draft" | "changes_requested" | "approved" | "closed" | "merged" | "review_unavailable";
 type Row = { run_id: string; repo: string; number: number; title: string; issue_url: string; created_at: string; has_pr: boolean;
   patchpilot: { status: string; outcome: string | null; readiness: string | null; pr_url: string | null; compare_url: string | null };
   github_pr_status: PrState | null; ci: "passing" | "failing" | "pending" | null; last_activity_at: string | null;
@@ -14,12 +15,12 @@ type Progress = { signed_in: boolean; state: "empty" | "success" | "partial";
   rows: Row[] };
 
 const GH: Record<PrState, string> = { open: "Open", draft: "Draft", changes_requested: "Changes requested", approved: "Approved",
-  closed: "Closed without merging", merged: "Merged" };
+  closed: "Closed without merging", merged: "Merged", review_unavailable: "Open, review status unavailable" };
 const CI = { passing: "CI passing", failing: "CI failing", pending: "CI running" } as const;
 
 export function FeedbackBadge({ runId, n }: { runId: string; n: number }) {
   return n > 0 ? <Link className="badge badge-warn feedback-badge" to={`/runs/${runId}/pr`}>
-    <span aria-hidden>●</span> {n} new on GitHub</Link> : null;
+    <Icon name="message" size={13} /> {n} new on GitHub</Link> : null;
 }
 
 /** S-08 progress: what PatchPilot did vs what happened on GitHub, kept in separate columns. No scores, streaks or ranks. */

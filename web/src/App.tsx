@@ -36,7 +36,7 @@ function NavLinks({ waiting, feedback, id }: { waiting: number; feedback: number
               {isActive && <motion.span layoutId={id} className="absolute inset-0 rounded-full bg-white" transition={spring} aria-hidden />}
               <span className="relative">{n.label}</span>
               {n.to === "/my-runs" && waiting > 0 && <span className="relative grid place-items-center min-w-5 h-5 px-1.5 rounded-full bg-peach-300 text-[11.5px] font-bold" aria-label={`${waiting} waiting for your approval`}>{waiting}</span>}
-              {n.to === "/my-runs" && feedback > 0 && <span className="relative grid place-items-center min-w-5 h-5 px-1.5 rounded-full bg-butter-100 text-butter-700 text-[11.5px] font-bold" title="New maintainer feedback on GitHub" aria-label={`${feedback} with new maintainer feedback`}>●{feedback}</span>}
+              {n.to === "/my-runs" && feedback > 0 && <span className="relative inline-flex items-center gap-1 h-5 px-1.5 rounded-full bg-butter-100 text-butter-700 text-[11.5px] font-bold" title="New maintainer feedback on GitHub" aria-label={`${feedback} with new maintainer feedback`}><Icon name="message" size={12} />{feedback}</span>}
             </>)}
           </NavLink>
         </li>
@@ -50,8 +50,8 @@ function Shell({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
   const loc = useLocation();
   const mine = useMyRuns();
-  const waiting = mine.items?.filter((i) => i.status === "awaiting_approval").length ?? 0;
-  const feedback = mine.items?.filter((i) => i.new_feedback > 0).length ?? 0;   // set by the worker's 10-min PR poll   // a count only on a queue that needs you
+  const waiting = mine.items?.filter((i) => i.status === "awaiting_approval").length ?? 0;   // a count only on a queue that needs you
+  const feedback = mine.items?.filter((i) => i.new_feedback > 0).length ?? 0;   // set by the worker's 10-min PR poll
   useEffect(() => { api<{ signed_in: boolean; login: string | null }>("/api/me").then(setMe).catch(() => setMe(null)); }, []);
   useEffect(() => setOpen(false), [loc.pathname]);
   useEffect(() => {   // Escape closes the phone menu

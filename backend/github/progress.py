@@ -1,6 +1,7 @@
 """B16 My progress (S-08) + #101 contribution history: PatchPilot facts and GitHub facts kept apart. No scores, streaks or ranks.
 A PR status GitHub didn't give us is None ("Status unavailable"), never open/closed as a guess."""
 import json
+import time
 
 import httpx
 
@@ -10,7 +11,9 @@ from backend.github.reader import GitHubError, _check, _client
 
 FIX = {Outcome.VERIFIED_FIX, Outcome.FIX_NEEDS_ATTENTION}
 FAILED = {"failure", "timed_out", "action_required"}
-DONE = {"merged", "closed"}     # the worker stops polling these
+DONE = {"merged", "closed"}     # nobody re-reads these (worker poll and page load)
+PAGE = 100                      # one page per list; a full page may hide more, so the read counts as partial
+NO_REVIEW = "review_unavailable"   # open PR whose reviews we couldn't read: never shown as plain "open"
 REVIEW = {"CHANGES_REQUESTED": "Changes requested", "APPROVED": "Approved", "COMMENTED": "Review"}
 
 
@@ -38,12 +41,18 @@ def pr_state(pr: dict | None, reviews: list[dict] | None = None) -> str | None:
 
 
 def ci_state(check_runs: dict | None) -> str | None:
+    """Only a real "success" counts as a pass. Cancelled/skipped/stale-only CI, or runs we didn't all see, are None."""
     runs = (check_runs or {}).get("check_runs")
     if not runs:
         return None     # no CI, or we couldn't read it
     if any(r.get("conclusion") in FAILED for r in runs):
         return "failing"
-    return "pending" if any(r.get("status") != "completed" for r in runs) else "passing"
+    if (check_runs.get("total_count") or 0) > len(runs):
+        return None     # more runs than we read: a pass we can't see all of isn't a pass
+    if any(r.get("status") != "completed" for r in runs):
+        return "pending"
+    done = {r.get("conclusion") for r in runs}
+    return "passing" if "success" in done and done <= {"success", "skipped", "neutral"} else None
 
 
 def feedback(author: str | None, reviews, review_comments, issue_comments, check_runs) -> list[dict]:
@@ -54,9 +63,9 @@ def feedback(author: str | None, reviews, review_comments, issue_comments, check
     out = [{"id": f"review:{r['id']}", "kind": "review", "what": REVIEW[r["state"]], "author": r["user"]["login"],
             "at": r.get("submitted_at"), "url": r.get("html_url")}
            for r in reviews or [] if human(r) and r.get("state") in REVIEW and (r["state"] != "COMMENTED" or r.get("body"))]
-    out += [{"id": f"comment:{x['id']}", "kind": "comment", "what": f"Comment on {x['path']}" if x.get("path") else "Comment",
+    out += [{"id": f"{src}:{x['id']}", "kind": "comment", "what": f"Comment on {x['path']}" if x.get("path") else "Comment",
              "author": x["user"]["login"], "at": x.get("created_at"), "url": x.get("html_url")}
-            for x in [*(review_comments or []), *(issue_comments or [])] if human(x)]
+            for src, xs in (("review_comment", review_comments), ("issue_comment", issue_comments)) for x in xs or [] if human(x)]
     out += [{"id": f"ci:{r['id']}", "kind": "ci", "what": f"CI failed: {r.get('name')}", "author": None,
              "at": r.get("completed_at"), "url": r.get("html_url")}
             for r in (check_runs or {}).get("check_runs") or [] if r.get("conclusion") in FAILED]
@@ -79,7 +88,8 @@ def _cget(c, h: httpx.Client, path: str):
 
 
 def snapshot(c, h: httpx.Client, repo: str, n: int) -> dict:
-    """Everything is read with the read-only token. A missing PR read is "unavailable"; missing sub-reads are just left out."""
+    """Everything is read with the read-only token. A missing PR read is "unavailable". A failed or truncated sub-read
+    marks the snapshot partial (refresh keeps the earlier feedback) and never makes the PR look cleaner than it is."""
     pr = _cget(c, h, f"/repos/{repo}/pulls/{n}")
     if not isinstance(pr, dict) or "state" not in pr:
         return {"state": None, "ci": None}
@@ -90,9 +100,13 @@ def snapshot(c, h: httpx.Client, repo: str, n: int) -> dict:
     sha = (pr.get("head") or {}).get("sha")
     ck = _cget(c, h, f"/repos/{repo}/commits/{sha}/check-runs?per_page=100") if sha else None
     fb = feedback(author, rv, rc, ic, ck)
-    people = [f["at"] for f in fb if f["kind"] != "ci" and f["at"]]
-    return {"state": pr_state(pr, rv if isinstance(rv, list) else None), "ci": ci_state(ck),
-            "last_activity_at": max(people, default=None), "feedback": fb}
+    lists_ok = [isinstance(x, list) and len(x) < PAGE for x in (rv, rc, ic)]
+    partial = not all(lists_ok) or not isinstance(ck, dict) or (ck.get("total_count") or 0) > len(ck.get("check_runs") or [])
+    state = pr_state(pr, rv) if isinstance(rv, list) else pr_state(pr)
+    if state == "open" and not lists_ok[0]:
+        state = NO_REVIEW
+    return {"state": state, "ci": ci_state(ck) if isinstance(ck, dict) else None, "partial": partial,
+            "last_activity_at": max((f["at"] for f in fb if f["kind"] != "ci" and f["at"]), default=None), "feedback": fb}
 
 
 def key(v: RunView) -> str | None:
@@ -104,36 +118,55 @@ def tracked(c, run_id: str) -> dict:
     return json.loads(db.get_kv(c, f"pr_track:{run_id}") or "{}")
 
 
-def refresh(c, runs: list[RunView]) -> dict[str, dict]:
-    """Re-read each run's PR and store it. Rate limited -> the rest are "unavailable" now, keeping their last feedback."""
-    out: dict[str, dict] = {}
+def merge(prev: dict, snap: dict | None) -> dict:
+    """Unavailable keeps the last feedback; partial adds to it, so a failed sub-read never drops feedback."""
+    if not snap or snap["state"] is None:
+        return {**prev, "state": None, "ci": None, "partial": True}
+    if snap.get("partial"):
+        have = {f["id"] for f in snap["feedback"]}
+        kept = [f for f in prev.get("feedback", []) if f["id"] not in have]
+        return {**snap, "feedback": sorted([*kept, *snap["feedback"]], key=lambda f: f["at"] or "")}
+    return snap
+
+
+def refresh(c, runs: list[RunView], *, budget: float | None = None) -> dict[str, dict]:
+    """Re-read each PR once (runs sharing a PR share the read) and store it per run. Merged/closed PRs aren't re-read.
+    Rate limited -> the rest are "unavailable" now, keeping their last feedback. budget (s): stop and leave the rest
+    as they were, for the worker's next tick."""
     todo = [v for v in runs if key(v)]
-    if not todo:
+    out = {v.run_id: tracked(c, v.run_id) for v in todo}
+    want = [v for v in todo if out[v.run_id].get("state") not in DONE]
+    if not want:
         return out
-    limited = False
+    stop, limited, read = (time.monotonic() + budget) if budget else None, False, {}
     try:
         with _client() as h:
-            for v in todo:
-                snap = None
-                if not limited:
-                    try:
-                        snap = snapshot(c, h, v.issue.repo, v.pr.number)
-                    except GitHubError:
-                        limited = True
-                prev = tracked(c, v.run_id)
-                if not snap or snap["state"] is None:
-                    snap = {**prev, "state": None, "ci": None}
-                db.put_kv(c, f"pr_track:{v.run_id}", json.dumps(snap))
-                out[v.run_id] = snap
+            for v in want:
+                k = key(v)
+                if k not in read:
+                    if stop and time.monotonic() > stop:
+                        break
+                    snap = None
+                    if not limited:
+                        try:
+                            snap = snapshot(c, h, v.issue.repo, v.pr.number)
+                        except GitHubError:
+                            limited = True
+                    read[k] = snap
+                out[v.run_id] = merge(out[v.run_id], read[k])
+                db.put_kv(c, f"pr_track:{v.run_id}", json.dumps(out[v.run_id]))
     except Exception:
-        pass
-    return {v.run_id: out.get(v.run_id) or {**tracked(c, v.run_id), "state": None, "ci": None} for v in todo}
+        for v in want:
+            if key(v) not in read:
+                out[v.run_id] = merge(out[v.run_id], None)
+    return out
 
 
-def poll(c) -> None:
-    """Worker, every 10 min: refresh every PR that isn't merged or closed yet."""
+def poll(c, budget: float = 20) -> None:
+    """Worker, every 10 min: refresh PRs that aren't merged or closed, within a time budget so the job loop and its
+    heartbeat aren't held up (what's left waits for the next tick)."""
     runs = [RunView.model_validate_json(r[0]) for r in c.execute("SELECT state_json FROM runs").fetchall()]
-    refresh(c, [v for v in runs if key(v) and tracked(c, v.run_id).get("state") not in DONE])
+    refresh(c, runs, budget=budget)
 
 
 def new_feedback(c, run_id: str, snap: dict | None = None) -> list[dict]:
@@ -141,8 +174,11 @@ def new_feedback(c, run_id: str, snap: dict | None = None) -> list[dict]:
     return [f for f in (snap if snap is not None else tracked(c, run_id)).get("feedback", []) if f["id"] not in seen]
 
 
-def mark_seen(c, run_id: str) -> None:
-    db.put_kv(c, f"pr_seen:{run_id}", json.dumps([f["id"] for f in tracked(c, run_id).get("feedback", [])]))
+def mark_seen(c, run_id: str, ids: list[str]) -> None:
+    """Only what the owner was actually shown (ids from the page), added to what they saw before."""
+    old = set(json.loads(db.get_kv(c, f"pr_seen:{run_id}") or "[]"))
+    shown = set(ids) & {f["id"] for f in tracked(c, run_id).get("feedback", [])}
+    db.put_kv(c, f"pr_seen:{run_id}", json.dumps(sorted(old | shown)))
 
 
 def counts(runs: list[RunView], gh: dict[str, str | None]) -> dict[str, int]:
@@ -152,7 +188,7 @@ def counts(runs: list[RunView], gh: dict[str, str | None]) -> dict[str, int]:
             "fix_proposed": sum(v.outcome in FIX for v in runs),
             "pr_opened": len(prs),
             "pr_merged": sum(gh.get(n) == "merged" for n in prs),
-            "pr_status_unknown": sum(gh.get(n) is None for n in prs)}
+            "pr_status_unknown": sum(gh.get(n) in (None, NO_REVIEW) for n in prs)}
 
 
 def summary(runs: list[RunView], gh: dict[str, str | None], extra: dict[str, dict] | None = None) -> dict:
@@ -170,7 +206,7 @@ def summary(runs: list[RunView], gh: dict[str, str | None], extra: dict[str, dic
                                "pr_url": v.pr.url if v.pr else None, "compare_url": v.pr.compare_url if v.pr else None},
                 "github_pr_status": st, "has_pr": bool(v.pr and v.pr.number),
                 "ci": x.get("ci"), "last_activity_at": x.get("last_activity_at"), "new_feedback": new,
-                "needs_attention": bool(new) or st == "changes_requested" or x.get("ci") == "failing"
+                "needs_attention": bool(new) or st in ("changes_requested", NO_REVIEW) or x.get("ci") == "failing"
                 or v.status == "awaiting_approval"}
     rows = [row(v) for v in sorted(runs, key=lambda v: v.created_at, reverse=True)]
     c = counts(runs, gh)
