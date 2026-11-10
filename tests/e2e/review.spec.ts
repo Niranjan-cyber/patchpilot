@@ -52,3 +52,35 @@ test("#97: the Contribution Explainer is collapsed, each section opens on its ow
     await page.screenshot({ path: `tests/e2e/screenshots/explainer-${width}.png`, fullPage: width !== 375 });
   }
 });
+
+test("#98: each question shows evidence and a labelled suggestion; the answer starts empty and stays the user's", async ({ page, context }) => {
+  test.skip(!PP_TOKEN, "needs scripts/seed_review_run.py");
+  await context.addCookies([{ name: "pp_sid", value: PP_TOKEN, url: BASE }]);
+  for (const width of [1280, 375]) {
+    await page.setViewportSize({ width, height: 860 });
+    await page.goto(`${BASE}/runs/${PP_RUN}/review`);
+    const label = "Suggestion from PatchPilot, based on this run's evidence. Write your own.";
+    await expect(page.getByText(label)).toHaveCount(3);
+    for (const q of ["What was broken?", "Why does this change fix it?", "What does the new test prove?"]) {
+      await expect(page.getByLabel(q)).toHaveValue("");   // never pre-filled
+    }
+    await expect(page.locator(".question").first()).toContainText("divide(1, 0) raises ZeroDivisionError");   // Q1 evidence
+    await expect(page.locator(".question").nth(1)).toContainText("tinycalc/ops.py");                           // Q2: the changed file
+    await expect(page.locator(".question").nth(2)).toContainText("fails on the original code (2 of 2 runs)");  // Q3 suggestion
+    await expect(page.getByRole("button", { name: /use suggestion|paste/i })).toHaveCount(0);
+    for (const box of ["I read every change below", "I understand what it changes and why", "The pull request may say that AI helped write it"])
+      await page.getByLabel(box).check();
+    const approve = page.getByRole("button", { name: "Approve this change" });
+    await page.getByLabel("What was broken?").fill("divide(1, 0) returned 0 instead of raising.");
+    await page.getByLabel("Why does this change fix it?").fill("The try/except that swallowed the error is gone.");
+    await expect(approve).toBeDisabled();   // one answer still missing
+    await page.getByLabel("What does the new test prove?").fill("It fails on the old code and passes with the fix.");
+    await expect(approve).toBeEnabled();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+    await page.getByLabel("What was broken?").fill("");   // a clean screenshot shows the empty fields
+    await page.getByLabel("Why does this change fix it?").fill("");
+    await page.getByLabel("What does the new test prove?").fill("");
+    await page.locator(".question").first().evaluate((el) => window.scrollTo(0, el.getBoundingClientRect().top + window.scrollY - 80));
+    await page.screenshot({ path: `tests/e2e/screenshots/questions-${width}.png` });
+  }
+});
