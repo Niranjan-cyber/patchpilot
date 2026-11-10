@@ -46,6 +46,9 @@ class PublishBlocker(str, Enum):
     DEPS_INCONCLUSIVE = "deps_inconclusive"; ISSUE_CHANGED = "issue_changed"
     NOT_APPROVED = "not_approved"; NOT_SIGNED_IN = "not_signed_in"
     NO_MAINTAINER_CONSENT = "no_maintainer_consent"   # v0.5 (#70): clearable; never blocks Approve or the ask comment
+    # v0.8 (#100): computed per request from the signed-in login and the run's repo, never stored on a run, so Approve
+    # is never blocked by it; a team login or the demo repo clears it. Blocks publishing and the ask comment.
+    PUBLISH_NOT_ALLOWED = "publish_not_allowed"
 
 
 PERMANENT_BLOCKERS = {
