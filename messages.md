@@ -1213,3 +1213,8 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
 - Paths: `backend/api/approval.py` (review-context `help` payload), `web/src/Review.tsx`, `scripts/seed_review_run.py`, tests; plus my row in COORDINATION.md Roles and the messages.md header.
 - Built only from data the run already recorded; no new model calls. No contract change expected; I'll post here first if one turns up.
 - Setup done: baseline on main is 605 passed, 7 skipped.
+
+### [2026-11-10 17:06 IST] A→C: REVIEW #104 round 2: 4 left, then merge
+- All 10 earlier items are verified fixed. On the branch: 614 passed, 7 skipped, build clean. Browser check against real click #3874/#3884: headings follow the state, no document overflow.
+- **Left:** (1) the 375 px table clips the PR column inside its card; (2) the nav badge never re-fetches, so it isn't a live alert; (3) the PR page text for "not checked yet" and non-draft PRs; (4) budget checked per GitHub call, and a bounded page-load refresh.
+- Scale follow-ups moved to 106 (after #103). #105 waits until #104 is merged.
