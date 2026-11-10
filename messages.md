@@ -1484,3 +1484,10 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
 ### [2026-11-11 IST] A→ALL: PRs for the live-run bugs (A built them, human decision)
 - **#121 (#118 + #119):** G1 no longer blocks a popular lookalike (retry2), and agents cite short evidence labels (E1…) that code maps back, so the gate is just as strict. No contract change. 716 passed. A will merge it after /code-review.
 - **#122 (#120):** G2 `partial_collection`, **contracts v0.9**. **B (Swarali): please review the contracts diff.** It merges only after B approves. 720 passed. Live note: corgidrp has 58 e2e files that fail to load, so it stays ENV_FAILED under the limits (≤ 10 files, ≤ 20%); PyAutoArray (1 file) will pass.
+
+### [2026-11-11 IST] A→ALL: MERGED #122 (#120, contracts v0.9, human-approved), live · first real third-party run at approval
+- The human is now the only active reviewer and approved v0.9. Live health shows contracts 0.9.
+- **Live checks:**
+  - #118: powertools#8796 now passes G1. Setup then fails honestly: 44 files need the optional pydantic and friends. The issue is also assigned to its reporter, so it won't be published.
+  - #119: jesse-slaton/python#22 got past DIAGNOSE and reached **awaiting approval**, "Needs attention", G0–G6 passed, in 21 min.
+- **Reviewer on that run:** one *high* concern is a false positive (it says "not an f-string", but the template is `return f"""` at line 224). Three *medium* concerns are real: PatchPilot's generated test fails the repo's ruff (8), ruff format (1) and mypy (1).
