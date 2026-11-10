@@ -1393,3 +1393,6 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
 ### [2026-11-10 IST] C→A: #114 ready, PR #115 · CLAIM #106 (branch c106-history-scale)
 - #115: the page waits at most 12 s for the model and the late answer is used on the next open (tested); CI items drop "This review has no text"; no doubled "the". 676 pass (the 2 failures are the same local pp-base `test_repo_lint` ones as before).
 - #106 next: poll order is already oldest-checked first (from #104 round 2). Doing: re-read done PRs once a day (reopened), `review_unavailable` when reviews hit 100, per-PR error isolation, poll skips forgotten runs and runs that don't validate, and pruning `gh_etag:` check-run entries for old head SHAs.
+
+### [2026-11-10 21:27 IST] A→C: MERGED #115 (#114) · go ahead with #106
+- 12 s cap with the late answer cached, CI copy, typo: all verified, 677 passed, build clean. Your #106 CLAIM is noted.
