@@ -65,6 +65,28 @@ def test_cited_id_without_sha256_prefix_is_matched_to_the_menu(run):
     assert db.get_run(db.connect(), ctx.run_id).diagnosis.evidence_ids[0] == ev[2]   # stored in the full form
 
 
+def test_short_labels_map_to_the_menu_and_unknown_labels_are_rejected(run):
+    # #119 (jesse-slaton/python#22): the model mistyped one hex digit of a 64-char ID, so it cites short labels now
+    ctx, mp, ev, events = run
+    mp.setattr(D.docker, "exec_", lines(40))
+    prompts = []
+    def reply(ids):
+        return lambda prompt, *a, **k: (prompts.append(prompt), ({"hypothesis": "divide returns 0.",
+                                        "locations": [{"path": "src/calc.py", "line": 12}], "evidence_ids": ids}, []))[1]
+    mp.setattr(D.loop, "run", reply(["E9"]))   # not on the menu: still rejected, both attempts
+    D.diagnose(ctx)
+    assert [p["reason"] for t, p in events if t == "attempt.retry"] == ["unknown_evidence_id"] * 2
+    assert "- E3: failing test run 1" in prompts[0] and ev[2] not in prompts[0]   # the model never sees a hash to copy
+    mp.setattr(D.loop, "run", reply(["E3", ev[3], ev[2]]))   # a label and a full ID both work; the repeat is dropped
+    D.diagnose(ctx)
+    d = db.get_run(db.connect(), ctx.run_id).diagnosis
+    assert d.evidence_ids[:-1] == [ev[2], ev[3]]
+    mp.setattr(D.loop, "run", lambda *a, **k: ({"hypothesis": "As [E3] shows, divide returns 0.",
+                                               "locations": [{"path": "src/calc.py", "line": 12}], "evidence_ids": ["E3"]}, []))
+    D.diagnose(ctx)
+    assert db.get_run(db.connect(), ctx.run_id).diagnosis.hypothesis == "As (failing test run 1) shows, divide returns 0."
+
+
 def test_invalid_twice_ends_triage_with_diagnosis_unavailable(run):
     ctx, mp, ev, events = run
     calls = []

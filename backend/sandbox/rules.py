@@ -2,14 +2,33 @@
 import xml.etree.ElementTree as ET
 import re
 import tomllib
+from datetime import date
 
 from backend.contracts.models import CheckStatus
 
-# Provisional DECISION (A, 2026-10-30; C owns SupplyGuard and may override in messages.md): block (no override,
-# contracts §1.1) on a published malicious advisory, or a HIGH-confidence lookalike (SupplyGuard already checks
-# download volume, so a popular package is never a lookalike). Lower-confidence signals are findings.
-def _blocks(sig: dict) -> bool:
-    return sig.get("kind") == "malicious-advisory" or (sig.get("kind") == "lookalike" and sig.get("confidence") == "high")
+# Block (no override, contracts §1.1) on a published malicious advisory, or a HIGH-confidence lookalike unless it is
+# an established package itself. #118: SupplyGuard rated retry2 (473k downloads/week since 2021) a high lookalike.
+# Established = >= 10k downloads last week AND first published >= 1 year ago: downloads alone can be inflated with a
+# download loop, a year on PyPI can't (typosquats get removed). Lower-confidence and established ones are findings.
+# shortcut: both numbers are parsed from SupplyGuard's evidence text (its JSON has no structured field), so an unknown
+# wording reads as "not established" and blocks (fail closed); switch to structured fields if SupplyGuard adds them.
+POPULAR_WEEKLY, ESTABLISHED_DAYS = 10_000, 365
+
+
+def _established(evidence: str, today: date) -> bool:
+    n = re.search(r"(\d[\d,]*) downloads last week", evidence or "")   # digits grouped either way: 473,064 / 4,73,064
+    first = re.search(r"first published (\d{4}-\d{2}-\d{2})", evidence or "")
+    try:
+        return (int(n.group(1).replace(",", "")) >= POPULAR_WEEKLY
+                and (today - date.fromisoformat(first.group(1))).days >= ESTABLISHED_DAYS) if n and first else False
+    except ValueError:
+        return False
+
+
+def _blocks(sig: dict, today: date) -> bool:
+    if sig.get("kind") == "malicious-advisory":
+        return True
+    return sig.get("kind") == "lookalike" and sig.get("confidence") == "high" and not _established(sig.get("evidence", ""), today)
 
 
 def release_tag_before(releases: list[dict], commit_date: str) -> str | None:
@@ -21,7 +40,7 @@ def release_tag_before(releases: list[dict], commit_date: str) -> str | None:
     return max(older, key=lambda r: r["published_at"])["tag_name"] if older else None
 
 
-def map_supplyguard(exit_code: int | None, report: dict | None) -> tuple[CheckStatus, str, list[dict]]:
+def map_supplyguard(exit_code: int | None, report: dict | None, today: date | None = None) -> tuple[CheckStatus, str, list[dict]]:
     """G1 from a SupplyGuard run. Unknown is inconclusive, never clean."""
     if exit_code == 3:   # SupplyGuard prints plain text, not JSON, when it finds no dependency file it reads
         return CheckStatus.INCONCLUSIVE, "no_supported_dependency_files", []
@@ -35,7 +54,7 @@ def map_supplyguard(exit_code: int | None, report: dict | None) -> tuple[CheckSt
             item = {"type": "suspicious", "package": s.get("packageId"), "risk": s.get("risk"),
                     "kinds": sorted(k for k in kinds if k), "note": s.get("note", "")}
             findings.append(item)
-            if any(_blocks(sig) for sig in s.get("signals", [])):
+            if any(_blocks(sig, today or date.today()) for sig in s.get("signals", [])):
                 blocked.append(item)
         for v in p.get("vulnerabilities", []):
             findings.append({"type": "vulnerability", "package": v.get("packageId") or v.get("package"),

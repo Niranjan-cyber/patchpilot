@@ -127,11 +127,26 @@ def keep_tour(tour, line_count) -> tuple[list[dict], list[str]]:
     return kept, dropped
 
 
-def full_ids(res, known) -> None:
-    """Models often cite an evidence ID without its "sha256:" prefix (run a863ee86). Restore it in place, but only when the
-    full form is a known ID: anything else stays as cited and the check that follows still rejects it."""
+def label(n: int) -> str:
+    """#119: models are shown short labels (E1, E2…) instead of 64-char hashes, which they mistype (jesse-slaton/python#22)."""
+    return f"E{n + 1}"
+
+
+def full_ids(res, known: dict) -> None:
+    """Map what a model cited back to known evidence IDs, in place, de-duplicated: a label (E3) to the 3rd ID of the
+    ordered menu the prompt was built from, and a hash without its "sha256:" prefix (run a863ee86) to its full form.
+    Anything else stays as cited, so the check that follows still rejects it."""
     if isinstance(res, dict) and isinstance(res.get("evidence_ids"), list):
-        res["evidence_ids"] = [f"sha256:{i}" if f"sha256:{i}" in known else i for i in res["evidence_ids"]]
+        # labels only from the same ordered dict the prompt numbered; an unordered set would map E3 to the wrong artifact
+        by_label = {label(n): k for n, k in enumerate(known)} if isinstance(known, dict) else {}
+        res["evidence_ids"] = list(dict.fromkeys(
+            by_label.get(str(i).strip("[] ").upper(), f"sha256:{i}" if f"sha256:{i}" in known else i) for i in res["evidence_ids"]))
+
+
+def name_labels(text: str, names: list[str]) -> str:
+    """User-facing prose must not say "see [E3]": swap each label the model wrote for what it points to."""
+    sub = lambda m: f"({names[int(m.group(1)) - 1]})" if 0 < int(m.group(1)) <= len(names) else m.group(0)
+    return re.sub(r"\[?\bE(\d{1,3})\b\]?", sub, text)
 
 
 def check_diagnosis(res: dict | None, known_ids: set[str], line_count) -> str | None:
