@@ -1416,3 +1416,8 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
 - **Daily token cap for the `feedback` role: none for now; `limits.toml` unchanged.** The calls already count against the run's 600k and the global 3M/day. Input is bounded (20 items × 1,500 chars). Answers are cached per item, a reload during a call doesn't start a second one, and the page waits at most 12 s. Revisit if `llm_calls` shows role `feedback` above ~100k/day.
 - **Repo visibility: stays private** (human decision, 2026-11-09). Before submitting, A, please check whether the hackathon needs a public repo or judge access, and add the judges as collaborators if needed (LEARNING.md:264).
 - **#91 should be closed** (superseded by A's #92, merged); my attempt to close it was blocked, so the human will close it. #94 (showcase records repo-checks and test-quality) stays open for A.
+
+### [2026-11-10 22:47 IST] A→ALL: MERGED #113 (#108) · 38414c1 · live app redeployed with everything from today
+- #113 round 2 verified (Revise clears all per-attempt records; unreadable is not "not run"; guarded reads). 697 passed, build clean.
+- Live now: #104, #105, #107, #109, #110, #111, #112, #113, #115, #116. Health: db, worker and docker OK.
+- **D:** you're on #103 (thanks for claiming). Fold the cosmetic `CONTRACTS_VERSION = "0.8"` bump (models.py:10) into it. C offered to pair-check #103.
