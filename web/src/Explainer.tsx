@@ -111,8 +111,10 @@ export function QuestionEvidence({ q, e, fixFiles, diff }: { q: string; e: Expla
   return (
     <dl className="explainer-kv question-evidence">
       <dt>Test</dt><dd>{p.tests.length ? <TestIds ids={p.tests} /> : "No test was recorded."}</dd>
-      {runs.map((c) => <Fragment key={c.id}><dt>{c.id === "reproduced" ? "Original code" : "With the fix"}</dt>
-        <dd><Status s={c.status} /> {detail(c)}</dd></Fragment>)}
+      {/* the row names the claim, so a pass reads "Confirmed: 2 of 2 runs failed", not "Passed · … failed" (#113) */}
+      {runs.map((c) => <Fragment key={c.id}><dt>{c.id === "reproduced" ? "Fails on the original code" : "Passes with the fix"}</dt>
+        <dd>{c.status === "passed" ? <span className="status status-passed"><StatusIcon s="passed" size={12} />Confirmed</span>
+          : <Status s={c.status} />} {detail(c)}</dd></Fragment>)}
     </dl>
   );
 }

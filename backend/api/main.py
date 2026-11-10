@@ -427,21 +427,27 @@ def get_bisect(run_id: str, request: Request):
         _fixture(run_id)
         return {"status": "pending", "reason": "sample_run"}
     _own(request, run_id)
-    raw, var = db.get_kv(db.connect(), f"bisect:{run_id}"), db.get_kv(db.connect(), f"variant:{run_id}")
-    return {**(json.loads(raw) if raw else {"status": "pending", "reason": "not_run_yet"}),
-            "variant": json.loads(var) if var else None}   # hidden-variant reason (RunView only carries its status)
+    c = db.connect()
+
+    def read(key):   # #113: a corrupt record is unknown, never a 500
+        try:
+            rec = json.loads(db.get_kv(c, key) or "null")
+        except ValueError:
+            return None
+        return rec if isinstance(rec, dict) else None
+    return {**(read(f"bisect:{run_id}") or {"status": "pending", "reason": "not_run_yet"}),
+            "variant": read(f"variant:{run_id}")}   # hidden-variant reason (RunView only carries its status)
 
 
 @app.get("/api/runs/{run_id}/repo-checks")
 def get_repo_checks(run_id: str, request: Request):
     """#70 item 3: the repo's own checks, one row per tool (owner-checked). Not run yet -> checks null, never "passed"."""
-    import json
     if not _is_real(run_id):
         _fixture(run_id)
         return {"checks": None, "files": [], "reason": "sample_run"}
     _own(request, run_id)
-    raw = db.get_kv(db.connect(), f"repo_checks:{run_id}")
-    return json.loads(raw) if raw else {"checks": None, "files": [], "reason": "not_run_yet"}
+    # #108: the validated reader; a malformed record reads as unknown (checks null), never as rows
+    return db.repo_checks(db.connect(), run_id) or {"checks": None, "files": [], "reason": "not_run_yet"}
 
 
 @app.get("/api/runs/{run_id}/report.md")

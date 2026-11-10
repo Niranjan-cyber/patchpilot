@@ -1,5 +1,5 @@
 """B10: the human gate on the exact diff (contracts §5, screen S-05)."""
-import re
+from contextlib import closing
 from typing import Literal
 from urllib.parse import quote
 
@@ -155,23 +155,13 @@ def stale_checks(v: RunView, diff: str) -> list[PublishBlocker]:
 
 REPO_CHECK = {"PASS": CheckStatus.PASSED, "FAIL": CheckStatus.FAILED, "BLOCKED": CheckStatus.INCONCLUSIVE,
               "NOT_RUN": CheckStatus.NOT_RUN, "UNSUPPORTED": CheckStatus.NOT_RUN}
-# Reviewer concerns that code wrote from facts the explainer can list itself (variant.review_concern, publisher.COVERAGE_NOTE,
-# lint.review_concerns). test_approval builds them with those producers, so a wording change there fails a test.
-VARIANT_CONCERN = re.compile(r"^The fix passes the visible test but fails a hidden variant")
-COVERAGE_CONCERN = re.compile(r"^The test designer didn't claim")
-LINT_CONCERN = re.compile(r"^The repo's (.+?) reports \d+ new problems? in the changed files")
-
-
-def _shown_elsewhere(text: str, checks: list[dict], uncovered: list[str] | None) -> bool:
-    """True only if the explainer lists this concern's cause itself, so dropping it never hides a fact."""
-    row = lambda i, **kw: any(c["id"] == i and c["status"] == CheckStatus.FAILED and all(c.get(k) == x for k, x in kw.items())
-                              for c in checks)
-    if VARIANT_CONCERN.match(text):
-        return row("hidden_variant")
-    if COVERAGE_CONCERN.match(text):
-        return bool(uncovered)
-    m = LINT_CONCERN.match(text)
-    return bool(m and row("repo_check", tool=m.group(1)))
+def _shown_elsewhere(c: dict, checks: list[dict], uncovered: list[str] | None) -> bool:
+    """A concern code wrote (review.SOURCES tag, #108) whose cause the explainer lists itself. Untagged text, including
+    every model concern, is never dropped, so de-duplicating can't hide a fact."""
+    row = lambda i, **kw: any(x["id"] == i and x["status"] == CheckStatus.FAILED and all(x.get(k) == y for k, y in kw.items())
+                              for x in checks)
+    return {"variant": lambda: row("hidden_variant"), "coverage": lambda: bool(uncovered),
+            "lint": lambda: row("repo_check", tool=c.get("tool"))}.get(c.get("source"), lambda: False)()
 
 
 def _cap_says_it(c: dict, caps: list[str]) -> bool:
@@ -189,16 +179,19 @@ def explainer(v: RunView, repo_checks: dict | None, variant: dict | None) -> dic
     r, d, vf, b = v.repro, v.diagnosis, v.verify, v.baseline
     rc = repo_checks or {"checks": None, "reason": "not_run_yet"}
     hv = (vf and vf.hidden_variant) or CheckStatus.NOT_RUN
-    # kv variant:<rid> isn't reset on a revision: its reason only explains the status it was written with
-    hv_reason = (variant or {}).get("reason") if (variant or {}).get("status") == hv.value else None
+    # kv variant:<rid> is per attempt (Revise clears it); use it only when it matches the recorded status
+    # kv variant:<rid> describes one attempt: use its reason and evidence only when they match the recorded status
+    mine = variant if (variant or {}).get("status") == hv.value else {}
+    ev = mine.get("evidence")   # only a list of strings counts: an int would raise, a string would be read letter by letter
+    hv_reason, hv_ev = mine.get("reason"), ev if isinstance(ev, list) and all(isinstance(e, str) for e in ev) else []
     caps = cap_reasons(v)
     checks = [
         {"id": "reproduced", "status": g("G3"), "runs": r.runs_on_base if r else [], "evidence": r.evidence_ids if r else []},
         {"id": "fixed", "status": g("G5"), "runs": vf.new_test_runs if vf else [], "regressions": vf.regressions if vf else [],
-         "evidence": vf.evidence_ids if vf else []},
+         "evidence": [e for e in vf.evidence_ids if e not in hv_ev] if vf else []},   # #108: the variant's logs are its own
         {"id": "baseline", "status": g("G2"), "partial": b.partial if b else None, "evidence": b.evidence_ids if b else [],
          "counts": {"passed": len(b.pass_set), "failed": len(b.fail_set), "flaky": len(b.flaky_set)} if b else None},
-        {"id": "hidden_variant", "status": hv, "reason": hv_reason},
+        {"id": "hidden_variant", "status": hv, "reason": hv_reason, "evidence": hv_ev},
         {"id": "only_these_files", "status": g("G4")},
         {"id": "supplyguard", "status": v.supplyguard.status if v.supplyguard else CheckStatus.NOT_RUN},
         *([{"id": "repo_check", "tool": c["tool"], "status": REPO_CHECK.get(c["status"], CheckStatus.INCONCLUSIVE),
@@ -207,7 +200,7 @@ def explainer(v: RunView, repo_checks: dict | None, variant: dict | None) -> dic
     ]
     risks = ([{"kind": "review", "severity": c.get("severity"), "text": c.get("text"), "location": c.get("location")}
               for c in (v.review.concerns if v.review else [])
-              if c.get("level") != "ACCEPTED_TRADEOFF" and not _shown_elsewhere(str(c.get("text") or ""), checks, r and r.uncovered)]
+              if c.get("level") != "ACCEPTED_TRADEOFF" and not _shown_elsewhere(c, checks, r and r.uncovered)]
              + [{"kind": "check", **c} for c in checks if c["status"] != CheckStatus.PASSED and not _cap_says_it(c, caps)]
              + [{"kind": "cap", "reason": x} for x in caps]
              + ([{"kind": "uncovered", "text": t} for t in r.uncovered] if r and r.uncovered
@@ -291,12 +284,13 @@ def approval_context(run_id: str, request: Request):
     diff = exact_diff(v)
     dh, eh = hashes(v, diff)
     try:   # optional help: a bad record must never block seeing or approving the diff
-        c = db.connect()
-        try:
-            variant = json.loads(db.get_kv(c, f"variant:{run_id}") or "null")
-        except ValueError:
-            variant = None
-        help_ = explainer(v, db.repo_checks(c, run_id), variant if isinstance(variant, dict) else None)
+        with closing(db.connect()) as c:   # #108: closed here, not left open for the garbage collector
+            try:
+                variant = json.loads(db.get_kv(c, f"variant:{run_id}") or "null")
+            except ValueError:
+                variant = None
+            rc = db.repo_checks(c, run_id)
+        help_ = explainer(v, rc, variant if isinstance(variant, dict) else None)
     except Exception:
         logging.getLogger(__name__).exception("explainer failed for run %s", run_id)
         help_ = None
@@ -384,6 +378,8 @@ def revise(run_id: str, body: ReviseBody, request: Request):
     db.save_run(c, v)
     with db.tx(c):
         c.execute("INSERT INTO jobs(run_id,kind,state,available_at) VALUES(?,?,?,?)", (run_id, "revise", "queued", db.now().isoformat()))
+        # #108/#113: per-attempt results; the next attempt writes its own, so a revision that stops early shows "not run"
+        c.execute("DELETE FROM kv WHERE key IN (?,?,?)", (f"variant:{run_id}", f"repo_checks:{run_id}", f"bisect:{run_id}"))
     return v
 
 

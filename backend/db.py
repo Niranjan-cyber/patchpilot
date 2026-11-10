@@ -129,18 +129,23 @@ def get_kv(c, key: str) -> str | None:
     return r[0] if r else None
 
 
+UNREADABLE_CHECKS = {"checks": None, "files": [], "reason": "unreadable"}   # it ran; we can't read what it found
+
+
 def repo_checks(c, run_id: str) -> dict | None:
-    """kv repo_checks:<run_id> (#70 item 3) if it is well formed; missing or malformed = None ("not checked", never a crash)."""
+    """kv repo_checks:<run_id> (#70 item 3). Missing = None (not run yet); malformed = UNREADABLE_CHECKS (#113): never rows,
+    never "not run yet" for a check that ran, never a crash."""
+    raw = get_kv(c, f"repo_checks:{run_id}")
+    if raw is None:
+        return None
     try:
-        rec = json.loads(get_kv(c, f"repo_checks:{run_id}") or "null")
+        rec = json.loads(raw)
     except ValueError:
-        return None
-    if not isinstance(rec, dict):
-        return None
-    rows = rec.get("checks")
+        return dict(UNREADABLE_CHECKS)
+    rows = rec.get("checks") if isinstance(rec, dict) else False
     if not (rows is None or isinstance(rows, list) and all(isinstance(r, dict) and isinstance(r.get("tool"), str)
                                                            and isinstance(r.get("status"), str) for r in rows)):
-        return None
+        return dict(UNREADABLE_CHECKS)
     return rec
 
 
