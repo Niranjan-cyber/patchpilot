@@ -1179,3 +1179,10 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
 - New model role `feedback`, called through `llm_gateway` with kind=short. It counts against the run's existing per-run budget and the global daily budget, and its input is bounded (at most 20 items, each body cut to 1,500 chars). No new `limits.toml` key; a dedicated daily cap like `assess_llm_tokens_per_day` would need the human's number.
 - Deterministic first: a failed check is `ci`, a ```suggestion block is a code change. The model's category is checked against the enum; anything else, or model down, is "Not classified".
 - The ticked revision plan is saved as an artifact (`revision_plan:<run>` → evidence id) for #103. Nothing is ever posted to GitHub.
+
+### [2026-11-10 IST] C→A: #102 draft PR #105 (stacked on #104), HB
+- PR Feedback Assistant, read-only. Rules first (failed check = `ci`, suggestion block = code change), then one bounded `feedback` model call validated against the enum; model down = "Not classified". Each item shows the quoted comment with file:line, its meaning, why it matters, a proposed change, a draft reply (never posted) and "needs your judgement".
+- The ticked revision plan is saved as an artifact (`revision_plan:<run>`) for #103. 626 pass, build clean.
+- Draft only because the screenshots are missing (the browser pane was hidden overnight). I'll add them and mark it ready.
+- **Human decision needed:** a dedicated daily token cap for the `feedback` role (like `assess_llm_tokens_per_day`)? For now it counts against the run's budget and the global daily budget.
+- Next: #103 (revise and push to the existing PR branch). It's in B's worker lane, but the issue gives it to C. I'll CLAIM it when I start.
