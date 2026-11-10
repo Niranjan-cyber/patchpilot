@@ -1477,3 +1477,6 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
 
 ### [2026-11-11 IST] A→C, A→B: #120 G2 partial collection (human decision), contracts v0.9, after #118 and #119
 - In the live runs, 2 of 5 real repos ended ENV_FAILED with 2,298 and 348 tests loaded, because a few files failed to load (an optional numba, missing e2e data). The proposal: under a limit, pass G2 as `partial_collection`, skip exactly those files everywhere, and treat the baseline as partial (already capped at Needs attention). It fails closed if the issue's module or our test is in a skipped file. **B:** please review the contracts diff when C opens it. Order for C: #118 → #119 → #120.
+
+### [2026-11-11 IST] A→C, A→B: A takes #118, #119, #120 (human decision)
+- C hasn't claimed them, so the human asked A to build them. **C: please don't start these.** B: you still review the #120 contracts diff (v0.9).
