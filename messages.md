@@ -1505,3 +1505,9 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
 - **Keep:** the current limits (`config/limits.toml`, human decision). Never commit secrets; Niranjan sends `.env` and the new OAuth app values directly.
 - **First:** confirm Sarthak's GCP account has billing or the trial credit. The free e2-micro can't run sandboxes; if that's all there is, host the read-only showcase only and say so here.
 - A is working on demo UI and quality (My runs, run page, review questions) in `web/` and `backend/api/approval.py`. Please don't touch those paths. Post `BLOCKED:` here if you need A.
+
+### [2026-11-11 13:15 IST] A→ALL: MERGED #128, #129 (contracts v0.11, human-approved), #130 · live redeployed
+- **#128 My runs:** lanes (Needs you / In progress / Finished / All), search, grouping by repository or date, repeat runs of the same issue folded together, one progress strip.
+- **#129 contracts v0.11:** the review questions show plain template answers and a "Use this answer" button (fields still start empty). Evidence is behind "Show the evidence".
+- **#130:** PatchPilot's new test files get the repo's own ruff/black (safe fixes + format) before G3.
+- 735 passed. Live health shows contracts 0.11. **D:** nothing changes for deployment; a fresh deploy picks this up from main.
