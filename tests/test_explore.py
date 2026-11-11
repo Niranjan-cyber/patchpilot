@@ -161,3 +161,23 @@ def test_explore_drops_an_issue_whose_pr_the_timeline_misses(monkeypatch):
 def test_explore_flags_a_repo_that_only_takes_prs_from_collaborators(monkeypatch):
     out = _fake_repo(monkeypatch, timeline=[], policy="collaborators_only")
     assert (out["state"], out["unsupported"], out["suggestions"]) == ("unsupported", "prs_collaborators_only", [])
+
+
+@pytest.mark.parametrize("title,body", [
+    ("🚀 Roadmap", "Planned work for the next releases: a list of features we want."),
+    ("Publish Pyodide (Emscripten/WASM) wheels to PyPI", "It would help users on the web to install from PyPI directly here."),
+    ("Add `**kwargs` to validator function calls for more flexibility", "Validators get three args; passing more context would help."),
+])
+def test_feature_style_titles_are_not_suggested_as_bugs(title, body):
+    assert "not_a_bug" in score_issue(iss(1, body * 3, title=title))["signals"]
+
+
+def test_a_feature_title_that_describes_an_error_is_still_a_bug():
+    assert "not_a_bug" not in score_issue(iss(1, BUG, title="Make Path raise BadParameter, not TypeError"))["signals"]
+
+
+def test_explore_reads_the_same_labels_as_intake():
+    body = "Path could accept a pathlib.Path subclass factory so callers get their own type back from convert. " * 2
+    assert "not_a_bug" in score_issue(iss(1, body, title="Path type factory", labels=["enhancement"]))["signals"]
+    # label and text disagree (an error is described): intake calls that "unknown", so Explore doesn't drop it either
+    assert "not_a_bug" not in score_issue(iss(1, BUG, labels=["enhancement"]))["signals"]
