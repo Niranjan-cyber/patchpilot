@@ -37,14 +37,19 @@ def run(task: str, *, exec_, run_id: str, role: str, step_limit: int = 20, compl
     """Returns (final JSON result or None, transcript). exec_(cmd) -> (exit_code, output)."""
     complete = complete or llm_gateway.complete
     msgs = [{"role": "system", "content": RULES}, {"role": "user", "content": task}]
+    bad = 0                  # format errors in a row
     repeats: dict = {}       # (command, output) -> times seen; the same pair again means no progress
     for step in range(step_limit):
         reply = complete(msgs, run_id=run_id, role=role)
         msgs.append({"role": "assistant", "content": reply})
         cmd = parse(reply)
         if cmd is None:
+            bad += 1
+            if bad >= 3:     # isort#2694: DeepSeek sent empty replies to the step limit; end the attempt, the retry starts fresh
+                return None, msgs
             msgs.append({"role": "user", "content": "Format error: reply with exactly one ```bash``` block."})
             continue
+        bad = 0
         code, out = exec_(cmd)
         if on_step:
             on_step(step, cmd)
