@@ -348,3 +348,32 @@ Every session appends here after every event: a step started or finished, a deci
 - [2026-11-11 09:20 UTC] A FIX (human report, tablib#723 d971a7b0 + boltons#750 185edf37): Approve was locked. The linked_pr warning the user accepted to START the run was never saved as accepted, so stale_checks at Approve called the same PR an issue change; then every retry said 'can't be approved: not_approved, no_maintainer_consent, issue_changed' (raw codes, incl. clearable ones), and the UI had no way to send accept_issue_changed. Now: run-start acceptances go to issue_change_accepted:<run>; the blocked message names only real blockers in words; Review shows 'Approve anyway' when the issue really changed. Repaired both runs' blockers. LESSON: an override the user gave at the start must be honoured at every later re-check, or the product argues with its own user.
 - [2026-11-11 09:45 UTC] A FIX (human: 'the answers are dumbass'): the review answers now come from the specific recorded facts. Broken: the confirmed test's failure line fills what the issue left out (no 'the issue doesn't say' filler), no backticks. Why: the one causal sentence of the diagnosis plus the changed file, not the pasted paragraph. Test: what the tests check, read from their names ('rst default preserves all cells with repeated headers'), with no 'variant wasn't run' jargon. 13 unrun pre-commit hook risks fold into one line. Checked on the real tablib#723 and boltons#750 runs. LESSON: a template that only knows a field is empty says nothing; reach for the next recorded fact that answers the question.
 - [2026-11-11 09:55 UTC] A FIX: an empty model reply now falls through to the next model for that call (logged as 'empty', tokens counted); only when every model is empty does the agent get ''. Live: cachetools#466 (62b03c61) reproduced (G3 passed) then ended TRIAGE_ONLY because DeepSeek gave the Investigator 7 empty replies of 9; rope#923 and tablib#723's early attempts lost steps the same way. LESSON: an answer with no content is a failure of that model, not of the step; route it like a quota error.
+- [2026-11-11 10:00 UTC] A EVENT (human: live third-party testing). Runs today, all in Niranjan's My runs:
+  - jaraco/path#263: ENV_FAILED. The jaraco skeleton's build plugin coherent.licensed downloads license text, and the sandbox has no network. Every jaraco repo fails setup.
+  - isort#2694: CANNOT_REPRODUCE. The issue's own snippet passes at main; already fixed.
+  - jsonpickle#150: ENV_FAILED (fixed by #132), then CANNOT_REPRODUCE (also doesn't reproduce on 4.1.4 by hand).
+  - tablib#723 (d971a7b0): after #136 (G3 --tb=native) it reached approval in 8 min, Needs attention.
+  - boltons#750 (185edf37): approval in 4 min, Needs attention. Approve was then locked (#137).
+  - rope#923 (78a297ba): CANNOT_REPRODUCE. Reproduced by hand, but the issue never says what should happen instead, so the agent had nothing to assert.
+  - cachetools#466 (62b03c61): TRIAGE_ONLY; DeepSeek sent the Investigator 7 empty replies of 9. Then #140, and the re-run (bf2c38c8) reached approval in 7 min, Needs attention; 10 empty DeepSeek replies went to Groq/Qwen instead.
+  LESSON: today's live failures were PatchPilot bugs, not the agent's coding: G3's parser, setup's requirements handling, approval state, empty-reply handling. Run real third-party issues before every demo.
+- [2026-11-11 10:00 UTC] A EVENT: issue-hunting findings (about 150 issues across about 70 repos).
+  - Automated contributors file an issue and a fix PR together. In popular Python libraries almost every bug from the last 3 months has an open PR or an "I have a fix ready" comment within hours.
+  - `-linked:pr` in GitHub search only drops formally linked PRs (boltons#750 still appears with open #752). The real check is the timeline, plus open PRs by number and by function name, plus comments.
+  - Unclaimed bugs survive in mid-traffic libraries (rope, cachetools, faker) and in the first hours after filing.
+  - Also unsuitable: issues only on Python 3.11 (docformatter#367; the sandbox is 3.12); repos needing system libraries (WeasyPrint) or a Rust build (LibCST); build plugins that need the network (jaraco); maintainer-declined fixes (more-itertools#1354); reports nobody could reproduce (glom#313/#314); paid-fix asks (tabulate#494).
+  LESSON: issue selection is the product's bottleneck, as the roadmap said. Search with a personal token: today's search spent GITHUB_READ_TOKEN's hourly limit once.
+- [2026-11-11 10:00 UTC] A DECISION: demo issue lists (checked 11-11 ~09:45 UTC; re-check before use).
+  - **Clean** (no PR in the timeline, by number or by name; no assignee or claim; outside PRs allowed; reproduced on PyPI latest, Python 3.12):
+    - tkem/cachetools#466: copy.copy() + @cachedmethod; reached approval.
+    - python-rope/rope#923: expected behaviour undefined, so it ends CANNOT_REPRODUCE.
+  - **Clean except a soft claim:** joke2k/faker#2528 (mt_MT vat_id checksum; the reporter says a fix is prepared, no PR yet; G0 READY).
+  - **Open competing PR** (demo to approval only, never publish):
+    - pytoolz/toolz#659 (#660)
+    - jazzband/tablib#723 (#724; reached approval)
+    - mahmoud/boltons#750 (#752; reached approval)
+    - mahmoud/boltons#749 (#751, #758)
+  - **Collaborators-only repos** (PatchPilot runs up to approval and can ask the maintainer; GitHub won't let a non-collaborator open the PR):
+    - Textualize/rich: #4256 right_crop negative, #4254 Panel.fit subtitle, #4245 negative style start hangs, #4249 Rule ASCII fallback, #4250 FileProxy.write returns 0. Each has an "I have a fix ready" comment.
+    - PyCQA/bandit: #1484 empty YAML config crash (fix comment), #1477 B506 false positive for BaseLoader.
+  - **Refusal examples:** more-itertools#1354 (maintainer declined a code fix), isort#2694 (already fixed), humanize#356 (competing PRs).
