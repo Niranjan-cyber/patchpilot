@@ -158,6 +158,20 @@ def test_explore_drops_an_issue_whose_pr_the_timeline_misses(monkeypatch):
     assert [s["number"] for s in _fake_repo(monkeypatch, timeline=[])["suggestions"]] == [1]
 
 
+def test_explore_reads_issues_from_search_not_the_pr_heavy_list(monkeypatch):
+    # astroid: the open-issues list was 45 PRs of 50, so real bugs never reached the shortlist
+    import backend.github.explore as E
+    canned = {"/search/issues?q=repo:o/r+is:issue+is:open&sort=updated&order=desc&per_page=100":
+              {"items": [iss(1, BUG, title="Path returns the wrong error")]}}
+    def fake(h, path, required=True):
+        return canned[path] if path in canned else (
+            [{"number": 5, "pull_request": {}, "title": "x"}] if path.startswith("/repos/o/r/issues?") else real_canned(path))
+    real_canned = lambda p: {"/repos/o/r": {"language": "Python"}, "/repos/o/r/contents/": [{"name": "pyproject.toml"}, {"name": "tests"}],
+                             "/repos/o/r/issues/1/timeline?per_page=100": []}.get(p, [])
+    monkeypatch.setattr(E, "_get", fake)
+    assert [s["number"] for s in E._explore("o/r")["suggestions"]] == [1]
+
+
 def test_explore_flags_a_repo_that_only_takes_prs_from_collaborators(monkeypatch):
     out = _fake_repo(monkeypatch, timeline=[], policy="collaborators_only")
     assert (out["state"], out["unsupported"], out["suggestions"]) == ("unsupported", "prs_collaborators_only", [])

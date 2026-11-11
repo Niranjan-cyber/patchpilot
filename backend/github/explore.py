@@ -129,7 +129,11 @@ def _explore(repo: str) -> dict:
             raise GitHubError("PRIVATE_REPO", "This repository is private; PatchPilot only reads public repositories.")
         root = _get(h, f"/repos/{repo}/contents/", required=False)
         names = [x["name"] for x in root] if isinstance(root, list) else None
-        items = _get(h, f"/repos/{repo}/issues?state=open&per_page=50&sort=updated") or []
+        # search returns issues only: the list endpoint mixes in PRs (astroid: 45 of 50 were PRs, 5 of 151 issues seen)
+        found = _get(h, f"/search/issues?q=repo:{repo}+is:issue+is:open&sort=updated&order=desc&per_page=100", required=False)
+        items = (found or {}).get("items") if isinstance(found, dict) else None
+        if not isinstance(items, list):   # search is 30/min; fall back to the mixed list
+            items = _get(h, f"/repos/{repo}/issues?state=open&per_page=50&sort=updated") or []
         # the timeline can come back empty for a fine-grained read token (pyparsing#702 showed no PR), so like G0 also
         # match open PRs and merged PRs that reference the issue; one list call each per repo
         pulls = _get(h, f"/repos/{repo}/pulls?state=open&per_page=100", required=False)
