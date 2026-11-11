@@ -223,57 +223,57 @@ def _sentence(text: str) -> str:
 
 
 def suggestions(e: dict, fix_files: list[str]) -> dict[str, str]:
-    """#98: a suggested answer per ownership question, from a code template over the explainer's recorded fields only. Each
-    sentence is only as strong as its evidence: users may copy it. Shown beside the empty fields, never put into them (§2.3)."""
+    """#98: a suggested answer per ownership question, from a code template over the explainer's recorded fields only.
+    Plain and short, so a contributor can say it to a maintainer; each sentence is only as strong as its evidence, because
+    "Use this answer" copies it into the field (§2.3, v0.11). Test ids and failure text stay in the evidence beside it."""
     p, row = e["problem"], {c["id"]: c for c in e["verification"]}
     rep, fix, hv = row["reproduced"], row["fixed"], row["hidden_variant"]
-    said = lambda c: c["status"].replace("_", " ")
-    runs = lambda c, s: f"{sum(r == s for r in c['runs'])} of {len(c['runs'])} runs"
 
-    failure = ("" if not p["failure"] else
-               f" The new test shows it: on the original code it fails with \"{p['failure']}\"." if rep["status"] == "passed" else
-               f" The test was written to fail with \"{p['failure']}\", but that wasn't confirmed (reproduction: {said(rep)}).")
+    shown = rep["status"] == "passed"
     exp, act = (p["expected"] or "").strip(), (p["actual"] or "").strip()
+    seen = (" The new test fails on the original code, which confirms it." if shown else
+            " Not confirmed yet: the new test wasn't shown to fail on the original code.") if p["tests"] else ""
     if exp and act:
-        broken = f"The issue expects: {_sentence(exp)} Instead: {_sentence(act)}{failure}"
+        broken = f"It should: {_sentence(exp)} Instead: {_sentence(act)}{seen}"
     elif exp:
-        broken = f"The issue expects: {_sentence(exp)} The issue doesn't say what happens instead.{failure}"
+        broken = f"It should: {_sentence(exp)} The issue doesn't say what happens instead.{seen}"
     elif act:
-        broken = f"Instead of the right behaviour (the issue doesn't say what that is): {_sentence(act)}{failure}"
-    elif failure:
-        broken = f"The issue doesn't state the expected and actual behaviour.{failure}"
+        broken = f"What goes wrong: {_sentence(act)} The issue doesn't say what should happen instead.{seen}"
+    elif seen:
+        broken = f"The issue doesn't spell out the expected behaviour.{seen}"
     else:
-        broken = "Nothing was recorded about the expected and actual behaviour, so describe the bug from the issue and the diff."
+        broken = "Nothing was recorded about the bug, so describe it from the issue and the diff."
 
     files = ", ".join(fix_files) or "no source files"
     claim = ((e["root_cause"] or {}).get("claim") or "").strip()
-    why = (f"PatchPilot's diagnosis (a claim, check it in the diff): {_sentence(claim)} The change edits {files}." if claim else
-           f"The cause is unknown: no diagnosis was recorded for this run. The change edits {files}; read it to see why it helps.")
+    why = (f"{_sentence(claim)} The fix changes {files} to correct that." if claim else
+           f"The cause wasn't recorded. The fix changes {files}; read the diff to see why it helps.")
 
-    tests = p["tests"]
-    if not tests:
+    if not p["tests"]:
         return {"what_was_broken": broken, "why_this_fix": why,
                 "what_the_test_proves": "No regression test was recorded, so there is nothing for a test to prove yet."}
-    one = len(tests) == 1
+    passes = fix["status"] == "passed"
     gaps = [r["text"] for r in e["risks"] if r["kind"] == "uncovered"]
     unchecked = any(r["kind"] == "coverage_not_checked" for r in e["risks"])
-    before = (f"{'fails' if one else 'fail'} on the original code ({runs(rep, 'failed')})" if rep["status"] == "passed" else
-              f"{'was' if one else 'were'} not shown to fail on the original code (reproduction: {said(rep)})")
-    after = (f"{'passes' if one else 'pass'} with the fix ({runs(fix, 'passed')})" if fix["status"] == "passed" else
-             f"{'was' if one else 'were'} not shown to pass with the fix (verification: {said(fix)})")
     # the strong ending only when every recorded check backs it (a Needs-attention run reaches this screen too)
-    strong = (rep["status"] == fix["status"] == hv["status"] == "passed" and not fix["regressions"] and not gaps and not unchecked)
-    main = (f"The new test{'' if one else 's'} {', '.join(tests)} {before} and {after}"
-            + (f", so the bug can't come back without {'it' if one else 'them'} failing." if strong else
-               ", but the fix fails a hidden variant of the test, so it may only cover the exact tested case." if hv["status"] == "failed"
-               else "."))
-    extra = [*({"inconclusive": ["The hidden variant's result was unclear."], "not_run": ["The hidden variant wasn't run."]}
-               .get(hv["status"], [])),
-             *([f"{len(fix['regressions'])} existing test{'' if len(fix['regressions']) == 1 else 's'} broke with the fix."]
-               if fix["regressions"] else []),
-             *([f"It doesn't check: {'; '.join(gaps)}."] if gaps else []),
-             *(["Coverage of the issue wasn't checked."] if unchecked else [])]
-    return {"what_was_broken": broken, "why_this_fix": why, "what_the_test_proves": " ".join([main, *extra])}
+    strong = shown and passes and hv["status"] == "passed" and not fix["regressions"] and not gaps and not unchecked
+    one = len(p["tests"]) == 1
+    t, f_, p_ = ("The new test", "fails", "passes") if one else (f"The {len(p['tests'])} new tests", "fail", "pass")
+    if shown and passes:
+        proves = f"{t} {f_} without the fix and {p_} with it" + (
+            f", so this bug can't come back without {'the test' if one else 'them'} catching it." if strong else ".")
+    elif not shown:
+        proves = f"{t} {'was' if one else 'were'}n't shown to fail without the fix, so {'it doesn' if one else 'they don'}'t prove much yet."
+    else:
+        proves = f"{t} {f_} without the fix, but {'it was' if one else 'they were'}n't shown to pass with it."
+    # one caveat at most, the most serious first
+    caveat = ("A variant of the test still fails, so the fix may only cover the exact case tested." if hv["status"] == "failed" else
+              f"{len(fix['regressions'])} existing test{'' if len(fix['regressions']) == 1 else 's'} broke with the fix." if fix["regressions"] else
+              f"It doesn't check: {'; '.join(gaps)}." if gaps else
+              "We didn't check that it covers everything the issue describes." if unchecked else
+              {"inconclusive": "A variant of the test gave an unclear result.", "not_run": "A variant of the test wasn't run."}.get(hv["status"], ""))
+    return {"what_was_broken": broken, "why_this_fix": why,
+            "what_the_test_proves": f"{proves} {caveat}".strip() if not strong else proves}
 
 
 @router.get("/api/runs/{run_id}/approval")

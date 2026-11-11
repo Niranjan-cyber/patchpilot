@@ -53,21 +53,27 @@ test("#97: the Contribution Explainer is collapsed, each section opens on its ow
   }
 });
 
-test("#98: each question shows evidence and a labelled suggestion; the answer starts empty and stays the user's", async ({ page, context }) => {
+test("#98 / v0.11: each question shows a plain labelled answer; the field starts empty, and Use this answer fills it to edit", async ({ page, context }) => {
   test.skip(!PP_TOKEN, "needs scripts/seed_review_run.py");
   await context.addCookies([{ name: "pp_sid", value: PP_TOKEN, url: BASE }]);
   for (const width of [1280, 375]) {
     await page.setViewportSize({ width, height: 860 });
     await page.goto(`${BASE}/runs/${PP_RUN}/review`);
-    const label = "Suggestion from PatchPilot, based on this run's evidence. Write your own.";
+    const label = "PatchPilot's answer, from what this run recorded";
     await expect(page.getByText(label)).toHaveCount(3);
     for (const q of ["What was broken?", "Why does this change fix it?", "What does the new test prove?"]) {
       await expect(page.getByLabel(q)).toHaveValue("");   // never pre-filled
     }
-    await expect(page.locator(".question").first()).toContainText("divide(1, 0) raises ZeroDivisionError");   // Q1 evidence
+    await expect(page.locator(".question").first()).toContainText("divide(1, 0) raises ZeroDivisionError");   // Q1: the expected behaviour
     await expect(page.locator(".question").nth(1)).toContainText("tinycalc/ops.py");                           // Q2: the changed file
-    await expect(page.locator(".question").nth(2)).toContainText("fails on the original code (2 of 2 runs)");  // Q3 suggestion
-    await expect(page.getByRole("button", { name: /use suggestion|paste/i })).toHaveCount(0);
+    await expect(page.locator(".question").nth(2)).toContainText("fails without the fix and passes with it");  // Q3 suggestion
+    await expect(page.getByText("Show the evidence")).toHaveCount(3);   // the evidence is one click away, not in the way
+    const use = page.getByRole("button", { name: "Use this answer" });
+    await expect(use).toHaveCount(3);
+    await use.first().click();
+    await expect(page.getByLabel("What was broken?")).toHaveValue(/divide\(1, 0\) raises ZeroDivisionError/);
+    await expect(page.getByRole("button", { name: "Added below" })).toHaveCount(1);
+    await page.getByLabel("What was broken?").fill("");
     for (const box of ["I read every change below", "I understand what it changes and why", "The pull request may say that AI helped write it"])
       await page.getByLabel(box).check();
     const approve = page.getByRole("button", { name: "Approve this change" });

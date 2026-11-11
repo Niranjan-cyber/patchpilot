@@ -1,4 +1,4 @@
-# PatchPilot: Shared Contracts (v0.10, 2026-11-11: G0 already_fixed + prs_collaborators_only; v0.9, 2026-11-11: #120 G2 partial collection; v0.8, 2026-11-10: per-viewer publish allowlist blocker, 2026-11-11: #103 revise from PR feedback; v0.7, 2026-11-09: test coverage of the issue's conditions; v0.6 Revise can rewrite the test; v0.5 #70; v0.4 merged in #50 on 2026-11-08)
+# PatchPilot: Shared Contracts (v0.11, 2026-11-11: "Use this answer" for ownership answers; v0.10, 2026-11-11: G0 already_fixed + prs_collaborators_only; v0.9, 2026-11-11: #120 G2 partial collection; v0.8, 2026-11-10: per-viewer publish allowlist blocker, 2026-11-11: #103 revise from PR feedback; v0.7, 2026-11-09: test coverage of the issue's conditions; v0.6 Revise can rewrite the test; v0.5 #70; v0.4 merged in #50 on 2026-11-08)
 
 This file is the boundary between the four build lanes: **(1) sandbox + setup + baseline, (2) agent roles + gates, (3) GitHub reader/publisher + auth, (4) React UI + event polling.** Lanes build against these types and fixtures, not against each other's code.
 
@@ -242,7 +242,7 @@ class OwnershipAnswers(BaseModel):   # each 20..1,000 chars
     what_was_broken: str; why_this_fix: str; what_the_test_proves: str
 ```
 
-**Approve requires them** (422 when missing or shorter than 20 characters). Content is never judged or rejected for being wrong; the UI shows more explanation instead. They are stored on `Approval.ownership` and in the report, **never in the PR body**. They are not part of either hash. Approvals recorded before v0.5 have `ownership = None` and must be re-approved before publishing.
+**Approve requires them** (422 when missing or shorter than 20 characters). Content is never judged or rejected for being wrong; the UI shows more explanation instead. They are stored on `Approval.ownership` and in the report, **never in the PR body**. They are not part of either hash. **v0.11 (human decision 2026-11-11):** the Review screen shows a plain suggested answer per question, built by code templates from the run's recorded fields only and never stronger than that evidence, and a "Use this answer" button copies it into the field for the user to edit. The fields still start empty. Approvals recorded before v0.5 have `ownership = None` and must be re-approved before publishing.
 
 ## 3. Event stream (polling first, SSE optional)
 
