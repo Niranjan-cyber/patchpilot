@@ -120,8 +120,10 @@ def mentioning_open_prs(pulls: list, repo: str, num: int, title: str, *, title_w
         text = f"{p.get('title') or ''}\n{p.get('body') or ''}"
         pt = (p.get("title") or "").lower()
         common, union = want & _words(pt), want | _words(pt)
+        # a PR that says it fixes another issue is for that one (tinycalc#7 vs "Fix #3: parse_number(...)")
+        other = bool(re.search(r"(?i)\b(?:fix(?:e[sd])?|close[sd]?|resolve[sd]?)\b\W*#\d+", text))
         # 2 shared words must also be a real share of both titles: cattrs#836 shared only "converter hooks" of 11 with #783
-        if ref.search(text) or (title_words and (len(common) >= 2 and len(common) >= 0.25 * len(union) or any(re.search(rf"(?<![\w.]){re.escape(x)}(?![\w])", pt) for x in ids))):
+        if ref.search(text) or (title_words and not other and (len(common) >= 2 and len(common) >= 0.25 * len(union) or any(re.search(rf"(?<![\w.]){re.escape(x)}(?![\w])", pt) for x in ids))):
             out.append(p["number"])
     return sorted(out)
 

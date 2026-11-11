@@ -46,3 +46,10 @@ def test_two_generic_repo_words_in_a_long_title_are_not_a_match():
     pulls = [{"number": 783, "title": "Honor converter hooks in make_dict_unstructure_fn", "body": ""}]
     assert mentioning_open_prs(pulls, "python-attrs/cattrs", 836,
                                "bson converter structures TypedDicts (and Counters) as plain dicts, skipping their hooks") == []
+
+
+def test_a_pr_that_says_it_fixes_another_issue_is_not_a_title_match():
+    # tinycalc#7 vs draft #5 "Fix #3: parse_number(...)": same function, but #5 is for #3
+    pulls = [{"number": 5, "title": 'Fix #3: parse_number("1,000") crashes with ValueError', "body": "Fixes #3"}]
+    assert mentioning_open_prs(pulls, "o/r", 7, 'parse_number("1e3") crashes with ValueError') == []
+    assert mentioning_open_prs(pulls, "o/r", 3, 'parse_number("1,000") crashes with ValueError') == [5]
