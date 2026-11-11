@@ -288,7 +288,7 @@ def test_suggestions_use_only_recorded_fields(ready):
     db.save_run(c, v)
     s = suggestions(b, rid)
     assert s["what_was_broken"] == "It should: x is 2. Instead: x is 1. The new test fails on the original code, which confirms it."
-    assert s["why_this_fix"] == "x is assigned 1. The fix changes src/a.py to correct that."
+    assert s["why_this_fix"] == "x is assigned 1. The fix changes src/a.py so that no longer happens."
     # not shown to pass: no strong claim, and only the most serious caveat
     assert s["what_the_test_proves"] == ("The new test fails without the fix, but it wasn't shown to pass with it. "
                                          "It doesn't check: negative x.")
@@ -347,7 +347,8 @@ def _run_with(b, rid, **kw):
     c = db.connect(); v = db.get_run(c, rid)
     v.issue = IssueSpec(html_url=URL, repo="o/r", number=1, title="t", expected=kw.get("expected"), actual=kw.get("actual"))
     v.repro = ReproTest(test_diff_id=v.patch.test_diff_id, test_ids=kw.get("tests", ["tests/test_a.py::test"]),
-                        expected_failure="assert 1 == 2", runs_on_base=[CheckStatus.FAILED] * 2, uncovered=kw.get("uncovered", []))
+                        expected_failure=kw.get("failure", "assert 1 == 2"), runs_on_base=[CheckStatus.FAILED] * 2,
+                        uncovered=kw.get("uncovered", []))
     v.verify = Verification(new_test_runs=[CheckStatus.PASSED] * 2, hidden_variant=kw.get("variant", CheckStatus.PASSED),
                             regressions=kw.get("regressions", []))
     v.diagnosis = Diagnosis(hypothesis=kw["claim"]) if "claim" in kw else None
@@ -368,9 +369,9 @@ def test_q1_claims_the_failure_only_when_reproduction_passed(ready):
 def test_q1_uses_whichever_side_was_recorded(ready):
     b, rid, _ = ready
     assert _run_with(b, rid, expected="x is 2")["what_was_broken"].startswith(
-        "It should: x is 2. The issue doesn't say what happens instead.")
+        "It should: x is 2. What goes wrong: assert 1 == 2. The new test fails")
     assert _run_with(b, rid, actual="x is 1", g3=CheckStatus.NOT_RUN)["what_was_broken"].startswith(
-        "What goes wrong: x is 1. The issue doesn't say what should happen instead.")
+        "What goes wrong: x is 1. Not confirmed yet")
 
 
 def test_q3_says_the_bug_cant_come_back_only_when_every_check_backs_it(ready):
@@ -378,7 +379,7 @@ def test_q3_says_the_bug_cant_come_back_only_when_every_check_backs_it(ready):
     strong = "can't come back"
     assert strong in _run_with(b, rid)["what_the_test_proves"]
     s = _run_with(b, rid, variant=CheckStatus.FAILED)["what_the_test_proves"]
-    assert strong not in s and s.endswith("A variant of the test still fails, so the fix may only cover the exact case tested.")
+    assert strong not in s and s.endswith("A slightly different version of the test still fails, so the fix may only cover the exact case tested.")
     s = _run_with(b, rid, regressions=["tests/test_b.py::t"])["what_the_test_proves"]
     assert strong not in s and "1 existing test broke" in s
     s = _run_with(b, rid, uncovered=None)["what_the_test_proves"]
@@ -391,7 +392,7 @@ def test_q3_counts_every_test_and_q2_needs_a_real_claim(ready):
     assert s["what_the_test_proves"].startswith("The 2 new tests fail without the fix and pass with it")
     assert s["why_this_fix"].startswith("The cause wasn't recorded")
     assert _run_with(b, rid, claim="x is assigned 1")["why_this_fix"].startswith(
-        "x is assigned 1. The fix changes src/a.py to correct that.")
+        "x is assigned 1. The fix changes src/a.py so that no longer happens.")
 
 
 def test_failing_suggestions_leave_the_explainer(ready, monkeypatch):
@@ -543,3 +544,40 @@ def test_no_revise_from_feedback_on_a_done_pr(ready, state):
     _plan(c, rid, [{"category": "code_correctness", "label": "", "items": [_item("Rename it.")]}])
     db.put_kv(c, f"pr_track:{rid}", '{"state": "%s"}' % state)
     assert b.post(f"/api/runs/{rid}/revise-from-feedback").json()["code"] == "PR_DONE"
+
+
+def test_answers_say_what_was_recorded_in_plain_words(ready):
+    # human report on tablib#723 (d971a7b0): "the issue doesn't spell out…", a pasted 3-sentence diagnosis, and "a variant wasn't run"
+    b, rid, _ = ready
+    claim = ("The exporter walks rows via `dataset.dict`, a list of dicts keyed by header names. When two headers are identical, "
+             "the dict keeps one value per name, so the later column overwrites the earlier one: cells are dropped and values shift.")
+    s = _run_with(b, rid, claim=claim, variant=CheckStatus.NOT_RUN,
+                  failure="RST export drops the first cell when headers repeat",
+                  tests=["tests/test_issue_723.py::test_rst_default_preserves_all_cells",
+                         "tests/test_issue_723.py::test_rst_grid_preserves_all_cells"])
+    assert s["what_was_broken"] == ("RST export drops the first cell when headers repeat. "
+                                    "The new test fails on the original code, which confirms it.")
+    assert s["why_this_fix"] == ("When two headers are identical, the dict keeps one value per name, so the later column overwrites "
+                                 "the earlier one. The fix changes src/a.py so that no longer happens.")
+    assert "`" not in s["why_this_fix"]
+    assert s["what_the_test_proves"] == ("They check that rst default preserves all cells and rst grid preserves all cells. "
+                                         "The 2 new tests fail without the fix and pass with it.")
+    assert "variant" not in s["what_the_test_proves"]
+
+
+def test_a_failure_line_is_never_claimed_when_reproduction_wasnt_confirmed(ready):
+    b, rid, _ = ready
+    s = _run_with(b, rid, g3=CheckStatus.INCONCLUSIVE, failure="drops the first cell")
+    assert "drops the first cell" not in s["what_was_broken"]
+
+
+def test_many_unrun_pre_commit_hooks_are_one_risk(ready, monkeypatch):
+    # tablib#723: 13 "PatchPilot doesn't run this hook" rows flooded Remaining risks
+    from backend.api import approval as A
+    b, rid, _ = ready
+    rows = [{"tool": f"pre-commit: hook-{i}", "status": "UNSUPPORTED", "note": "x"} for i in range(5)]
+    monkeypatch.setattr(A.db, "repo_checks", lambda c, r: {"checks": rows})
+    e = explainer(b, rid)
+    hooks = [r for r in e["risks"] if r.get("id") == "repo_check"]
+    assert len(hooks) == 1 and hooks[0]["tool"] == "5 pre-commit hooks" and "hook-4" in hooks[0]["note"]
+    assert sum(c["id"] == "repo_check" for c in e["verification"]) == 5   # the detailed list keeps each

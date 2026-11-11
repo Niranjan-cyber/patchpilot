@@ -1,4 +1,5 @@
 """B10: the human gate on the exact diff (contracts §5, screen S-05)."""
+import re
 from contextlib import closing
 from typing import Literal
 from urllib.parse import quote
@@ -223,6 +224,13 @@ def explainer(v: RunView, repo_checks: dict | None, variant: dict | None) -> dic
              + [{"kind": "cap", "reason": x} for x in caps]
              + ([{"kind": "uncovered", "text": t} for t in r.uncovered] if r and r.uncovered
                 else [{"kind": "coverage_not_checked"}] if r and r.uncovered is None else []))
+    # tablib#723 listed 13 near-identical "hook not run" risks: one line for all of them (the Verification list keeps each)
+    hooks = [x for x in risks if x.get("id") == "repo_check" and x.get("unsupported") and str(x.get("tool")).startswith("pre-commit: ")]
+    if len(hooks) > 1:
+        names = ", ".join(str(x["tool"]).removeprefix("pre-commit: ") for x in hooks)
+        risks = [x for x in risks if x not in hooks] + [{
+            "kind": "check", "id": "repo_check", "tool": f"{len(hooks)} pre-commit hooks", "status": CheckStatus.NOT_RUN,
+            "unsupported": True, "note": f"PatchPilot doesn't run these ({names}); check them yourself before opening the PR"}]
     blob = f"https://github.com/{v.issue.repo}/blob/{v.base_sha}/"
     return {
         "problem": {"expected": v.issue.expected, "actual": v.issue.actual, "tests": r.test_ids if r else [],
@@ -240,6 +248,36 @@ def _sentence(text: str) -> str:
     return t if t.endswith((".", "!", "?")) else t + "."
 
 
+CAUSAL = re.compile(r"\b(?:so|because|instead|overwrites?|drops?|never|always|only|but|fails?|raises?|returns?|ignores?|misses|loses)\b", re.I)
+
+
+def _plain(text: str) -> str:
+    """Model prose read aloud: no backticks, one line."""
+    return " ".join(text.replace("`", "").split())
+
+
+def _cause(claim: str) -> str:
+    """The diagnosis's one sentence that says what goes wrong, not its whole paragraph (tablib#723's ran 3 sentences)."""
+    parts = [s.strip() for s in re.split(r"(?<=[.!?])\s+", _plain(claim)) if s.strip()]
+    if not parts:
+        return ""
+    best = next((s for s in parts if CAUSAL.search(s)), parts[0])
+    best = best.split(": ")[0].rstrip(".;,")   # "…overwrites the earlier one: cells are dropped and…" -> the clause
+    return _sentence(best)
+
+
+def _test_name(test_id: str) -> str:
+    """tests/x.py::test_rst_default_preserves_all_cells -> 'rst default preserves all cells'; '' if it says nothing."""
+    name = re.sub(r"\[.*\]$", "", test_id.split("::")[-1])
+    words = re.sub(r"^test_?", "", name).replace("_", " ").strip()
+    words = re.sub(r"\b(?:issue|patchpilot|regression)\b|\b\d+\b", "", words).strip()
+    return " ".join(words.split()) if len(words.split()) >= 3 else ""
+
+
+def _join(items: list[str]) -> str:
+    return items[0] if len(items) == 1 else ", ".join(items[:-1]) + " and " + items[-1]
+
+
 def suggestions(e: dict, fix_files: list[str]) -> dict[str, str]:
     """#98: a suggested answer per ownership question, from a code template over the explainer's recorded fields only.
     Plain and short, so a contributor can say it to a maintainer; each sentence is only as strong as its evidence, because
@@ -248,23 +286,27 @@ def suggestions(e: dict, fix_files: list[str]) -> dict[str, str]:
     rep, fix, hv = row["reproduced"], row["fixed"], row["hidden_variant"]
 
     shown = rep["status"] == "passed"
-    exp, act = (p["expected"] or "").strip(), (p["actual"] or "").strip()
+    exp, act = _plain(p["expected"] or ""), _plain(p["actual"] or "")
     seen = (" The new test fails on the original code, which confirms it." if shown else
             " Not confirmed yet: the new test wasn't shown to fail on the original code.") if p["tests"] else ""
+    # what the confirmed test showed fills a side the issue left out (boltons#750, tablib#723); never a filler sentence
+    showed = _sentence(_plain(p["failure"])) if p["failure"] and shown else ""
     if exp and act:
         broken = f"It should: {_sentence(exp)} Instead: {_sentence(act)}{seen}"
     elif exp:
-        broken = f"It should: {_sentence(exp)} The issue doesn't say what happens instead.{seen}"
+        broken = f"It should: {_sentence(exp)}{f' What goes wrong: {showed}' if showed else ''}{seen}"
     elif act:
-        broken = f"What goes wrong: {_sentence(act)} The issue doesn't say what should happen instead.{seen}"
+        broken = f"What goes wrong: {_sentence(act)}{seen}"
+    elif showed:
+        broken = f"{showed}{seen}"
     elif seen:
         broken = f"The issue doesn't spell out the expected behaviour.{seen}"
     else:
         broken = "Nothing was recorded about the bug, so describe it from the issue and the diff."
 
     files = ", ".join(fix_files) or "no source files"
-    claim = ((e["root_cause"] or {}).get("claim") or "").strip()
-    why = (f"{_sentence(claim)} The fix changes {files} to correct that." if claim else
+    claim = _cause(((e["root_cause"] or {}).get("claim") or "").strip())
+    why = (f"{claim} The fix changes {files} so that no longer happens." if claim else
            f"The cause wasn't recorded. The fix changes {files}; read the diff to see why it helps.")
 
     if not p["tests"]:
@@ -277,19 +319,23 @@ def suggestions(e: dict, fix_files: list[str]) -> dict[str, str]:
     strong = shown and passes and hv["status"] == "passed" and not fix["regressions"] and not gaps and not unchecked
     one = len(p["tests"]) == 1
     t, f_, p_ = ("The new test", "fails", "passes") if one else (f"The {len(p['tests'])} new tests", "fail", "pass")
+    checks = list(dict.fromkeys(_test_name(x) for x in p["tests"]))
+    what = (f"{'It checks' if one else 'They check'} that {_join(checks[:3])}{f', and {len(checks) - 3} more' if len(checks) > 3 else ''}. "
+            if all(checks) else "")
     if shown and passes:
-        proves = f"{t} {f_} without the fix and {p_} with it" + (
-            f", so this bug can't come back without {'the test' if one else 'them'} catching it." if strong else ".")
+        proves = what + f"{t} {f_} without the fix and {p_} with it" + (
+            ", so this bug can't come back unnoticed." if strong else ".")
     elif not shown:
         proves = f"{t} {'was' if one else 'were'}n't shown to fail without the fix, so {'it doesn' if one else 'they don'}'t prove much yet."
     else:
         proves = f"{t} {f_} without the fix, but {'it was' if one else 'they were'}n't shown to pass with it."
     # one caveat at most, the most serious first
-    caveat = ("A variant of the test still fails, so the fix may only cover the exact case tested." if hv["status"] == "failed" else
+    # one caveat at most, the most serious first; a check that simply didn't run stays in the risks list, not in the answer
+    caveat = ("A slightly different version of the test still fails, so the fix may only cover the exact case tested."
+              if hv["status"] == "failed" else
               f"{len(fix['regressions'])} existing test{'' if len(fix['regressions']) == 1 else 's'} broke with the fix." if fix["regressions"] else
               f"It doesn't check: {'; '.join(gaps)}." if gaps else
-              "We didn't check that it covers everything the issue describes." if unchecked else
-              {"inconclusive": "A variant of the test gave an unclear result.", "not_run": "A variant of the test wasn't run."}.get(hv["status"], ""))
+              "We didn't check that it covers everything the issue describes." if unchecked else "")
     return {"what_was_broken": broken, "why_this_fix": why,
             "what_the_test_proves": f"{proves} {caveat}".strip() if not strong else proves}
 
