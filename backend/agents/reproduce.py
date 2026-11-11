@@ -3,7 +3,7 @@ import re
 import uuid
 
 from backend import artifacts, db
-from backend.agents import loop
+from backend.agents import lint, loop
 from backend.config import limits
 from backend.contracts.models import CheckStatus, GateResult, ReproTest
 from backend.gates.reproduction import g3_result
@@ -112,6 +112,9 @@ def reproduce(ctx: StepContext) -> GateResult:
                 ctx.scratch["end_reason"] = "token_limit"
                 ctx.scratch["headline"] = f"Stopped: the {b.scope} AI budget is used up."
                 return GateResult(gate="G3", status=CheckStatus.NOT_RUN, reason=f"budget_{b.scope}")
+            new = [f for f in docker.exec_(name, "git ls-files --others --exclude-standard -- '*.py'").out.split() if f.endswith(".py")]
+            if new:
+                docker.exec_(name, lint.tidy_cmd(new), timeout=60)
             diff = docker.exec_(name, "git add -A >/dev/null && git diff --cached --binary").out
             paths = re.findall(r"^diff --git a/\S+ b/(\S+)$", diff, re.M)
         finally:
