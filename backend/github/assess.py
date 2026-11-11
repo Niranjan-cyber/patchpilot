@@ -141,13 +141,13 @@ def decide_handling(*, unsupported: str | None, python: CheckStatus, issue_type:
         reasons.append("other_os")
     if issue_type in FIXABLE and {"no_expected", "no_actual"} <= set(missing) and "no_repro" in missing:
         reasons.append("needs_info")
-    reasons += [w for w in ("linked_pr", "closed") if w in warnings]
+    reasons += [w for w in ("linked_pr", "already_fixed", "closed") if w in warnings]
     if forbids_ai:
         reasons.append("repo_forbids_ai")    # explains the permanent publish blocker; doesn't change the decision
     human = ("unclear_type", "model_unavailable", "compatibility_unknown", "linked_pr_unknown", "test_framework_unknown",
              "base_sha_unknown", "other_os")
     order = [("unsupported:", "UNSUPPORTED"), ("not_a_bug:", "ASSESSMENT_ONLY"), *((h, "HUMAN_DECISION") for h in human),
-             ("needs_info", "NEEDS_INFORMATION"), ("linked_pr", "ALREADY_ADDRESSED"), ("closed", "ALREADY_ADDRESSED")]
+             ("needs_info", "NEEDS_INFORMATION"), ("linked_pr", "ALREADY_ADDRESSED"), ("already_fixed", "ALREADY_ADDRESSED"), ("closed", "ALREADY_ADDRESSED")]
     for prefix, decision in order:
         if any(r == prefix or (prefix.endswith(":") and r.startswith(prefix)) for r in reasons):
             return decision, reasons

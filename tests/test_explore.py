@@ -137,3 +137,27 @@ def test_shortlist_root_without_test_markers_is_unknown_not_unsupported():
     out = shortlist("o/r", {"language": "Python"}, ["pyproject.toml", "pkg"], [iss(1, BUG)], linked={})
     assert out["state"] != "unsupported" and out["repo_signals"]["tests_found"] is None
     assert out["repo_signals"]["deps_checkable"] is True    # G1 resolves pyproject.toml since #63
+
+
+def _fake_repo(monkeypatch, *, timeline, pulls=(), closed=(), policy="all"):
+    import backend.github.explore as E
+    canned = {"/repos/o/r": {"language": "Python", "pull_request_creation_policy": policy},
+              "/repos/o/r/contents/": [{"name": "pyproject.toml"}, {"name": "tests"}],
+              "/repos/o/r/issues?state=open&per_page=50&sort=updated": [iss(1, BUG, title="Path returns the wrong error")],
+              "/repos/o/r/issues/1/timeline?per_page=100": timeline,
+              "/repos/o/r/pulls?state=open&per_page=100": list(pulls),
+              "/repos/o/r/pulls?state=closed&sort=updated&direction=desc&per_page=100": list(closed)}
+    monkeypatch.setattr(E, "_get", lambda h, path, required=True: canned.get(path))
+    return E._explore("o/r")
+
+
+def test_explore_drops_an_issue_whose_pr_the_timeline_misses(monkeypatch):
+    # pyparsing#702: the server's token got an empty timeline, so Explore said "no linked PR" while #703 was open
+    assert _fake_repo(monkeypatch, timeline=[], pulls=[{"number": 9, "title": "Fix #1", "body": ""}])["suggestions"] == []
+    assert _fake_repo(monkeypatch, timeline=[], closed=[{"number": 8, "merged_at": "x", "title": "t", "body": "Fixes #1"}])["suggestions"] == []
+    assert [s["number"] for s in _fake_repo(monkeypatch, timeline=[])["suggestions"]] == [1]
+
+
+def test_explore_flags_a_repo_that_only_takes_prs_from_collaborators(monkeypatch):
+    out = _fake_repo(monkeypatch, timeline=[], policy="collaborators_only")
+    assert (out["state"], out["unsupported"], out["suggestions"]) == ("unsupported", "prs_collaborators_only", [])

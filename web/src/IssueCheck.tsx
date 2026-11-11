@@ -53,6 +53,8 @@ const WARN: Record<string, string> = {
   closed: "This issue is closed. Someone may have already fixed it or decided not to.",
   assigned: "Someone is assigned to this issue, or said in a comment that they're fixing it or sending a pull request. Ask on the issue before starting.",
   linked_pr: "An open pull request already mentions this issue. Check it before starting.",
+  already_fixed: "A merged pull request already references this issue. It may be fixed and just not closed yet. Check before starting.",
+  prs_collaborators_only: "This repository only accepts pull requests from its own collaborators, so you can't open one here. You can still ask on the issue or share the fix.",
   lookup_failed: "Some checks couldn't be completed. Results marked Inconclusive are unknown, not passed.",
   needs_info: "The issue is missing details a test needs (see above). PatchPilot may not be able to reproduce it.",
   unclear_type: "We couldn't tell whether this is a bug. Fixes are only attempted for bugs and regressions.",
