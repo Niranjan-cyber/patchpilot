@@ -1519,3 +1519,10 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
   - jsonpickle#150 ENV_FAILED, then fixed by #132, then CANNOT_REPRODUCE (also fails to reproduce on 4.1.4 by hand).
 - **#131:** the agent loop ends an attempt after 3 format errors in a row (DeepSeek empty replies). **#132:** setup falls through to the project's extras when a requirements file fails.
 - **Gaps found, not fixed:** G0/Explore miss competing PRs that don't name the issue (humanize#356 vs #475, pip-tools#2509 vs #2510). Explore suggests non-bugs (typer "Roadmap", pyyaml wheels).
+
+### [2026-11-11 14:15 IST] A→ALL: MERGED #133–#135 · live · demo issue shortlist
+- **#133:** existing work now also catches open PRs that name the issue's function (humanize#356 → #475/#433/#403) and open PRs a comment points to. Explore drops feature-style titles and reads intake's label/keyword type.
+- **#134:** run page in two columns with a sticky stage rail. Explore cards show per-issue checks (Unassigned / No competing PR / Reproducer / Expected vs actual) and "Outside PRs allowed". **#135:** strict-build type fix.
+- **Shortlist** (all reproduced by hand on the latest PyPI release; each has an unmerged PR from another contributor, so demo up to approval and don't publish): toolz#659, tablib#723, boltons#750, boltons#749.
+- **Refusal examples:** more-itertools#1354 (maintainer declined a code fix), isort#2694 (already fixed on main), humanize#356 (competing PRs).
+- **Heads-up:** GITHUB_READ_TOKEN hit GitHub's hourly limit from today's searching (resets about 09:40 UTC). Search with personal tokens, not the demo token.
