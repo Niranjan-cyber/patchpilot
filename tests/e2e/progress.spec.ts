@@ -11,6 +11,7 @@ async function open(page, base: string) {
   await page.context().addCookies([{ name: "pp_sid", value: token, url: base }]);
   await page.goto(`${base}/my-runs?view=all`);
   await expect(page.getByRole("heading", { name: "Your progress" })).toBeVisible();
+  await expect(page.locator('.progress[aria-busy="false"]')).toBeVisible({ timeout: 30_000 });   // counts show skeletons while GitHub is read
 }
 const stat = (page, label: string) => page.locator(".progress .stat", { hasText: label }).locator("strong");
 
