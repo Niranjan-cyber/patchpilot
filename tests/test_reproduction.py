@@ -323,3 +323,27 @@ def test_g3_result_contract_shape():
 def test_did_not_raise_counts_as_assertion():
     from tests.test_agents import FAIL_OUT
     assert classify_run(FAIL_OUT) == "assertion"
+
+
+NATIVE = """___________ test_rst_default_export_preserves_repeated_header_cells ____________
+Traceback (most recent call last):
+  File "/src/tests/test_patchpilot_issue_723.py", line 48, in test_rst_default_export_preserves_repeated_header_cells
+    assert "first" in text
+AssertionError: assert 'first' in '======  ====\n same   same'
+=========================== short test summary info ============================
+FAILED tests/test_patchpilot_issue_723.py::test_rst_default_export_preserves_repeated_header_cells
+============================== 1 failed in 1.17s ===============================
+"""
+
+
+def test_a_native_traceback_assertion_counts_as_an_assertion():
+    # tablib#723 (8c51c5d1): addopts --tb=native prints "AssertionError: …" with no "E   " prefix; G3 said other_error
+    assert classify_run(NATIVE) == "assertion"
+    assert classify_run(NATIVE.replace("AssertionError: assert", "ValueError: bad"), issue_error="ValueError") == "issue_error"
+    assert classify_run(NATIVE.replace("AssertionError: assert", "ModuleNotFoundError: No module named 'x'")) == "import_error"
+
+
+def test_an_indented_source_line_is_never_read_as_the_raised_error():
+    out = NATIVE.replace("AssertionError: assert 'first' in '======  ====\n same   same'", "RuntimeError: boom").replace(
+        '    assert "first" in text', "    raise ValueError('x')  # ValueError: in source")
+    assert classify_run(out, issue_error="ValueError") == "other_error"
