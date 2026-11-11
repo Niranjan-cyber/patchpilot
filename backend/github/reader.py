@@ -199,6 +199,8 @@ def _client() -> httpx.Client:
 def _get(h: httpx.Client, path: str, *, required: bool = True):
     try:
         r = h.get(path)
+        if r.status_code >= 500:   # GitHub's 502/503 blips are usually gone on the next try (tinycalc#7 Start run)
+            r = h.get(path)
     except httpx.HTTPError:
         if required:
             raise GitHubError("GITHUB_UNAVAILABLE", "GitHub didn't answer. Try again in a minute.", 60)

@@ -198,3 +198,11 @@ def test_a_comment_pointing_at_an_open_pr_counts_as_existing_work():
     assert commented_open_prs(comments, pulls) == [2510]
     assert commented_open_prs([{"body": "> #2510 is open"}], pulls) == []   # a quote isn't the commenter's claim
     assert commented_open_prs(None, pulls) == [] and commented_open_prs(comments, None) == []
+
+
+def test_one_github_5xx_blip_is_retried():
+    import httpx
+    from backend.github.reader import _get
+    codes = iter([503, 200])
+    h = httpx.Client(transport=httpx.MockTransport(lambda req: httpx.Response(next(codes), json={"ok": 1})), base_url="https://x")
+    assert _get(h, "/repos/o/r") == {"ok": 1}
