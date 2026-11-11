@@ -483,3 +483,32 @@ DSML_CALL = ('\n\n<｜DSML｜ calls>\n<｜DSML｜ invoke name="bash">\n<｜DSML�
 ])
 def test_parse_accepts_deepseek_tool_call_markup(reply, cmd):
     assert loop.parse(reply) == cmd
+
+
+def test_reproduce_tidies_only_new_test_files_with_the_repos_formatter_before_g3(node):
+    # mcstatus#1238 / jesse-slaton#22: our generated test failed the repo's ruff, so a correct fix read as vibe-coded
+    ctx, mp = node
+    calls = []
+    def ex(name, cmd, timeout=0):
+        calls.append(cmd)
+        if "ls-files --others" in cmd:
+            return Result(0, "tests/test_patchpilot_issue_1.py\n")
+        return Result(0, DIFF if "git diff" in cmd else "")
+    mp.setattr(R.docker, "exec_", ex)
+    mp.setattr(R.loop, "run", lambda *a, **k: ({"test_ids": ["tests/test_patchpilot_issue_1.py::test_divide_by_zero_raises"],
+                                               "expected_failure": "DID NOT RAISE"}, [{"role": "user", "content": "t"}]))
+    mp.setattr(R, "_check_run", lambda rid, d, t: FAIL_OUT)
+    assert R.reproduce(ctx).status == CheckStatus.PASSED
+    tidy = next(i for i, c in enumerate(calls) if "format" in c and "test_patchpilot_issue_1.py" in c)
+    assert "check --fix" in calls[tidy] and "--unsafe-fixes" not in calls[tidy]   # safe fixes only: never changes behaviour
+    assert tidy < next(i for i, c in enumerate(calls) if "git diff" in c)   # G3 and verify run the tidied test
+
+
+def test_reproduce_skips_the_tidy_when_no_new_python_file(node):
+    ctx, mp = node
+    calls = []
+    mp.setattr(R.docker, "exec_", lambda name, cmd, timeout=0: calls.append(cmd) or Result(0, DIFF if "git diff" in cmd else ""))
+    mp.setattr(R.loop, "run", lambda *a, **k: ({"test_ids": ["tests/test_patchpilot_issue_1.py::t"]}, [{"role": "user", "content": "t"}]))
+    mp.setattr(R, "_check_run", lambda rid, d, t: FAIL_OUT)
+    R.reproduce(ctx)
+    assert not any("format" in c for c in calls)

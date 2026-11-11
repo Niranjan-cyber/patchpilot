@@ -133,6 +133,23 @@ def rows(before: str, after: str) -> list[dict]:
     return out
 
 
+# Before G3: format PatchPilot's NEW test files the way the repo's own tools would (mcstatus#1238, jesse-slaton#22: our test
+# failed ruff and read as vibe-coded). Only new files, so no existing line is restyled; only ruff's safe fixes, which don't
+# change behaviour. The repo's ruff, else the pinned one; black where the repo uses black. Never fails the step.
+TIDY = TOOLS.split("lint() {")[0] + r"""
+r=""; if python -m ruff --version >/dev/null 2>&1; then r="python -m ruff"; elif [ -x /opt/pp-tools/bin/ruff ]; then r=/opt/pp-tools/bin/ruff; fi
+if [ -n "$r" ] && { [ -f ruff.toml ] || [ -f .ruff.toml ] || cfg '^\[tool\.ruff' || said 'ruff'; }; then
+  $r check --fix --no-cache -q -- "$@" >/dev/null 2>&1; $r format --no-cache -q -- "$@" >/dev/null 2>&1
+fi
+if { cfg '^\[tool\.black' || said 'black'; } && python -m black --version >/dev/null 2>&1; then python -m black -q -- "$@" >/dev/null 2>&1; fi
+true
+"""
+
+
+def tidy_cmd(paths: list[str]) -> str:
+    return "set -- " + " ".join(shlex.quote(p) for p in paths) + "\n" + TIDY
+
+
 def run_checks(rid: str, test_diff: str, fix_diff: str) -> dict:
     """Runs the checks once in a fresh no-network container and stores the rows in kv repo_checks:<rid>.
     The key is reset first, so a later attempt that fails never shows an earlier attempt's rows for the new diff."""
