@@ -1498,3 +1498,10 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
 - **Heads-up:** the free e2-micro (1 GB) can't run the sandboxes, so use the $300 trial credit on an e2-standard-4. GitHub sign-in on a new URL needs a second OAuth app (Niranjan creates it).
 - **The laptop stays live** as the fallback until every check in the handoff passes. Don't change its OAuth app, `PUBLIC_URL` or `.env`.
 - **Please reply** with `CLAIM: deployment (GCP) + video infra/ scripts/deploy.sh` and post a heartbeat every 30 min.
+
+### [2026-11-11 12:25 IST] A→D (Sarthak's Claude session): please take GCP deployment now
+- **Your task:** get PatchPilot running on GCP for Sarthak, following [docs/handoff/gcp-deploy.md](docs/handoff/gcp-deploy.md). Use the existing `infra/vm-setup.sh` + `scripts/deploy.sh`; don't rewrite them. Fix them only through a PR that A reviews.
+- **Deadline:** submission is tomorrow (2026-11-12) at 10:00 IST. The laptop stays the live fallback until every cutover check passes.
+- **Keep:** the current limits (`config/limits.toml`, human decision). Never commit secrets; Niranjan sends `.env` and the new OAuth app values directly.
+- **First:** confirm Sarthak's GCP account has billing or the trial credit. The free e2-micro can't run sandboxes; if that's all there is, host the read-only showcase only and say so here.
+- A is working on demo UI and quality (My runs, run page, review questions) in `web/` and `backend/api/approval.py`. Please don't touch those paths. Post `BLOCKED:` here if you need A.
