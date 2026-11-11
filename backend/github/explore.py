@@ -86,7 +86,9 @@ def shortlist(repo: str, meta: dict, root_names: list[str] | None, items: list[d
     unk = lambda v: v if known else (v or None)
     # the root listing can't see tests inside the package: no marker there is unknown, not "no tests" (G0 looks deeper)
     signals = {"python": unk(python), "tests_found": True if tests else None, "recipe_known": unk(bool(names & RECIPE)),
-               "deps_checkable": unk(bool(names & (LOCKS | {"pyproject.toml"})))}   # G1 resolves pyproject.toml (#63)
+               "deps_checkable": unk(bool(names & (LOCKS | {"pyproject.toml"}))),   # G1 resolves pyproject.toml (#63)
+               # GitHub's own field; absent = not checked, never "allowed"
+               "outside_prs": {"all": True, "collaborators_only": False}.get(meta.get("pull_request_creation_policy"))}
     base = {"repo": repo, "repo_signals": signals, "language": meta.get("language")}
     if meta.get("pull_request_creation_policy") == "collaborators_only":   # v0.10: no outside PR can be opened here
         return {**base, "state": "unsupported", "unsupported": "prs_collaborators_only", "suggestions": []}
