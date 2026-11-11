@@ -39,3 +39,10 @@ def test_one_shared_word_is_not_enough():
 
 def test_bad_input_is_empty_not_a_crash():
     assert mentioning_open_prs([{"number": 1}, "junk", {"title": "x"}], "o/r", 5, "t") == []
+
+
+def test_two_generic_repo_words_in_a_long_title_are_not_a_match():
+    # cattrs#836 vs open #783: only "converter" and "hooks" in common, words most cattrs PRs use
+    pulls = [{"number": 783, "title": "Honor converter hooks in make_dict_unstructure_fn", "body": ""}]
+    assert mentioning_open_prs(pulls, "python-attrs/cattrs", 836,
+                               "bson converter structures TypedDicts (and Counters) as plain dicts, skipping their hooks") == []
