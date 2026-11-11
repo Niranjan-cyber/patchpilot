@@ -159,8 +159,11 @@ def preflight_checks(v: RunView, *, need_consent: bool = True) -> str:
         raise PublishRefused("PUBLISH_BLOCKED", "Publishing is blocked: " + ", ".join(b.value for b in blocked))
     new = approval.stale_checks(v, diff)
     if new:
-        raise PublishRefused("UPSTREAM_CHANGED" if PublishBlocker.UPSTREAM_CHANGED in new else "APPROVAL_STALE",
-                             "Something changed upstream since you approved. Re-run on the latest code.")
+        up = PublishBlocker.UPSTREAM_CHANGED in new
+        raise PublishRefused("UPSTREAM_CHANGED" if up else "APPROVAL_STALE",
+                             "Files in this change were edited upstream after we tested. Re-run on the latest code." if up else
+                             "The issue changed since you approved: it was closed, a pull request now addresses it, or someone "
+                             "else claimed it. Check the issue, then approve again.")
     return diff
 
 
