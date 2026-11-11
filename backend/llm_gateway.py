@@ -162,6 +162,10 @@ def complete(messages: list[dict], *, run_id: str, role: str, kind: str = "agent
         for again in (True, False):
             try:     # back off on overload only when no fallback is left
                 return _call(model, msgs, run_id, role, _completion, backoff=i == len(models) - 1)
+            except _Empty:
+                if i == len(models) - 1:
+                    return ""      # every model went quiet: the caller's own format-error handling takes over
+                break
             except QuotaPause as q:
                 wait = (q.resume_at - _db.now()).total_seconds() if q.resume_at else None
                 if again and wait is not None and wait <= 60:     # e.g. Groq's per-minute cap: a short wait beats a weaker model
@@ -198,8 +202,15 @@ def _call(model, msgs, run_id, role, _completion, backoff):
     if r is None and overloaded:      # still overloaded: pause until capacity is back; time unknown → never guessed
         raise QuotaPause(None, model.split("/")[0])
     u = getattr(r, "usage", None)
-    log("ok", getattr(u, "prompt_tokens", 0) or 0, getattr(u, "completion_tokens", 0) or 0)
-    return r.choices[0].message.content or ""
+    text = r.choices[0].message.content or ""
+    log("ok" if text.strip() else "empty", getattr(u, "prompt_tokens", 0) or 0, getattr(u, "completion_tokens", 0) or 0)
+    if not text.strip():   # spent tokens, said nothing (DeepSeek, 11-11): the next model answers this call instead
+        raise _Empty()
+    return text
+
+
+class _Empty(Exception):
+    pass
 
 
 def _raise_classified(e, model, log):

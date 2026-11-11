@@ -528,3 +528,26 @@ def test_reproduce_skips_the_tidy_when_no_new_python_file(node):
     mp.setattr(R, "_check_run", lambda rid, d, t: FAIL_OUT)
     R.reproduce(ctx)
     assert not any("format" in c for c in calls)
+
+
+def _reply(text):
+    class U: prompt_tokens, completion_tokens = 10, 50
+    class M: content = text
+    class Ch: message = M
+    class Resp: usage, choices = U, [Ch]
+    return Resp
+
+
+def test_an_empty_reply_falls_through_to_the_next_model(three_models):
+    # cachetools#466 / rope#923 (11-11): DeepSeek returned empty content 7 of 9 times; the agent only saw "Format error" loops
+    seen = []
+    def fake(model, **k):
+        seen.append(model)
+        return _reply("" if model.startswith("gemini") else "```bash\nls\n```")
+    assert G.complete([{"role": "user", "content": "x"}], run_id="r", role="x", _completion=fake) == "```bash\nls\n```"
+    assert [m.split("/")[0] for m in seen] == ["gemini", "groq"]
+    assert G.tokens_used(run_id="r") == 120   # the empty reply's tokens still count
+
+
+def test_when_every_model_is_empty_the_caller_still_gets_an_empty_reply(three_models):
+    assert G.complete([{"role": "user", "content": "x"}], run_id="r", role="x", _completion=lambda model, **k: _reply("  ")) == ""
