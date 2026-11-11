@@ -125,6 +125,24 @@ def accept_issue_change(run_id: str) -> None:
         db.put_kv(c, f"issue_change_accepted:{run_id}", json.dumps(seen.get("warnings") or []))
 
 
+BLOCKED_WORDS = {
+    PublishBlocker.ISSUE_CHANGED: "the issue changed after the run started (it was closed, a pull request now addresses it, or "
+                                  "someone claimed it). If you still want this change, use Approve anyway",
+    PublishBlocker.UPSTREAM_CHANGED: "files in this change were edited upstream after we tested; re-run on the latest code",
+    PublishBlocker.DEPS_INCONCLUSIVE: "we couldn't fully check the project's dependencies; re-check them first",
+    PublishBlocker.REPO_FORBIDS_AI: "this repository doesn't accept AI-assisted pull requests",
+    PublishBlocker.OUTCOME_NOT_VERIFIED: "the fix isn't verified",
+    PublishBlocker.RUN_STOPPED: "the run was stopped",
+    PublishBlocker.PRS_RESTRICTED: "only collaborators can open pull requests in this repository",
+}
+
+
+def blocked_message(blockers) -> str:
+    """Only what actually blocks Approve, in words (was: every raw code, including not_approved)."""
+    hard = [b for b in blockers if b not in CLEARABLE_OK]
+    return "You can't approve this yet: " + "; ".join(BLOCKED_WORDS.get(b, b.value.replace("_", " ")) for b in hard) + "."
+
+
 def stale_checks(v: RunView, diff: str) -> list[PublishBlocker]:
     """Has the world moved since we tested? Fails closed: if GitHub can't confirm, raise (never assume unchanged)."""
     import json
@@ -323,7 +341,7 @@ def approve(run_id: str, body: ApproveRequest, request: Request, accept_issue_ch
     if (body.revision, body.diff_hash, body.evidence_hash) != (v.revision, *hashes(v, diff)):
         raise _err(409, "APPROVAL_STALE", "The change or its evidence changed since you opened it. Please review it again.")
     if set(v.publish_blockers) - CLEARABLE_OK - ({PublishBlocker.ISSUE_CHANGED} if accept_issue_changed else set()):
-        raise _err(409, "PUBLISH_BLOCKED", "This run can't be approved: " + ", ".join(b.value for b in v.publish_blockers))
+        raise _err(409, "PUBLISH_BLOCKED", blocked_message(v.publish_blockers))
     new = [b for b in stale_checks(v, diff) if b not in v.publish_blockers]
     if PublishBlocker.ISSUE_CHANGED in new and accept_issue_changed:
         new.remove(PublishBlocker.ISSUE_CHANGED)

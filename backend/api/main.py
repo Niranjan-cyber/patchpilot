@@ -142,6 +142,8 @@ def create_run(body: NewRun, request: Request, response: Response):
                       g0=g0_status(chk.issue.checks, accepted), assessment=a,
                       **({"policy": chk.policy, "publish_blockers": [PublishBlocker.REPO_FORBIDS_AI]} if forbidden else {}))
     _existing_work(c, v.run_id, chk)
+    if accepted:   # what the user accepted to start is not an "issue change" at Approve (tablib#723: the same PR blocked it)
+        db.put_kv(c, f"issue_change_accepted:{v.run_id}", json.dumps(accepted))
     return _suitability(c, v, chk)
 
 
