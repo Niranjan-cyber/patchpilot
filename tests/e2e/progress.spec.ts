@@ -9,8 +9,9 @@ test.skip(!token, "set PP_SEED16 from scripts/seed_progress_runs.py");
 
 async function open(page, base: string) {
   await page.context().addCookies([{ name: "pp_sid", value: token, url: base }]);
-  await page.goto(`${base}/my-runs`);
+  await page.goto(`${base}/my-runs?view=all`);
   await expect(page.getByRole("heading", { name: "Your progress" })).toBeVisible();
+  await expect(page.locator('.progress[aria-busy="false"]')).toBeVisible({ timeout: 30_000 });   // counts show skeletons while GitHub is read
 }
 const stat = (page, label: string) => page.locator(".progress .stat", { hasText: label }).locator("strong");
 
@@ -20,9 +21,9 @@ test("separate counts; PatchPilot and GitHub in separate columns", async ({ page
   await expect(stat(page, "fixes proposed")).toHaveText("2");
   await expect(stat(page, "pull requests opened")).toHaveText("2");
   await expect(stat(page, "merged on GitHub")).toHaveText("1");
-  await expect(page.locator(".progresstable")).toContainText("Merged");
-  await expect(page.locator(".progresstable")).toContainText("Closed without merging");
-  await expect(page.locator(".progresstable")).toContainText("No pull request");
+  await expect(page.locator(".rungroups")).toContainText("Merged");
+  await expect(page.locator(".rungroups")).toContainText("Closed without merging");
+  await expect(page.locator(".rungroups")).toContainText("No pull request");
   await page.screenshot({ path: "docs/build-plan/evidence/B16/b16-progress.png", fullPage: true });
 });
 
@@ -30,8 +31,8 @@ test("GitHub blocked: Status unavailable, never open or closed as a guess", asyn
   test.skip(!BLOCKED, "set BLOCKED_URL");
   await open(page, BLOCKED!);
   await expect(stat(page, "merged on GitHub")).toHaveText("0");
-  await expect(page.locator(".progresstable td", { hasText: "Status unavailable" })).toHaveCount(2);
-  await expect(page.locator(".progresstable")).not.toContainText("Merged");
+  await expect(page.locator(".runrow-gh", { hasText: "Status unavailable" })).toHaveCount(2);
+  await expect(page.locator(".rungroups")).not.toContainText("Merged");
   await expect(page.getByText(/GitHub didn't tell us the status of 2 pull requests/)).toBeVisible();
   await page.screenshot({ path: "docs/build-plan/evidence/B16/b16-status-unavailable.png", fullPage: true });
 });
