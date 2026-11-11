@@ -50,6 +50,22 @@ def test_loop_rejects_two_blocks_and_gives_up_at_step_limit():
     assert res is None and "Format error" in msgs[3]["content"]
 
 
+def test_loop_ends_the_attempt_after_three_format_errors_in_a_row():
+    # isort#2694 (dd01d96e): DeepSeek sent 16 empty replies per attempt; each got "Format error" until the step limit
+    calls = []
+    def complete(msgs, **k):
+        calls.append(1)
+        return ""
+    res, msgs = loop.run("t", exec_=lambda c: (0, ""), run_id="r", role="x", step_limit=20, complete=complete)
+    assert res is None and len(calls) == 3
+
+
+def test_a_good_reply_resets_the_format_error_count():
+    replies = iter(["", "", "```bash\nls\n```", "", "", "```bash\nls -a\n```"])
+    res, msgs = loop.run("t", exec_=lambda c: (0, "ok"), run_id="r", role="x", step_limit=6, complete=lambda m, **k: next(replies))
+    assert sum(m["content"] == "exit code 0\nok" for m in msgs) == 2   # both commands ran: no early stop
+
+
 def test_redaction():
     assert "ghp_" not in G.redact("token ghp_" + "a" * 30) and "[redacted]" in G.redact("Authorization: Bearer xyz")
 
