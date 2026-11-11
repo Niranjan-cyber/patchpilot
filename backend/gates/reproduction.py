@@ -81,7 +81,10 @@ def _raised(output, error_name):
     # may be fully qualified (`django.core.exceptions.ValidationError`) while
     # the issue gives only the class, so an optional dotted prefix matches —
     # it must end in a dot, so ValueError never matches MyValueError.
-    return bool(re.search(rf"^E\s+(?:[\w.]+\.)?{re.escape(error_name)}\b", output, re.M))
+    # --tb=native (tablib's addopts) prints the raised error at column 0 as `Name: ...` with no `E`; source lines are
+    # indented there, so a column-0 `Name:` is only ever the raised error.
+    n = re.escape(error_name)
+    return bool(re.search(rf"^(?:E\s+(?:[\w.]+\.)?{n}\b|(?:[\w.]+\.)?{n}(?::|$))", output, re.M))
 
 
 def evaluate_g3(diff_paths, run_outputs, issue_error=None):
