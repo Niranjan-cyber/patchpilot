@@ -372,6 +372,17 @@ def test_default_chain_uses_every_strong_model_quota_before_pausing(monkeypatch)
     assert G.chain("agent") == ["gemini/gemini-3.8-flash", "gemini/gemini-3.5-flash"]      # no key: Groq models dropped
 
 
+def test_the_fixer_is_told_at_half_its_steps_to_edit_now():
+    # pint#2562: DeepSeek spent all 25 steps reading and never edited, twice per run
+    seen = []
+    def model(msgs, **k):
+        seen.append(msgs[-1]["content"]); return f"```bash\necho step {len(seen)}\n```"
+    loop.run("t", exec_=lambda c: (0, c), run_id="r", role="fixer", step_limit=10, complete=model)
+    nudged = [i for i, m in enumerate(seen) if "half your steps" in m]
+    assert nudged == [5]                                   # once, after step 5 of 10
+    loop.run("t", exec_=lambda c: (0, c), run_id="r", role="investigator", step_limit=10, complete=lambda m, **k: "```bash\nls\n```")
+
+
 def test_loop_ends_an_attempt_stuck_repeating_itself():
     # run 8: the model alternated two identical file writes until the step limit, burning tokens
     replies = iter(["```bash\ncat > a <<'EOF'\nx\nEOF\n```", "```bash\npytest t\n```"] * 20)

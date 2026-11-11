@@ -3,14 +3,14 @@ session_runs_per_day = 2      # plus hashed-IP backstop
 account_runs_per_day = 20   # human-approved 2026-11-11 for live third-party testing (was 5); set back after the demo
 active_runs_per_owner = 1
 global_concurrent_runs = 1    # 2 on a VM
-global_llm_tokens_per_day = 3_000_000   # human-approved 2026-11-09 for demo-week live testing; raised to 7M for the 11-09 eval rerun and set back 2026-11-10 (human decision) (third-party runs use up to 600k each); was 1_560_000 (6 runs × 260k measured 2026-10-30). Never 0-as-unlimited.
+global_llm_tokens_per_day = 8_000_000   # human-approved 2026-11-11: raised from 3M with Nebius as primary (paid). Earlier:   # human-approved 2026-11-09 for demo-week live testing; raised to 7M for the 11-09 eval rerun and set back 2026-11-10 (human decision) (third-party runs use up to 600k each); was 1_560_000 (6 runs × 260k measured 2026-10-30). Never 0-as-unlimited.
 budget_measured_tokens_per_run = 260_000
 budget_measured_on = "2026-10-30"
 # #48 intake assessment: one capped model call per issue version (cached), role "assessor". Its own daily cap, separate
 # from the execution quotas above; still counted in global_llm_tokens_per_day. ~3k tokens/call -> ~40 new issues a day.
 # 0 = model extraction off: every issue is then at best HUMAN_DECISION (no keyword-only ASSESSMENT_ONLY since #50's review).
 assess_llm_tokens_per_day = 120_000
-run_llm_tokens = 1_000_000   # human-approved 2026-11-11: pint#2562 hit 600k on the 2nd fix attempt (Nebius fallback is verbose); was 600_000 (msoffcrypto #108 used 400.5k)
+run_llm_tokens = 2_500_000   # human-approved 2026-11-11 ("increase the budget"): pint#2562 hit 1M twice on a hard fix; was 1M, before that 600k
 run_active_seconds = 1500
 setup_seconds = 480
 max_pause_seconds = 7200

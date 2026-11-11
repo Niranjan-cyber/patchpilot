@@ -55,5 +55,8 @@ def run(task: str, *, exec_, run_id: str, role: str, step_limit: int = 20, compl
             return None, msgs
         out = out if len(out) < 6000 else out[:2500] + "\n…[output truncated]…\n" + out[-2500:]
         note = "\nYou are repeating yourself: this exact command gave this exact output before. Try a different approach." if n == 2 else ""
+        if role == "fixer" and step == step_limit // 2 - 1:   # pint#2562: DeepSeek read for all 25 steps and never edited
+            note += ("\nYou have used half your steps. If you haven't edited yet, make your best edit NOW (apply_patch or a "
+                     "python script), then run the tests. If you already edited, run the tests and finish.")
         msgs.append({"role": "user", "content": f"exit code {code}\n{out}{note}"})
     return None, msgs
