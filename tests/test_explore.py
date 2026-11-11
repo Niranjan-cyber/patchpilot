@@ -181,3 +181,9 @@ def test_explore_reads_the_same_labels_as_intake():
     assert "not_a_bug" in score_issue(iss(1, body, title="Path type factory", labels=["enhancement"]))["signals"]
     # label and text disagree (an error is described): intake calls that "unknown", so Explore doesn't drop it either
     assert "not_a_bug" not in score_issue(iss(1, BUG, labels=["enhancement"]))["signals"]
+
+
+def test_outside_prs_signal_is_unknown_unless_github_says():
+    root = ["pyproject.toml", "tests"]
+    sig = lambda meta: shortlist("o/r", {"language": "Python", **meta}, root, [iss(1, BUG)], {1: False})["repo_signals"]["outside_prs"]
+    assert sig({"pull_request_creation_policy": "all"}) is True and sig({}) is None

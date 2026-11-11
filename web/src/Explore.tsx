@@ -7,11 +7,24 @@ type Suggestion = { number: number; title: string; html_url: string; score: numb
   effort: "small" | "medium" | "large"; comments: number; linked_pr: boolean | null };
 type Result = { repo: string; language: string | null; state: "success" | "partial" | "empty" | "unsupported";
   unsupported: "not_python" | "no_tests" | "prs_collaborators_only" | null; suggestions: Suggestion[]; fetched_at?: string; cached?: boolean;
-  repo_signals: { python: boolean | null; tests_found: boolean | null; recipe_known: boolean | null; deps_checkable: boolean | null } };
+  repo_signals: { python: boolean | null; tests_found: boolean | null; recipe_known: boolean | null; deps_checkable: boolean | null;
+    outside_prs?: boolean | null } };
 
 const SIGNAL: [keyof Result["repo_signals"], string][] = [
   ["python", "Python project"], ["tests_found", "Has tests"], ["recipe_known", "Install recipe found"],
-  ["deps_checkable", "Dependencies can be checked"],
+  ["deps_checkable", "Dependencies can be checked"], ["outside_prs", "Outside PRs allowed"],
+];
+// reasons the check chips below already say: shown once, not twice
+const SHOWN = new Set(["Has steps to reproduce", "Includes a code example", "States expected vs actual behaviour"]);
+// per issue: what this list already checked, in the same words as the issue check. "Check this issue" re-reads all of it.
+const CHECKS = (s: Suggestion): [string, "passed" | "inconclusive" | "not_run", string][] => [
+  ["Unassigned", "passed", "Nobody is assigned"],
+  ["No competing PR", s.linked_pr === null ? "inconclusive" : "passed",
+    s.linked_pr === null ? "Couldn't check for an open or merged pull request" : "No open or merged pull request found for it"],
+  ["Reproducer", s.signals.includes("has_code") || s.signals.includes("has_steps") ? "passed" : "not_run",
+    s.signals.includes("has_code") || s.signals.includes("has_steps") ? "Has a code example or steps" : "No code example or steps given"],
+  ["Expected vs actual", s.signals.includes("expected_actual") ? "passed" : "not_run",
+    s.signals.includes("expected_actual") ? "The issue says what should happen and what does" : "The issue doesn't spell out both"],
 ];
 // drawn icons, not glyphs; unknown is its own mark, never a pass
 const mark = (v: boolean | null) => <StatusIcon s={v === null ? "inconclusive" : v ? "passed" : "failed"} size={12} />;
@@ -87,11 +100,13 @@ export default function Explore() {
                     <a href={s.html_url}><strong>#{s.number} {s.title}</strong></a>
                     <span className="sample" title="Our guess from the issue text, not a measurement">Estimate: {s.effort} effort</span>
                   </div>
-                  <ul className="why">{s.reasons.map((r) => <li key={r}>{r}</li>)}</ul>
-                  <p className="hint">
-                    {s.linked_pr === null ? "? Couldn't check whether someone already opened a pull request." : "No open pull request links this issue."}
-                    {" "}{s.comments} comment{s.comments === 1 ? "" : "s"}.
-                  </p>
+                  {s.reasons.some((r) => !SHOWN.has(r)) && <ul className="why">{s.reasons.filter((r) => !SHOWN.has(r)).map((r) => <li key={r}>{r}</li>)}</ul>}
+                  <ul className="issue-checks" aria-label="Checks on this issue">
+                    {CHECKS(s).map(([label, st, tip]) => (
+                      <li key={label} className={`chip chip-${st === "passed" ? "true" : st === "inconclusive" ? "null" : "none"}`} title={tip}>
+                        <StatusIcon s={st} size={12} />{label}<span className="sr-only">: {tip}</span></li>))}
+                    <li className="text-faint text-[13px] self-center">{s.comments} comment{s.comments === 1 ? "" : "s"}</li>
+                  </ul>
                   <Link className="button secondary" to={`/check?url=${encodeURIComponent(s.html_url)}`}>Check this issue</Link>
                 </li>
               ))}

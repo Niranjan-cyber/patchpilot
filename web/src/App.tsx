@@ -277,9 +277,11 @@ function Run() {
   const extraRan = hv === "passed" || hv === "failed";   // otherwise the extra checks are all "not run" and wait under More details
   const [bg, disc, glyph] = TONE[next ? "act" : tone(run)];
   return (
-    <div className="run-page max-w-[960px] mx-auto">
+    <div className="run-page">
       <RunHeader run={run} id={id} badge={false} />
-      <Stagger className="flex flex-col gap-10">
+      {/* wide screens: what you act on at the left, where the run is and its facts in a rail that stays in view */}
+      <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_340px] lg:gap-12 items-start">
+      <Stagger className="flex flex-col gap-10 min-w-0">
         <div className="flex flex-col gap-3 empty:hidden">
           <GuidedPauseNotice run={run} />
           {run.status === "paused" && run.pause?.reason !== "guided_pause" && (
@@ -292,14 +294,14 @@ function Run() {
           {run.details_expired_at && <p className="notice">This run's details have expired. The outcome and pull request link are kept.</p>}
         </div>
 
-        <Item as="section" className={`decision${next ? " act" : ""} ${bg} rounded-[32px] p-7 md:p-10 flex gap-8 items-start`} aria-label="Where this run stands">
+        <Item as="section" className={`decision${next ? " act" : ""} ${bg} rounded-[28px] p-6 md:p-8 flex gap-6 items-start`} aria-label="Where this run stands">
           <div className="flex-1 min-w-0">
             <ReadinessBadge run={run} />
             {done ? (
               <>
-                <h2 className="!text-[28px] md:!text-[32px] !mt-4 !mb-2">{next?.t ?? (OUTCOME_TEXT[run.outcome!] ? "What happened" : "Read the report")}</h2>
+                <h2 className="!text-[24px] md:!text-[28px] !mt-3 !mb-2">{next?.t ?? (OUTCOME_TEXT[run.outcome!] ? "What happened" : "Read the report")}</h2>
                 <p className="text-[16px] max-w-[56ch]">{next?.d ?? OUTCOME_TEXT[run.outcome!] ?? "PatchPilot found something a person needs to look at. The report has everything it recorded."}</p>
-                <div className="row !mt-6">
+                <div className="row !mt-5">
                   {next && <Link className="button !min-h-12 !px-6" to={next.to}>{next.b}<Icon name="arrow" /></Link>}
                   <a className={`button ${next ? "secondary !bg-white/70 hover:!bg-white" : "!bg-white hover:!bg-white/70"}`} href={`/api/runs/${id}/report.md`}><Icon name="file" />Download report</a>
                 </div>
@@ -311,9 +313,9 @@ function Run() {
               </div>
             )}
           </div>
-          <motion.span aria-hidden className={`hidden sm:grid place-items-center shrink-0 w-24 h-24 rounded-full ${disc}`}
+          <motion.span aria-hidden className={`hidden sm:grid place-items-center shrink-0 w-16 h-16 rounded-full ${disc}`}
             initial={{ scale: 0, rotate: -40 }} animate={{ scale: 1, rotate: 0 }} transition={{ type: "spring", stiffness: 300, damping: 16, delay: 0.2 }}>
-            {done ? <Icon name={glyph} size={40} /> : <StatusIcon s={run.status === "paused" ? "inconclusive" : "running"} size={40} />}
+            {done ? <Icon name={glyph} size={28} /> : <StatusIcon s={run.status === "paused" ? "inconclusive" : "running"} size={28} />}
           </motion.span>
         </Item>
 
@@ -325,31 +327,34 @@ function Run() {
         )}
         {assessed && <Item><AssessmentCard a={run.assessment} /></Item>}
         <Item className="empty:hidden"><DiagnosisCard run={run} /></Item>
-        {!assessed && (
-          <Item as="section" aria-labelledby="steps-h">
-            <h2 id="steps-h">What PatchPilot did</h2>
-            <StageNavigator run={run} />
-          </Item>
-        )}
         {concerns > 0 && <Item><Findings run={run} /></Item>}
         <Item className="empty:hidden"><AttemptHistory events={events} /></Item>
         {extraRan && <Item><ExtraChecks run={run} /></Item>}
         <Item className="empty:hidden"><AskPanel run={run} /></Item>
         <Item className="empty:hidden"><PauseToggles run={run} /></Item>
 
-        <Item as="div">
-          <details className="more group">
-            <summary className="inline-flex items-center gap-2 font-semibold text-muted hover:text-ink list-none [&::-webkit-details-marker]:hidden">
-              <span className="grid place-items-center w-8 h-8 rounded-full bg-white transition-transform duration-300 group-open:rotate-90"><Icon name="chev" size={14} /></span>More details
-            </summary>
-            <div className="more-body grid gap-4 mt-4">
-              <RunDetails run={run} />
-              {!extraRan && <ExtraChecks run={run} />}
-              <div><ActivityButton events={events} /></div>
-            </div>
-          </details>
-        </Item>
+        {!extraRan && (
+          <Item as="div">
+            <details className="more group">
+              <summary className="inline-flex items-center gap-2 font-semibold text-muted hover:text-ink list-none [&::-webkit-details-marker]:hidden">
+                <span className="grid place-items-center w-8 h-8 rounded-full bg-white transition-transform duration-300 group-open:rotate-90"><Icon name="chev" size={14} /></span>More details
+              </summary>
+              <div className="more-body grid gap-4 mt-4"><ExtraChecks run={run} /></div>
+            </details>
+          </Item>
+        )}
       </Stagger>
+      <aside className="run-rail flex flex-col gap-6 min-w-0 lg:sticky lg:top-[88px]" aria-label="This run">
+        {!assessed && (
+          <section aria-labelledby="steps-h">
+            <h2 id="steps-h" className="!text-[18px] !mb-3">What PatchPilot did</h2>
+            <StageNavigator run={run} />
+          </section>
+        )}
+        <RunDetails run={run} />
+        <div><ActivityButton events={events} /></div>
+      </aside>
+      </div>
 
       <Modal open={confirmStop} onClose={() => setConfirmStop(false)} title="Stop this run?"
         actions={<>
