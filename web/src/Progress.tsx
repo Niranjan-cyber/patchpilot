@@ -5,82 +5,63 @@ import { Icon } from "./components";
 
 export const RUNS_CHANGED = "pp:runs-changed";
 
-type PrState = "open" | "draft" | "changes_requested" | "approved" | "closed" | "merged" | "review_unavailable";
-type Row = { run_id: string; repo: string; number: number; title: string; issue_url: string; created_at: string; has_pr: boolean;
+export type PrState = "open" | "draft" | "changes_requested" | "approved" | "closed" | "merged" | "review_unavailable";
+export type Row = { run_id: string; repo: string; number: number; title: string; issue_url: string; created_at: string; has_pr: boolean;
   patchpilot: { status: string; outcome: string | null; readiness: string | null; pr_url: string | null; compare_url: string | null };
   github_pr_status: PrState | null; ci: "passing" | "failing" | "pending" | null; last_activity_at: string | null;
   new_feedback: number; needs_attention: boolean };
-type Progress = { signed_in: boolean; state: "empty" | "success" | "partial";
+export type Progress = { signed_in: boolean; state: "empty" | "success" | "partial";
   counts: { started: number; analyzed: number; fix_proposed: number; pr_opened: number; pr_merged: number; pr_status_unknown: number };
   rows: Row[] };
 
-const GH: Record<PrState, string> = { open: "Open", draft: "Draft", changes_requested: "Changes requested", approved: "Approved",
+export const GH: Record<PrState, string> = { open: "Open", draft: "Draft", changes_requested: "Changes requested", approved: "Approved",
   closed: "Closed without merging", merged: "Merged", review_unavailable: "Open, review status unavailable" };
-const CI = { passing: "CI passing", failing: "CI failing", pending: "CI running" } as const;
+export const CI = { passing: "CI passing", failing: "CI failing", pending: "CI running" } as const;
+const AWAITING: PrState[] = ["open", "draft", "changes_requested", "approved", "review_unavailable"];
 
 export function FeedbackBadge({ runId, n }: { runId: string; n: number }) {
   return n > 0 ? <Link className="badge badge-warn feedback-badge" to={`/runs/${runId}/pr`}>
     <Icon name="message" size={13} /> {n} new on GitHub</Link> : null;
 }
 
-/** S-08 progress: what PatchPilot did vs what happened on GitHub, kept in separate columns. No scores, streaks or ranks. */
-export default function ProgressView() {
+/** S-08 progress: GitHub's live PR status per run. The API re-reads GitHub here, so the run list reloads after it. */
+export function useProgress() {
   const [p, setP] = useState<Progress | null>(null);
   const [err, setErr] = useState<ApiError | null>(null);
-  const [attention, setAttention] = useState(false);
-  // the API re-reads GitHub here, so the nav and run-list badges reload after it
   const load = () => { setErr(null); api<Progress>("/api/me/progress").then((x) => { setP(x); window.dispatchEvent(new Event(RUNS_CHANGED)); }).catch(setErr); };
   useEffect(load, []);
+  return { p, err, load };
+}
+
+/** What PatchPilot did, then what happened on GitHub: separate counts in one strip. No scores, streaks or ranks. */
+export function ProgressSummary({ p, err, reload }: { p: Progress | null; err: ApiError | null; reload: () => void }) {
   if (err) return (
-    <div className="panel failed"><h2>Couldn't load your progress</h2><p>{err.message}</p><button onClick={load}>Try again</button></div>
+    <div className="notice warn flex flex-wrap items-center gap-3"><span>Couldn't load your pull request status: {err.message}</span>
+      <button className="linklike" onClick={reload}>Try again</button></div>
   );
-  if (!p) return <div className="panel"><p>Loading your progress…</p></div>;
-  if (p.state === "empty") return null;   // the run list below already shows the empty state
-  const c = p.counts;
-  const need = p.rows.filter((r) => r.needs_attention).length;
-  const rows = attention ? p.rows.filter((r) => r.needs_attention) : p.rows;
+  const c = p?.counts;
+  // client-side splits of the PRs GitHub told us about; an unknown status is in neither
+  const gh = p?.rows.filter((r) => r.has_pr).map((r) => r.github_pr_status) ?? [];
+  const stats: [number | undefined, string, string?][] = [
+    [c?.analyzed, "issues analyzed"], [c?.fix_proposed, "fixes proposed"], [c?.pr_opened, "pull requests opened"],
+    [p ? gh.filter((s) => s && AWAITING.includes(s)).length : undefined, "awaiting review"],
+    [c?.pr_merged, "merged on GitHub", "text-mint-700"], [p ? gh.filter((s) => s === "closed").length : undefined, "closed, not merged"],
+  ];
   return (
-    <section className="progress" aria-label="Your progress">
-      <h2>Your progress</h2>
+    <section className="progress" aria-label="Your progress" aria-busy={!p}>
+      <h2 className="sr-only">Your progress</h2>
       <div className="stats">
-        <div className="stat"><strong>{c.analyzed}</strong><span>issues analyzed</span></div>
-        <div className="stat"><strong>{c.fix_proposed}</strong><span>fixes proposed</span></div>
-        <div className="stat"><strong>{c.pr_opened}</strong><span>pull requests opened</span></div>
-        <div className="stat"><strong>{c.pr_merged}</strong><span>merged on GitHub</span></div>
+        {stats.map(([n, label, tint], i) => (
+          <div key={label} className={`stat ${i === 3 ? "stat-gh" : ""}`}>
+            <span>{label}</span>
+            {n === undefined ? <span className="skel-num" aria-hidden /> : <strong className={n ? tint : ""}>{n}</strong>}
+          </div>
+        ))}
       </div>
-      {p.state === "partial" && (
-        <p className="notice warn">GitHub didn't tell us the full status of {c.pr_status_unknown} pull request{c.pr_status_unknown > 1 ? "s" : ""}.
-          {c.pr_status_unknown > 1 ? " They're" : " It's"} marked unavailable below and not counted as merged. <button className="linklike" onClick={load}>Check again</button></p>
+      {p?.state === "partial" && (
+        <p className="notice warn !mt-3">GitHub didn't tell us the full status of {c!.pr_status_unknown} pull request{c!.pr_status_unknown > 1 ? "s" : ""}.
+          {c!.pr_status_unknown > 1 ? " They're" : " It's"} marked unavailable below and not counted as merged. <button className="linklike" onClick={reload}>Check again</button></p>
       )}
-      <div className="row history-filter" role="group" aria-label="Show">
-        <button className={attention ? "secondary" : ""} aria-pressed={!attention} onClick={() => setAttention(false)}>All runs</button>
-        <button className={attention ? "" : "secondary"} aria-pressed={attention} onClick={() => setAttention(true)}>
-          Needs your attention ({need})</button>
-      </div>
-      {attention && !need ? <p className="hint">Nothing needs you right now: no new maintainer feedback, failing CI or approvals waiting.</p> : (
-      <div className="table-wrap">
-        <table className="evaltable progresstable">
-          <thead><tr><th>Issue</th><th>PatchPilot</th><th>Pull request on GitHub</th></tr></thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.run_id}>
-                <td data-label="Issue"><Link to={`/runs/${r.run_id}`}>{r.title}</Link><br />
-                  <span className="hint"><a href={r.issue_url}>{r.repo} #{r.number}</a>, {new Date(r.created_at).toLocaleDateString()}</span></td>
-                <td data-label="PatchPilot">{r.patchpilot.readiness ?? (r.patchpilot.status === "awaiting_approval" ? "Needs your approval" : "Still working")}
-                  {r.patchpilot.pr_url && <><br /><a href={r.patchpilot.pr_url}>Pull request opened</a></>}
-                  {!r.patchpilot.pr_url && r.patchpilot.compare_url && <><br /><a href={r.patchpilot.compare_url}>Branch pushed (open the PR yourself)</a></>}</td>
-                <td data-label="Pull request on GitHub" className="pr-cell">{!r.has_pr ? <span className="hint">No pull request</span> : <>
-                  {r.github_pr_status ? <span className={`gh-${r.github_pr_status}`}>{GH[r.github_pr_status]}</span>
-                    : <span className="hint">Status unavailable</span>}
-                  {r.ci && <span className={`ci ci-${r.ci}`}> · {CI[r.ci]}</span>}
-                  {r.last_activity_at && <><br /><span className="hint">Maintainer activity {new Date(r.last_activity_at).toLocaleDateString()}</span></>}
-                  {r.new_feedback > 0 && <><br /><FeedbackBadge runId={r.run_id} n={r.new_feedback} /></>}
-                </>}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>)}
     </section>
   );
 }
