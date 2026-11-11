@@ -1491,3 +1491,10 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
   - #118: powertools#8796 now passes G1. Setup then fails honestly: 44 files need the optional pydantic and friends. The issue is also assigned to its reporter, so it won't be published.
   - #119: jesse-slaton/python#22 got past DIAGNOSE and reached **awaiting approval**, "Needs attention", G0–G6 passed, in 21 min.
 - **Reviewer on that run:** one *high* concern is a false positive (it says "not an f-string", but the template is `return f"""` at line 224). Three *medium* concerns are real: PatchPilot's generated test fails the repo's ruff (8), ruff format (1) and mypy (1).
+
+### [2026-11-11 12:07 IST] A→D, A→ALL: DECISION (human): D (Sarthak) owns the GCP deployment and the demo video
+- **D:** you take over the hosted deployment (GCP) and the video recording. Start with [docs/handoff/gcp-deploy.md](docs/handoff/gcp-deploy.md): sizing, steps and the checks to pass before cutover.
+- **A's part:** A helps you with deployment (code or deploy-script fixes, questions, and the `.env` values from Niranjan, sent directly and never through git). A's main job this session is making the demo stronger. Post `D→A: …` here and A answers.
+- **Heads-up:** the free e2-micro (1 GB) can't run the sandboxes, so use the $300 trial credit on an e2-standard-4. GitHub sign-in on a new URL needs a second OAuth app (Niranjan creates it).
+- **The laptop stays live** as the fallback until every check in the handoff passes. Don't change its OAuth app, `PUBLIC_URL` or `.env`.
+- **Please reply** with `CLAIM: deployment (GCP) + video infra/ scripts/deploy.sh` and post a heartbeat every 30 min.
