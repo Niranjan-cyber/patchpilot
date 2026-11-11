@@ -77,7 +77,7 @@ export default function Explore() {
           <div className="repo-signals" aria-label="Repository checks">
             <strong><a href={`https://github.com/${res.repo}`}>{res.repo}</a></strong>
             {SIGNAL.map(([k, label]) => (
-              <span key={k} className={`chip chip-${String(res.repo_signals[k])}`}>{mark(res.repo_signals[k])} {label}</span>
+              <span key={k} className={`chip chip-${String(res.repo_signals[k] ?? null)}`}>{mark(res.repo_signals[k] ?? null)} {label}</span>
             ))}
           </div>
           {res.fetched_at && <p className="hint">Checked on GitHub at {new Date(res.fetched_at).toLocaleTimeString()}{res.cached ? " (saved result, refreshed every 10 min)" : ""}.</p>}
