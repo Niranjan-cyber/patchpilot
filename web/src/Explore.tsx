@@ -6,7 +6,7 @@ import { StatusIcon } from "./components";
 type Suggestion = { number: number; title: string; html_url: string; score: number; signals: string[]; reasons: string[];
   effort: "small" | "medium" | "large"; comments: number; linked_pr: boolean | null };
 type Result = { repo: string; language: string | null; state: "success" | "partial" | "empty" | "unsupported";
-  unsupported: "not_python" | "no_tests" | null; suggestions: Suggestion[]; fetched_at?: string; cached?: boolean;
+  unsupported: "not_python" | "no_tests" | "prs_collaborators_only" | null; suggestions: Suggestion[]; fetched_at?: string; cached?: boolean;
   repo_signals: { python: boolean | null; tests_found: boolean | null; recipe_known: boolean | null; deps_checkable: boolean | null } };
 
 const SIGNAL: [keyof Result["repo_signals"], string][] = [
@@ -18,6 +18,7 @@ const mark = (v: boolean | null) => <StatusIcon s={v === null ? "inconclusive" :
 const UNSUPPORTED = {
   not_python: "PatchPilot can only run Python projects today, so there's nothing to suggest here.",
   no_tests: "We couldn't find tests in this repository, so we couldn't verify any fix.",
+  prs_collaborators_only: "This repository only accepts pull requests from its own collaborators, so PatchPilot doesn't suggest issues here.",
 };
 
 export default function Explore() {

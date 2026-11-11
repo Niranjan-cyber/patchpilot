@@ -141,3 +141,32 @@ def test_unreadable_comments_leave_the_claim_check_inconclusive(monkeypatch):
     monkeypatch.setattr(R, "_get", lambda h, path, required=True: canned.get(path))
     monkeypatch.setattr("backend.github.assess.extract", lambda **k: None)
     assert R.check_issue("https://github.com/o/r/issues/1").issue.checks["unassigned"] == C.INCONCLUSIVE
+
+
+def test_merged_prs_from_the_timeline_closed_list_and_search():
+    # more-itertools#1268 was fixed by merged #1294 but still open, and G0 said READY; the timeline can also be empty
+    # for the server's token (pyparsing#702), so the closed-PR list and the search API count too
+    from backend.github.reader import merged_prs
+    tl = [{"event": "cross-referenced", "source": {"issue": {"number": 5, "state": "closed", "pull_request": {"merged_at": "2026-09-01"}}}},
+          {"event": "cross-referenced", "source": {"issue": {"number": 6, "state": "closed", "pull_request": {"merged_at": None}}}}]
+    closed = [{"number": 7, "merged_at": "x", "title": "Fix #3", "body": ""},
+              {"number": 8, "merged_at": None, "title": "Fix #3", "body": ""},           # closed unmerged: not a fix
+              {"number": 9, "merged_at": "x", "title": "Fix #30", "body": ""}]          # another issue
+    found = [{"number": 11, "pull_request": {"merged_at": "x"}, "title": "t", "body": "Fixes #3"},
+             {"number": 12, "pull_request": {"merged_at": "x"}, "title": "t", "body": "bumps to 1.3"}]   # a search hit with no real reference
+    assert merged_prs(tl, closed, found, "o/r", 3) == [5, 7, 11]
+    assert merged_prs(None, None, None, "o/r", 3) == []
+
+
+def test_g0_warns_when_already_fixed_or_prs_are_collaborators_only(monkeypatch):
+    import backend.github.reader as R
+    canned = {"/repos/o/r/issues/3": {"state": "open", "title": "t", "body": "b", "assignees": [], "labels": [], "comments": 0},
+              "/repos/o/r": {"language": "Python", "default_branch": "main", "pull_request_creation_policy": "collaborators_only"},
+              "/repos/o/r/issues/3/timeline?per_page=100": [], "/repos/o/r/pulls?state=open&per_page=100": [],
+              "/repos/o/r/contents/": [{"name": "pyproject.toml"}, {"name": "tests"}],
+              "/repos/o/r/pulls?state=closed&sort=updated&direction=desc&per_page=50": [{"number": 7, "merged_at": "x", "title": "Fix #3", "body": ""}]}
+    monkeypatch.setattr(R, "_get", lambda h, path, required=True: canned.get(path))
+    monkeypatch.setattr("backend.github.assess.extract", lambda **k: None)
+    chk = R.check_issue("https://github.com/o/r/issues/3")
+    assert {"already_fixed", "prs_collaborators_only"} <= set(chk.warnings)
+    assert "already_fixed" in chk.assessment.decision_reasons   # ALREADY_ADDRESSED unless a human-decision reason outranks it

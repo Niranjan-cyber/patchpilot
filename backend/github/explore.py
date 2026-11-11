@@ -1,7 +1,8 @@
 """B18 Explore one repo (S-09): shortlist 3-5 open issues PatchPilot can likely run, ranked by runnable signals, not labels."""
 import re
 
-from backend.github.reader import GitHubError, _client, _get, detect, expected_actual, linked_open_prs
+from backend.github.reader import (GitHubError, _client, _get, detect, expected_actual, linked_open_prs, mentioning_open_prs,
+                                   merged_prs)
 
 REPO_URL = re.compile(r"^https://github\.com/([\w.-]+)/([\w.-]+?)(?:\.git)?(?:/.*)?(?:[?#].*)?$")
 LOCKS = {"requirements.txt", "poetry.lock", "pipfile.lock", "uv.lock"}     # files SupplyGuard can read
@@ -81,6 +82,8 @@ def shortlist(repo: str, meta: dict, root_names: list[str] | None, items: list[d
     signals = {"python": unk(python), "tests_found": True if tests else None, "recipe_known": unk(bool(names & RECIPE)),
                "deps_checkable": unk(bool(names & (LOCKS | {"pyproject.toml"})))}   # G1 resolves pyproject.toml (#63)
     base = {"repo": repo, "repo_signals": signals, "language": meta.get("language")}
+    if meta.get("pull_request_creation_policy") == "collaborators_only":   # v0.10: no outside PR can be opened here
+        return {**base, "state": "unsupported", "unsupported": "prs_collaborators_only", "suggestions": []}
     if signals["python"] is False or signals["tests_found"] is False:
         return {**base, "state": "unsupported", "unsupported": "not_python" if signals["python"] is False else "no_tests",
                 "suggestions": []}
@@ -119,8 +122,14 @@ def _explore(repo: str) -> dict:
         root = _get(h, f"/repos/{repo}/contents/", required=False)
         names = [x["name"] for x in root] if isinstance(root, list) else None
         items = _get(h, f"/repos/{repo}/issues?state=open&per_page=50&sort=updated") or []
+        # the timeline can come back empty for a fine-grained read token (pyparsing#702 showed no PR), so like G0 also
+        # match open PRs and merged PRs that reference the issue; one list call each per repo
+        pulls = _get(h, f"/repos/{repo}/pulls?state=open&per_page=100", required=False)
+        closed = _get(h, f"/repos/{repo}/pulls?state=closed&sort=updated&direction=desc&per_page=100", required=False)
         linked: dict[int, bool | None] = {}
         for s in candidates(items)[:CANDIDATES]:
-            tl = _get(h, f"/repos/{repo}/issues/{s['number']}/timeline?per_page=100", required=False)
-            linked[s["number"]] = bool(linked_open_prs(tl)) if isinstance(tl, list) else None
+            n = s["number"]
+            tl = _get(h, f"/repos/{repo}/issues/{n}/timeline?per_page=100", required=False)
+            hit = (isinstance(tl, list) and bool(linked_open_prs(tl))) or bool(mentioning_open_prs(pulls, repo, n, s["title"])) or bool(merged_prs(tl, closed, None, repo, n))
+            linked[n] = True if hit else (False if isinstance(tl, list) else None)
     return shortlist(repo, meta, names, items, linked)

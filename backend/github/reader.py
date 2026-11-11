@@ -31,7 +31,7 @@ class IssueCheck(BaseModel):
     default_branch: str | None
     language: str | None
     policy: RepoPolicy
-    warnings: list[str] = []          # codes the user must accept via continue_despite: closed, assigned, linked_pr, lookup_failed, unclear_type, needs_info
+    warnings: list[str] = []          # codes the user must accept via continue_despite: closed, assigned, linked_pr, already_fixed, prs_collaborators_only, lookup_failed, unclear_type, needs_info
     unsupported: str | None = None    # reason nothing can execute (v0.4: an ASSESSMENT_ONLY run, not an error)
     assessment: IssueAssessment | None = None   # #48 intake assessment, decided by code
     fetched_at: datetime
@@ -64,6 +64,20 @@ def linked_open_prs(timeline: list[dict]) -> list[int]:
         if e.get("event") == "cross-referenced" and "pull_request" in src and src.get("state") == "open":
             out.append(src.get("number"))
     return out
+
+
+def merged_prs(timeline, closed, found, repo: str, num: int) -> list[int]:
+    """Merged PRs that fixed this issue: a merged timeline cross-reference, or a merged PR (recent closed list or the
+    search API) whose title/body really references #num. The timeline alone isn't enough: with a fine-grained read token
+    it can come back empty (pyparsing#702), and more-itertools#1268 stayed open after its fix (#1294) merged."""
+    out = {(e.get("source") or {}).get("issue", {}).get("number") for e in timeline if isinstance(e, dict)
+           and e.get("event") == "cross-referenced"
+           and ((e.get("source") or {}).get("issue") or {}).get("pull_request", {}).get("merged_at")} if isinstance(timeline, list) else set()
+    merged = [p for p in closed if isinstance(p, dict) and p.get("merged_at")] if isinstance(closed, list) else []
+    merged += [{**p, "merged_at": (p.get("pull_request") or {}).get("merged_at")} for p in found if isinstance(p, dict)
+               and (p.get("pull_request") or {}).get("merged_at")] if isinstance(found, list) else []
+    out |= set(mentioning_open_prs(merged, repo, num, "", title_words=False))   # a real reference only, never title words
+    return sorted(n for n in out if isinstance(n, int))
 
 
 _STOP = {"with", "when", "that", "this", "from", "into", "should", "does", "doesn", "fixes", "issue", "error", "errors",
@@ -205,6 +219,8 @@ def check_issue(url: str, *, extract_model: bool = True) -> IssueCheck:
         pulls = _get(h, f"/repos/{repo}/pulls?state=open&per_page=100", required=False)
         comments = _get(h, f"/repos/{repo}/issues/{num}/comments?per_page=100", required=False) if issue.get("comments") else []
         closed = _get(h, f"/repos/{repo}/pulls?state=closed&sort=updated&direction=desc&per_page=50", required=False)
+        # merged PRs older than the 50 most recent closed ones: the search API finds them by number (filtered below)
+        found = (_get(h, f"/search/issues?q=repo:{repo}+is:pr+is:merged+{num}&per_page=20", required=False) or {}).get("items")
         community = _get(h, f"/repos/{repo}/community/profile", required=False)
         docs = []
         for path in ("CONTRIBUTING.md", ".github/CONTRIBUTING.md", "AI_POLICY.md", ".github/AI_POLICY.md", "README.md"):
@@ -233,6 +249,10 @@ def check_issue(url: str, *, extract_model: bool = True) -> IssueCheck:
     for code, key in (("closed", "open"), ("assigned", "unassigned"), ("linked_pr", "no_linked_pr")):
         if checks[key] == CheckStatus.FAILED:
             warnings.append(code)
+    if merged_prs(timeline, closed, found, repo, num):
+        warnings.append("already_fixed")   # v0.10: a merged PR references it; it may just not have been closed
+    if meta.get("pull_request_creation_policy") == "collaborators_only":
+        warnings.append("prs_collaborators_only")   # v0.10: only collaborators may open PRs (jsonschema, pallets)
     if any(v == CheckStatus.INCONCLUSIVE for v in checks.values()):
         warnings.append("lookup_failed")
     unsupported = ("not_python" if checks["python"] == CheckStatus.FAILED else
