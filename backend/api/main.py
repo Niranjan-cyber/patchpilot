@@ -513,4 +513,4 @@ def spa(path: str):
     index = DIST / "index.html"
     if not index.exists():
         raise ApiErr(503, "UI_NOT_BUILT", "Run `npm run build` in web/.")
-    return FileResponse(index)
+    return FileResponse(index, headers={"Cache-Control": "no-cache"})   # a deploy must reach open tabs; assets are hashed
