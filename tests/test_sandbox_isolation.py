@@ -82,3 +82,31 @@ def test_install_adds_the_plugin_an_addopts_flag_needs(tmp_path):   # tablib: --
         assert "pytest-socket" not in r.out and "pytest-xdist" not in r.out
     finally:
         docker.rm_volume(vol)
+
+
+def test_a_requirements_file_pip_cant_read_falls_through_to_the_project_extras(tmp_path):
+    # jsonpickle#150 (fb23743a): requirements-dev.txt holds ". --group benchmark", which pip rejects inside a -r file
+    (tmp_path / "requirements-dev.txt").write_text(".[dev,testing]\n. --group benchmark\n")
+    vol = project(tmp_path)
+    bad = STUB_PIP.replace("return 0; }", "case \"$*\" in *'-r requirements-dev.txt'*) return 1;; esac; return 0; }")
+    try:
+        r = run(bad + INSTALL + "\ncat /tmp/calls", snapshot_volume=vol, read_only=False)
+        assert "INSTALL_EXIT=0" in r.out and "pip install -q -e .[tests]" in r.out   # went on to the pyproject extras
+        assert "~ requirements-dev.txt failed" in r.out                             # and the log says so
+        assert "+ pip install -r requirements-dev.txt" not in r.out                 # never recorded as an install that took
+    finally:
+        docker.rm_volume(vol)
+
+
+def test_a_failing_requirements_file_still_fails_without_a_project_file(tmp_path):
+    (tmp_path / "requirements.txt").write_text("nope==0\n")
+    git = ["git", "-c", "user.name=t", "-c", "user.email=t@t", "-C", str(tmp_path)]
+    for a in (["init", "-q"], ["add", "-A"], ["commit", "-qm", "base"]):
+        subprocess.run(git + a, check=True, capture_output=True)
+    vol = f"pp-snap-test-{uuid.uuid4().hex[:6]}"
+    docker.make_snapshot(vol, str(tmp_path))
+    bad = STUB_PIP.replace("return 0; }", "case \"$*\" in *'-r '*) return 1;; esac; return 0; }")
+    try:
+        assert "INSTALL_EXIT=1" in run(bad + INSTALL, snapshot_volume=vol, read_only=False).out
+    finally:
+        docker.rm_volume(vol)

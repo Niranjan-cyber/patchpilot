@@ -153,7 +153,10 @@ def preflight(ctx: StepContext) -> GateResult:
 
 INSTALL = r"""cd /src
 ( for f in requirements.txt requirements-dev.txt requirements-test.txt requirements-tests.txt test-requirements.txt requirements/test.txt requirements/tests.txt requirements/dev.txt tests/requirements.txt; do
-    [ -f "$f" ] && { echo "+ pip install -r $f"; pip install -q -r "$f" || exit 1; }; done
+    # jsonpickle: a line pip can't read in a -r file (". --group x") shouldn't end setup when the project file can install it
+    [ -f "$f" ] || continue
+    if pip install -q -r "$f"; then echo "+ pip install -r $f"   # "+ " only for what took (EnvProfile.install_cmds)
+    else [ -f pyproject.toml ] || [ -f setup.py ] || exit 1; echo "~ $f failed; trying the project's own extras instead"; fi; done
   if [ -f pyproject.toml ] || [ -f setup.py ]; then
     # pip only warns (exit 0) on an extra the project doesn't have, so keep going until one really exists (#26)
     # only the install that took is logged as "+ " (EnvProfile.install_cmds); tries go to the log as "~ "
