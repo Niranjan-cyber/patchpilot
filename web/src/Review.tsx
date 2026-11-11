@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { motion } from "motion/react";
 import { api, ApiError, PUBLISH_LIMITED, useRun } from "./api";
-import { Loading } from "./components";
+import { Icon, Loading } from "./components";
 import { DiffView } from "./DiffView";
 import Explainer, { QuestionEvidence, type ExplainerData } from "./Explainer";
 import { RunHeader } from "./RunNav";
@@ -12,7 +12,8 @@ type Ctx = { revision: number; diff: string; diff_hash: string; evidence_hash: s
   help?: { explainer: ExplainerData | null; suggestions: Record<string, string> | null; fix_files: string[] | null } };
 
 // contracts v0.5 §2.3: required, 20+ characters each; never judged, never in the pull request.
-// #98: each shows its evidence and a visible suggestion; the field always starts empty and nothing copies the suggestion in.
+// #98: each shows a plain suggested answer from code templates; v0.11 (human decision 2026-11-11): "Use this answer" copies it
+// into the field to edit. The field still starts empty, so approving takes a deliberate click or typed words.
 const QUESTIONS = [
   ["what_was_broken", "What was broken?", "Maintainers first check that you understand the bug itself, not only the fix."],
   ["why_this_fix", "Why does this change fix it?", "This is what reviewers ask about most: why this change works, and why here."],
@@ -103,19 +104,30 @@ export default function Review() {
           ))}
         </fieldset>
         <fieldset>
-          <legend>In your own words (required)</legend>
-          <p className="hint">Maintainers may ask you about this change, so make sure you can explain it. A rough answer is fine. These stay in your report, not in the pull request.</p>
+          <legend>Can you explain it? (required)</legend>
+          <p className="hint">Maintainers may ask you about this change. Start from PatchPilot's answer if it helps, then make it yours. These stay in your report, not in the pull request.</p>
           {QUESTIONS.map(([k, q, why]) => (
             <div key={k} className="question">
               <label htmlFor={`q-${k}`}>{q}</label>
               <p className="hint" id={`q-${k}-why`}>{why}</p>
-              {ctx.help?.explainer && <QuestionEvidence q={k} e={ctx.help.explainer} fixFiles={ctx.help.fix_files ?? []} diff={ctx.diff} />}
-              {ctx.help?.suggestions && (
+              {ctx.help?.suggestions?.[k] && (
                 <div className="suggestion" id={`q-${k}-hint`}>
-                  <p className="suggestion-label">Suggestion from PatchPilot, based on this run's evidence. Write your own.</p>
+                  <p className="suggestion-label">PatchPilot's answer, from what this run recorded</p>
                   <p>{ctx.help.suggestions[k]}</p>
+                  <div className="suggestion-actions">
+                    <button type="button" className="secondary !min-h-9 !px-4 text-[13.5px]" disabled={answers[k] === ctx.help.suggestions[k]}
+                      onClick={() => setAnswers({ ...answers, [k]: ctx.help!.suggestions![k] })}>
+                      <Icon name={answers[k] === ctx.help.suggestions[k] ? "check" : "copy"} size={14} />{answers[k] === ctx.help.suggestions[k] ? "Added below" : "Use this answer"}</button>
+                    {ctx.help.explainer && (
+                      <details className="suggestion-evidence">
+                        <summary>Show the evidence</summary>
+                        <QuestionEvidence q={k} e={ctx.help.explainer} fixFiles={ctx.help.fix_files ?? []} diff={ctx.diff} />
+                      </details>
+                    )}
+                  </div>
                 </div>
               )}
+              {!ctx.help?.suggestions?.[k] && ctx.help?.explainer && <QuestionEvidence q={k} e={ctx.help.explainer} fixFiles={ctx.help.fix_files ?? []} diff={ctx.diff} />}
               <textarea id={`q-${k}`} rows={3} value={answers[k] ?? ""} placeholder="Your answer" maxLength={1000}
                 aria-describedby={`q-${k}-why${ctx.help?.suggestions ? ` q-${k}-hint` : ""}`}
                 onChange={(e) => setAnswers({ ...answers, [k]: e.target.value })} />

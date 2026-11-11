@@ -270,7 +270,7 @@ def suggestions(b, rid):
 def test_without_a_diagnosis_the_suggestion_says_the_cause_is_unknown(ready):
     s = suggestions(*ready[:2])
     assert set(s) == set(OWN)   # the same three keys the approval takes
-    assert "unknown" in s["why_this_fix"] and "src/a.py" in s["why_this_fix"]
+    assert "wasn't recorded" in s["why_this_fix"] and "src/a.py" in s["why_this_fix"]
     assert "Nothing was recorded" in s["what_was_broken"]   # the fixture recorded no expected/actual/test
     assert "No regression test was recorded" in s["what_the_test_proves"]
 
@@ -287,11 +287,10 @@ def test_suggestions_use_only_recorded_fields(ready):
     v.gates = {"G3": CheckStatus.PASSED, "G5": CheckStatus.NOT_RUN}
     db.save_run(c, v)
     s = suggestions(b, rid)
-    assert s["what_was_broken"] == ('The issue expects: x is 2. Instead: x is 1. The new test shows it: on the original code it fails '
-                                    'with "assert 1 == 2".')
-    assert s["why_this_fix"] == "PatchPilot's diagnosis (a claim, check it in the diff): x is assigned 1. The change edits src/a.py."
-    assert s["what_the_test_proves"] == ("The new test tests/test_a.py::test fails on the original code (2 of 2 runs) and was not "
-                                         "shown to pass with the fix (verification: not run). The hidden variant wasn't run. "
+    assert s["what_was_broken"] == "It should: x is 2. Instead: x is 1. The new test fails on the original code, which confirms it."
+    assert s["why_this_fix"] == "x is assigned 1. The fix changes src/a.py to correct that."
+    # not shown to pass: no strong claim, and only the most serious caveat
+    assert s["what_the_test_proves"] == ("The new test fails without the fix, but it wasn't shown to pass with it. "
                                          "It doesn't check: negative x.")
 
 
@@ -360,40 +359,39 @@ def _run_with(b, rid, **kw):
 def test_q1_claims_the_failure_only_when_reproduction_passed(ready):
     b, rid, _ = ready
     s = _run_with(b, rid, expected="x is 2", actual="x is 1", g3=CheckStatus.INCONCLUSIVE)
-    assert s["what_was_broken"] == ('The issue expects: x is 2. Instead: x is 1. The test was written to fail with "assert 1 == 2", '
-                                    "but that wasn't confirmed (reproduction: inconclusive).")
+    assert s["what_was_broken"] == ("It should: x is 2. Instead: x is 1. Not confirmed yet: the new test wasn't shown to fail on "
+                                    "the original code.")
     s = _run_with(b, rid, expected="x is 2.", actual="x is 1.")   # a recorded period isn't doubled
-    assert s["what_was_broken"] == ('The issue expects: x is 2. Instead: x is 1. The new test shows it: on the original code it '
-                                    'fails with "assert 1 == 2".')
+    assert s["what_was_broken"] == "It should: x is 2. Instead: x is 1. The new test fails on the original code, which confirms it."
 
 
 def test_q1_uses_whichever_side_was_recorded(ready):
     b, rid, _ = ready
     assert _run_with(b, rid, expected="x is 2")["what_was_broken"].startswith(
-        "The issue expects: x is 2. The issue doesn't say what happens instead.")
+        "It should: x is 2. The issue doesn't say what happens instead.")
     assert _run_with(b, rid, actual="x is 1", g3=CheckStatus.NOT_RUN)["what_was_broken"].startswith(
-        "Instead of the right behaviour (the issue doesn't say what that is): x is 1.")
+        "What goes wrong: x is 1. The issue doesn't say what should happen instead.")
 
 
 def test_q3_says_the_bug_cant_come_back_only_when_every_check_backs_it(ready):
     b, rid, _ = ready
-    strong = "so the bug can't come back without it failing"
+    strong = "can't come back"
     assert strong in _run_with(b, rid)["what_the_test_proves"]
     s = _run_with(b, rid, variant=CheckStatus.FAILED)["what_the_test_proves"]
-    assert strong not in s and s.endswith("but the fix fails a hidden variant of the test, so it may only cover the exact tested case.")
+    assert strong not in s and s.endswith("A variant of the test still fails, so the fix may only cover the exact case tested.")
     s = _run_with(b, rid, regressions=["tests/test_b.py::t"])["what_the_test_proves"]
     assert strong not in s and "1 existing test broke" in s
     s = _run_with(b, rid, uncovered=None)["what_the_test_proves"]
-    assert strong not in s and s.endswith("Coverage of the issue wasn't checked.")
+    assert strong not in s and s.endswith("We didn't check that it covers everything the issue describes.")
 
 
-def test_q3_names_every_test_and_q2_needs_a_real_claim(ready):
+def test_q3_counts_every_test_and_q2_needs_a_real_claim(ready):
     b, rid, _ = ready
     s = _run_with(b, rid, tests=["t::a", "t::b"], claim="  ")
-    assert s["what_the_test_proves"].startswith("The new tests t::a, t::b fail on the original code (2 of 2 runs)")
-    assert s["why_this_fix"].startswith("The cause is unknown")
+    assert s["what_the_test_proves"].startswith("The 2 new tests fail without the fix and pass with it")
+    assert s["why_this_fix"].startswith("The cause wasn't recorded")
     assert _run_with(b, rid, claim="x is assigned 1")["why_this_fix"].startswith(
-        "PatchPilot's diagnosis (a claim, check it in the diff): x is assigned 1. The change edits src/a.py.")
+        "x is assigned 1. The fix changes src/a.py to correct that.")
 
 
 def test_failing_suggestions_leave_the_explainer(ready, monkeypatch):

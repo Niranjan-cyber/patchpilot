@@ -7,7 +7,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-CONTRACTS_VERSION = "0.10"   # v0.10 = G0 already_fixed + prs_collaborators_only; v0.9 = #120 G2 partial_collection; v0.8 = #100 PUBLISH_NOT_ALLOWED, #103 revise from the PR feedback plan; v0.7 = ReproTest.uncovered; v0.6 = Revise target fix|test; v0.5 = #70 maintainer consent + required ownership answers (PROPOSED); v0.4 = #50
+CONTRACTS_VERSION = "0.11"   # v0.11 = "Use this answer" copies the template answer (§2.3); v0.10 = G0 already_fixed + prs_collaborators_only; v0.9 = #120 G2 partial_collection; v0.8 = #100 PUBLISH_NOT_ALLOWED, #103 revise from the PR feedback plan; v0.7 = ReproTest.uncovered; v0.6 = Revise target fix|test; v0.5 = #70 maintainer consent + required ownership answers (PROPOSED); v0.4 = #50
 
 
 class StepId(str, Enum):
