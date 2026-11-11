@@ -130,3 +130,9 @@ def test_a_change_accepted_at_approve_is_not_blocked_again_at_publish(tmp_path, 
     assert A.stale_checks(v, "") == []
     monkeypatch.setattr(A.reader, "check_issue", lambda url, extract_model=True: mk(W(claimants=["bob", "carol"])))
     assert A.stale_checks(v, "") == [A.PublishBlocker.ISSUE_CHANGED]   # something newer than what was accepted still blocks
+
+
+def test_a_blocked_approval_names_only_what_blocks_in_words():
+    msg = A.blocked_message([A.PublishBlocker.NOT_APPROVED, A.PublishBlocker.NO_MAINTAINER_CONSENT, A.PublishBlocker.ISSUE_CHANGED])
+    assert "not_approved" not in msg and "no_maintainer_consent" not in msg and "issue_changed" not in msg
+    assert "pull request" in msg and "Approve anyway" in msg

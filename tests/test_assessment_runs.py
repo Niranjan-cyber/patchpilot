@@ -143,3 +143,11 @@ def test_saved_assessment_says_saved_not_ready(monkeypatch):
 def test_unsupported_without_an_assessment_fails_closed(monkeypatch):
     chk = check(checks={**OK, "python": S.FAILED}, unsupported="not_python").model_copy(update={"assessment": None})
     assert post(monkeypatch, chk).status_code == 422
+
+
+def test_warnings_accepted_at_the_start_are_not_an_issue_change_later(monkeypatch):
+    # tablib#723 (d971a7b0): the user accepted linked_pr to start; at Approve the same PR made ISSUE_CHANGED, approval locked
+    import json
+    chk = check(warnings=("linked_pr",))
+    v = post(monkeypatch, chk, continue_despite=["linked_pr"]).json()
+    assert json.loads(db.get_kv(db.connect(), f"issue_change_accepted:{v['run_id']}")) == ["linked_pr"]

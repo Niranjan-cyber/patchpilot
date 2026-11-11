@@ -69,8 +69,8 @@ export default function Review() {
   const answered = QUESTIONS.every(([k]) => (answers[k] ?? "").trim().length >= MIN);
   const ready = BOXES.filter(([k]) => boxes[k]).length + QUESTIONS.filter(([k]) => (answers[k] ?? "").trim().length >= MIN).length;
   const total = BOXES.length + QUESTIONS.length;
-  const approve = async () => {
-    const r = await post(`/api/runs/${id}/approve`, { revision: ctx.revision, diff_hash: ctx.diff_hash, evidence_hash: ctx.evidence_hash,
+  const approve = async (anyway = false) => {
+    const r = await post(`/api/runs/${id}/approve${anyway ? "?accept_issue_changed=true" : ""}`, { revision: ctx.revision, diff_hash: ctx.diff_hash, evidence_hash: ctx.evidence_hash,
       checklist: boxes, explanation: null,
       ownership: Object.fromEntries(QUESTIONS.map(([k]) => [k, (answers[k] ?? "").trim()])), pr_title: title, pr_summary: summary }, "Checking nothing changed upstream…");
     if (r) nav(`/connect?run=${id}`);
@@ -144,10 +144,13 @@ export default function Review() {
           </div>
         </div>
         <div className="row !mt-0">
-          <button onClick={approve} disabled={!allTicked || !answered || !!busy || hard.length > 0}>{busy ?? "Approve this change"}</button>
+          <button onClick={() => approve()} disabled={!allTicked || !answered || !!busy || hard.length > 0}>{busy ?? "Approve this change"}</button>
           <button className="secondary-btn" onClick={() => post(`/api/runs/${id}/keep-report`).then(() => nav(`/runs/${id}`))}>Keep the report only</button>
         </div>
         {err && <p className="notice warn">{err.message}</p>}
+        {/* the issue moved after the run (a new PR, a claim, closed): the user may still approve, knowingly */}
+        {ctx.publish_blockers.includes("issue_changed") && allTicked && answered && !busy && (
+          <button className="secondary-btn" onClick={() => approve(true)}>Approve anyway</button>)}
       </div>
 
       <div className="card form">
