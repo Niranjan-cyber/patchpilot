@@ -89,17 +89,37 @@ def _words(text: str) -> set[str]:
     return {w for w in re.findall(r"[a-z][a-z0-9_]+", (text or "").lower()) if len(w) >= 4 and w not in _STOP}
 
 
+# code names in an issue title: `merge_tree()`, intword: …, jwt.decode(, max_rounds (humanize#356 vs open #475)
+CODE_ID = re.compile(r"`([A-Za-z_][\w.]*)|\b([A-Za-z_][\w.]*)\(|^\W*([A-Za-z_][\w.]*):|\b([a-z]+_[a-z0-9_]+)\b")
+
+
+def _code_ids(title: str) -> set[str]:
+    return {x.lower().rstrip(".") for m in CODE_ID.finditer(title or "") for x in m.groups() if x and len(x) >= 4}
+
+
+def commented_open_prs(comments, pulls) -> list[int]:
+    """Open PRs a commenter points to ("#2510 is already open", pip-tools#2509): the PR itself may never name the issue.
+    Quoted lines don't count. Only numbers that ARE open PRs here, so an issue reference ("dup of #17") never matches."""
+    open_ = {p["number"] for p in pulls if isinstance(p, dict) and isinstance(p.get("number"), int)} if isinstance(pulls, list) else set()
+    refs = set()
+    for cm in comments if isinstance(comments, list) else []:
+        text = "\n".join(l for l in ((cm or {}).get("body") or "").splitlines() if not l.lstrip().startswith(">"))
+        refs |= {int(n) for n in re.findall(r"(?<![\w/&])#(\d+)\b", text)}
+    return sorted(refs & open_)
+
+
 def mentioning_open_prs(pulls: list, repo: str, num: int, title: str, *, title_words: bool = True) -> list[int]:
     """Open PRs that likely fix this issue without a timeline cross-reference (A's P1, 2026-11-08: python-dotenv #715,
     jmespath #381). A hit is only the overridable linked_pr warning ("lookups can be wrong"), never a block.
     shortcut: the newest 100 open PRs and a 2-shared-title-words rule; upgrade to the search API if it misses real cases."""
     ref = re.compile(rf"(?<![\w/])#{num}\b|{re.escape(repo)}/issues/{num}\b", re.I)
-    want, out = _words(title), []
+    want, ids, out = _words(title), _code_ids(title), []
     for p in pulls if isinstance(pulls, list) else []:
         if not isinstance(p, dict) or not isinstance(p.get("number"), int):
             continue
         text = f"{p.get('title') or ''}\n{p.get('body') or ''}"
-        if ref.search(text) or (title_words and len(want & _words(p.get("title") or "")) >= 2):
+        pt = (p.get("title") or "").lower()
+        if ref.search(text) or (title_words and (len(want & _words(pt)) >= 2 or any(re.search(rf"(?<![\w.]){re.escape(x)}(?![\w])", pt) for x in ids))):
             out.append(p["number"])
     return sorted(out)
 
@@ -233,7 +253,8 @@ def check_issue(url: str, *, extract_model: bool = True) -> IssueCheck:
     tests = tests or bool(deep)
     title = issue.get("title") or ""
     # timeline cross-references + open PRs that name the issue or share its title (cross-references can be missing)
-    found = set(linked_open_prs(timeline) if isinstance(timeline, list) else []) | set(mentioning_open_prs(pulls, repo, num, title))
+    found = (set(linked_open_prs(timeline) if isinstance(timeline, list) else []) | set(mentioning_open_prs(pulls, repo, num, title))
+             | set(commented_open_prs(comments, pulls)))
     linked = sorted(found) if found or isinstance(timeline, list) else None   # nothing found and no timeline = unknown
     exp, act = expected_actual(issue.get("body") or "")
     lookup = lambda ok_val, known: CheckStatus.PASSED if (known and ok_val) else (CheckStatus.FAILED if known else CheckStatus.INCONCLUSIVE)

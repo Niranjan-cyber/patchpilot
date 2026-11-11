@@ -170,3 +170,31 @@ def test_g0_warns_when_already_fixed_or_prs_are_collaborators_only(monkeypatch):
     chk = R.check_issue("https://github.com/o/r/issues/3")
     assert {"already_fixed", "prs_collaborators_only"} <= set(chk.warnings)
     assert "already_fixed" in chk.assessment.decision_reasons   # ALREADY_ADDRESSED unless a human-decision reason outranks it
+
+
+def test_an_open_pr_on_the_same_function_counts_as_existing_work():
+    # humanize#356 "intword: …" vs open #475 "Extend intword through untrigintillion": one shared word, but it's the function
+    from backend.github.reader import mentioning_open_prs
+    pulls = [{"number": 475, "title": "Extend intword through untrigintillion", "body": ""},
+             {"number": 9, "title": "Fix naturalsize rounding", "body": ""}]
+    assert mentioning_open_prs(pulls, "o/r", 356, "intword: values between 10^36 and a googol format as huge decillion counts") == [475]
+    assert mentioning_open_prs(pulls, "o/r", 1, "`merge_tree()` fails with symlinks") == []        # names a different function
+    pulls.append({"number": 12, "title": "merge_tree: overwrite existing symlinks", "body": ""})
+    assert mentioning_open_prs(pulls, "o/r", 1, "`merge_tree(symlinks=True)` cannot overwrite a symlink") == [12]
+
+
+def test_plain_title_words_alone_still_need_two_in_common():
+    from backend.github.reader import mentioning_open_prs
+    pulls = [{"number": 5, "title": "Improve values handling", "body": ""}]
+    assert mentioning_open_prs(pulls, "o/r", 1, "Wrong values when parsing dates") == []
+
+
+def test_a_comment_pointing_at_an_open_pr_counts_as_existing_work():
+    # pip-tools#2509: "#2510 is already open and does this" in a comment; the PR itself never names the issue
+    from backend.github.reader import commented_open_prs
+    pulls = [{"number": 2510, "title": "Use IntRange for --max-rounds", "body": ""}]
+    comments = [{"body": "👍 Thanks! #2510 is already open and does this."},
+                {"body": "> see #2510\nquoted only"}, {"body": "dup of #17"}]
+    assert commented_open_prs(comments, pulls) == [2510]
+    assert commented_open_prs([{"body": "> #2510 is open"}], pulls) == []   # a quote isn't the commenter's claim
+    assert commented_open_prs(None, pulls) == [] and commented_open_prs(comments, None) == []

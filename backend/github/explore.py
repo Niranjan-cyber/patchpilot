@@ -12,6 +12,8 @@ BUGGY = re.compile(r"\b(?:wrong|incorrect|fails?|failing|broken|bug|unexpected(?
 NOT_RUNNABLE = re.compile(r"\b(?:document(?:ation)?|docs?|feature request|add support|would be nice|proposal|typo|"
                           r"question|discussion|rfc)\b", re.I)
 OTHER_OS = re.compile(r"\b(?:on windows|windows only|winerror|cmd\.exe|powershell|on macos|macos only|on mac\b|darwin)\b", re.I)
+# Explore-only (intake keeps its stricter rule): a title that asks for something new, unless it also describes an error
+FEATURE_TITLE = re.compile(r"^\W*(?:add|support|extend|publish|implement|allow|enable|introduce|improve|make)\b|\b(?:roadmap|tracking issue)\b", re.I)
 STEPS = re.compile(r"(?im)^\W*(?:steps to reproduce|to reproduce|reproduc\w*|minimal example|mcve)\b")
 MAX_SUGGESTIONS, CANDIDATES = 5, 8
 
@@ -39,7 +41,11 @@ def score_issue(i: dict) -> dict:
         sig.append("has_code"); score += 1; reasons.append("Includes a code example")
     if BUGGY.search(text):
         score += 1
-    if NOT_RUNNABLE.search(title) or (NOT_RUNNABLE.search(body) and not ERROR.search(text)):
+    from backend.github.assess import FIXABLE, keyword_type   # late: assess imports this module
+    kind = keyword_type(title, body, [l.get("name") or "" for l in i.get("labels") or [] if isinstance(l, dict)])[0]
+    if (NOT_RUNNABLE.search(title) or (NOT_RUNNABLE.search(body) and not ERROR.search(text))
+            or (kind not in (None, "unknown") and kind not in FIXABLE)          # the same labels/keywords intake reads
+            or (FEATURE_TITLE.search(title) and not ERROR.search(text))):
         sig.append("not_a_bug"); score -= 3; reasons.append("Looks like docs or a feature request, not a bug")
     if OTHER_OS.search(text):
         sig.append("other_os"); score -= 2; reasons.append("Seems to happen only on Windows or macOS; our sandbox runs Linux")
