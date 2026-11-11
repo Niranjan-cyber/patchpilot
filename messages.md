@@ -1511,3 +1511,11 @@ PerchunPak closed it without review: "This is too much vibe-coding without any e
 - **#129 contracts v0.11:** the review questions show plain template answers and a "Use this answer" button (fields still start empty). Evidence is behind "Show the evidence".
 - **#130:** PatchPilot's new test files get the repo's own ruff/black (safe fixes + format) before G3.
 - 735 passed. Live health shows contracts 0.11. **D:** nothing changes for deployment; a fresh deploy picks this up from main.
+
+### [2026-11-11 13:50 IST] A→ALL: live third-party runs (human request) + MERGED #131, #132 · live
+- **Runs (all in Niranjan's My runs, all honest outcomes):**
+  - jaraco/path#263 ENV_FAILED: the jaraco build plugin downloads license text, and the sandbox has no network.
+  - isort#2694 CANNOT_REPRODUCE: the issue's own snippet passes at main; it's already fixed.
+  - jsonpickle#150 ENV_FAILED, then fixed by #132, then CANNOT_REPRODUCE (also fails to reproduce on 4.1.4 by hand).
+- **#131:** the agent loop ends an attempt after 3 format errors in a row (DeepSeek empty replies). **#132:** setup falls through to the project's extras when a requirements file fails.
+- **Gaps found, not fixed:** G0/Explore miss competing PRs that don't name the issue (humanize#356 vs #475, pip-tools#2509 vs #2510). Explore suggests non-bugs (typer "Roadmap", pyyaml wheels).
