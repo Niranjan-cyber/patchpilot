@@ -192,6 +192,7 @@ def test_a_pr_that_missed_the_budget_is_read_first_next_time(c, monkeypatch):
         return {"state": "open", "ci": None, "partial": False, "last_activity_at": None, "feedback": []}
     monkeypatch.setattr(P, "_client", github({}))
     monkeypatch.setattr(P, "snapshot", one_per_call)
+    monkeypatch.setattr(P, "WORKERS", 1)                     # more PRs than threads: oldest-checked first
     first = P.refresh(c, [v, w], budget=8)
     order.append((None, "next"))
     second = P.refresh(c, [v, w], budget=8)
@@ -314,3 +315,23 @@ def test_old_head_check_runs_are_pruned_when_the_head_moves(c, monkeypatch):
     db.put_kv(c, f"pr_track:{v.run_id}", json.dumps({**P.tracked(c, v.run_id), "checked_at": ""}))
     P.refresh(c, [v])
     assert db.get_kv(c, old_key) is None and P.tracked(c, v.run_id)["head"] == "f" * 40
+
+
+def test_prs_are_read_in_parallel_so_many_open_prs_fit_the_budget(c, monkeypatch):
+    # My runs showed "GitHub didn't tell us the full status of 3 pull requests": 6 open PRs x 5 reads didn't fit 8 s
+    import time as t
+    base, nums = opened(), range(200, 206)
+    routes = {k.replace(f"/{N}", f"/{n}"): v for n in nums for k, v in base.items()}
+    def slow(path):
+        def h(req):
+            t.sleep(0.1)
+            return httpx.Response(200, json=routes[path])
+        return h
+    monkeypatch.setattr(P, "_client", github({k: slow(k) for k in routes}))
+    runs = []
+    for n in nums:
+        v = new_run(c)
+        v.pr = v.pr.model_copy(update={"number": n, "url": f"https://github.com/{REPO}/pull/{n}"})
+        runs.append(v)
+    out = P.refresh(c, runs, budget=1.5)                 # one at a time: 6 PRs x 5 reads x 0.1 s = 3 s
+    assert all(o["state"] == "open" for o in out.values())

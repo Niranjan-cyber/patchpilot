@@ -2,6 +2,7 @@
 A PR status GitHub didn't give us is None ("Status unavailable"), never open/closed as a guess."""
 import json
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 
 import httpx
@@ -15,6 +16,7 @@ FAILED = {"failure", "timed_out", "action_required"}
 DONE = {"merged", "closed"}     # re-read only once a day (a closed PR can be reopened)
 DONE_RECHECK = 24 * 3600
 PAGE = 100                      # one page per list; a full page may hide more, so the read counts as partial
+WORKERS = 6   # parallel PR reads on My runs (GitHub allows ~100 concurrent requests per token)
 NO_REVIEW = "review_unavailable"   # open PR whose reviews we couldn't read: never shown as plain "open"
 REVIEW = {"CHANGES_REQUESTED": "Changes requested", "APPROVED": "Approved", "COMMENTED": "Review"}
 
@@ -152,23 +154,30 @@ def refresh(c, runs: list[RunView], *, budget: float | None = None) -> dict[str,
     want = sorted((v for v in todo if _due(out[v.run_id])), key=lambda v: out[v.run_id].get("checked_at") or "")
     if not want:
         return out
-    stop, limited, read = (time.monotonic() + budget) if budget else None, False, {}
+    stop, read = (time.monotonic() + budget) if budget else None, {}
+
+    def one(v):   # PRs in parallel: one at a time, 6 open PRs x 5 reads missed the 8 s My runs budget
+        cc = db.connect()   # sqlite connections can't be shared across threads
+        try:
+            with _client() as h:
+                return snapshot(cc, h, v.issue.repo, v.pr.number, stop)
+        finally:
+            cc.close()
     try:
-        with _client() as h:
-            for v in want:
-                k = key(v)
-                if k not in read:
-                    snap = None
-                    if not limited:
-                        try:
-                            snap = snapshot(c, h, v.issue.repo, v.pr.number, stop)
-                        except GitHubError:
-                            limited = True
-                        except OutOfTime:
-                            break
-                        except Exception as e:     # one odd PR (non-JSON 200, malformed item) never stops the rest
-                            print(f"PR read failed for {k}: {e!r}", flush=True)
-                    read[k] = snap
+        with ThreadPoolExecutor(max_workers=WORKERS) as ex:
+            futs = {k: ex.submit(one, v) for k, v in {key(v): v for v in want}.items()}   # a shared PR is read once
+        for k, f in futs.items():
+            try:
+                read[k] = f.result()
+            except GitHubError:              # rate limited: unavailable now, last feedback kept
+                read[k] = None
+            except OutOfTime:                # not stored, so the next load retries it
+                pass
+            except Exception as e:           # one odd PR (non-JSON 200, malformed item) never stops the rest
+                print(f"PR read failed for {k}: {e!r}", flush=True)
+                read[k] = None
+        for v in want:
+            if (k := key(v)) in read:
                 _prune(c, v.issue.repo, out[v.run_id].get("head"), (read[k] or {}).get("head"))
                 out[v.run_id] = {**merge(out[v.run_id], read[k]), "checked_at": db.now().isoformat()}
                 db.put_kv(c, f"pr_track:{v.run_id}", json.dumps(out[v.run_id]))
